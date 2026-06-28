@@ -4,7 +4,7 @@
 > Marcar `[x]` ao concluir. Adicionar novas tarefas quando surgirem.
 > Antes de iniciar uma nova fase: parar, resumir o que foi feito e aguardar aprovação.
 
-**Fase atual:** Fase 1B-1 concluída → aguardando aprovação para a Fase 1B-2.
+**Fase atual:** Fase 1B-2 (sub-receitas) concluída → aguardando aprovação para a Fase 1B-3 (medidas caseiras).
 
 ## Fase 0 — Setup e documentação ✅
 - [x] Criar projeto em C:\dev\doce-margem
@@ -43,9 +43,18 @@
 - [x] Criar exemplo do brigadeiro + validação (`modules/pricing/examples.ts`)
 - [x] Rodar `typecheck` + `lint` e validar o exemplo
 
-### Fase 1B-2 — Sub-receitas, medidas caseiras e mais exemplos (pendente)
-- [ ] Sub-receitas (receita usada como ingrediente de outra)
-- [ ] Medidas caseiras (xícara, colher de sopa/chá/café)
+### Fase 1B-2 — Sub-receitas ✅
+- [x] Item de receita como união discriminada (ingrediente × sub-receita)
+- [x] Tipos de sub-receita (`SubRecipeItem`, `CalculatedSubRecipeItem`, etc.)
+- [x] Cálculo recursivo de sub-receita (custo por unidade de rendimento)
+- [x] Uso parcial de sub-receita dentro de outra receita
+- [x] Proteção contra referência circular (direta e indireta) — código `CIRCULAR_REFERENCE`
+- [x] Validações de sub-receita (inexistente, inválida, unidade, rendimento)
+- [x] Exemplo Recheio de brigadeiro + Brownie com recheio + validação
+- [x] Rodar `typecheck` + `lint`
+
+### Fase 1B-3 — Medidas caseiras e mais exemplos (pendente)
+- [ ] Medidas caseiras (xícara, colher de sopa/chá/café) + densidades
 - [ ] Dados de exemplo de receitas adicionais (Brownie Ferrero, Cookie Kinder)
 
 ### Fase 1C — Canais, custos fixos e pricing engine (pendente)

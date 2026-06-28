@@ -30,6 +30,14 @@ const TO_CANONICAL_FACTOR: Record<PurchaseUnit, number> = {
   un: 1,
 };
 
+/** Lista das unidades de compra conhecidas. */
+const PURCHASE_UNITS: readonly PurchaseUnit[] = ["g", "kg", "ml", "l", "un"];
+
+/** Type guard: indica se uma string é uma unidade de compra conhecida. */
+export function isPurchaseUnit(value: string): value is PurchaseUnit {
+  return (PURCHASE_UNITS as readonly string[]).includes(value);
+}
+
 /** Retorna a dimensão física de uma unidade. */
 export function getUnitDimension(unit: PurchaseUnit): UnitDimension {
   return UNIT_DIMENSION[unit];

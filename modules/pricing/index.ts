@@ -21,8 +21,13 @@ export type {
   ValidationError,
   ValidationErrorCode,
   CalculationResult,
+  RecipeItemKind,
+  IngredientRecipeItem,
+  SubRecipeItem,
   RecipeItem,
   Recipe,
+  CalculatedIngredientItem,
+  CalculatedSubRecipeItem,
   CalculatedRecipeItem,
   CalculatedRecipe,
 } from "@/types/pricing";

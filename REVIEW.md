@@ -76,7 +76,29 @@
   - Guard defensivo (`throw`) em `calculateRecipe` para invariante já garantida por `validateRecipe` — não deve ser atingido.
 - **Pendências:** sub-receitas, medidas caseiras, exemplos adicionais de receitas (Fase 1B-2).
 
-#### Fase 1B-2 — Sub-receitas, medidas caseiras e mais exemplos
+#### Fase 1B-2 — Sub-receitas
+- **Status:** ✅ Concluída
+- **O que foi feito:**
+  - `types/pricing.ts`: item de receita virou **união discriminada** por `kind` — `IngredientRecipeItem` | `SubRecipeItem` (= `RecipeItem`). Itens calculados também: `CalculatedIngredientItem` | `CalculatedSubRecipeItem` (= `CalculatedRecipeItem`). Novo código de erro `CIRCULAR_REFERENCE`.
+  - `modules/pricing/units.ts`: helper `isPurchaseUnit` (type guard).
+  - `modules/pricing/recipe-validators.ts`: validação recursiva de sub-receitas + detecção de ciclo via conjunto de ancestrais; `isUnitCompatibleWithYield`.
+  - `modules/pricing/recipes.ts`: `calculateRecipe` agora aceita `recipesById` e calcula sub-receitas recursivamente; guard de invariante contra ciclo.
+  - `modules/pricing/examples.ts`: Recheio de brigadeiro (rendimento 500 g) + Brownie com recheio + `runSubRecipeValidations`/`allSubRecipeExamplesPass`.
+  - `modules/pricing/index.ts`: reexporta os novos tipos.
+- **Como a sub-receita é calculada:** custo por unidade de rendimento = custo total com perda ÷ rendimento. Uso parcial: custo do item = quantidade (convertida p/ a unidade de rendimento) × custo por unidade de rendimento.
+- **Bloqueio de ciclo:** durante a validação, cada chamada recursiva carrega um `Set` com os ids do caminho atual; se a receita já estiver no conjunto, emite `CIRCULAR_REFERENCE` e para. Pega ciclos diretos (A↔B) e indiretos (A→B→C→A).
+- **Validações executadas (todas PASS):**
+  - Recheio custo por g R$ 0,0186; Brownie: recheio R$ 2,79, total R$ 8,59, unitário R$ 0,859.
+  - Ciclo direto e indireto bloqueados; sub-receita inexistente e sub-receita com rendimento 0 rejeitadas.
+  - `npm run typecheck` → exit 0; `npm run lint` → exit 0.
+- **Decisão de implementação:** mantive a lógica de sub-receita dentro de `recipes.ts`/`recipe-validators.ts` (não criei `sub-recipes.ts`), pois a recursão é intrínseca ao cálculo/validação de receita — separar fragmentaria a lógica e exigiria expor o estado de ancestrais. Registrado em DECISIONS.md.
+- **Problemas encontrados:** os diagnostics do editor apareceram defasados durante a refatoração da união (apontando linhas da versão anterior); o `npm run typecheck` final ficou limpo.
+- **Riscos:**
+  - Float (ex.: 2,7899…); mitigado por tolerância `RECIPE_EPSILON`.
+  - Guard `throw` em `calculateRecipeUnchecked` para invariante já garantida pela validação.
+- **Pendências:** medidas caseiras + densidades, exemplos adicionais (Fase 1B-3).
+
+#### Fase 1B-3 — Medidas caseiras e mais exemplos
 - **Status:** ⏳ Não iniciada (aguardando aprovação)
 
 ### Fase 2 — Interface Essencial

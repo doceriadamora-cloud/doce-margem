@@ -115,3 +115,19 @@ Manter o projeto enxuto no início e evitar instalar dependências antes de nece
 
 ### Impacto
 Técnico: as validações vivem em `modules/pricing/examples.ts` (puras e reutilizáveis). A execução de prova roda fora do projeto (diretório temporário), sem poluir o repositório. Quando a complexidade crescer (receitas, canais, engine), avaliar um framework de testes formal.
+
+---
+
+## 2026-06-28 — Item de receita como união discriminada e sub-receitas recursivas
+
+### Decisão
+Um item de receita é uma **união discriminada** por `kind`: `IngredientRecipeItem` (`kind: "ingredient"`) ou `SubRecipeItem` (`kind: "subRecipe"`). O cálculo de receita é **recursivo** (sub-receita resolvida como receita e usada pelo custo por unidade de rendimento) e protegido contra **referência circular** via um conjunto de ancestrais no caminho de cálculo (código de erro `CIRCULAR_REFERENCE`). A lógica de sub-receita fica em `recipes.ts`/`recipe-validators.ts` — sem arquivo `sub-recipes.ts` separado.
+
+### Contexto
+A Fase 1B-2 exigiu permitir que uma receita use outra como item (ex.: Brownie usa Recheio de brigadeiro), preservando os cálculos das fases 1A e 1B-1.
+
+### Motivo
+A união discriminada deixa o modelo explícito e seguro em tipos (o `kind` estreita o tipo e evita campos opcionais ambíguos). A recursão é a forma natural de compor custo de sub-receitas. A detecção de ciclo por ancestrais é simples, cobre ciclos diretos e indiretos e não dá falso-positivo em grafos em diamante (DAG). Manter tudo em `recipes.ts` evita fragmentar a recursão e expor estado interno (ancestrais).
+
+### Impacto
+Técnico: `RecipeItem`/`CalculatedRecipeItem` passaram a ser uniões; `calculateRecipe`/`validateRecipe` agora recebem também `recipesById`. Consumidores devem checar `item.kind` antes de acessar campos específicos. Base pronta para canais/pricing engine consumirem o custo unitário de qualquer receita (com ou sem sub-receitas).

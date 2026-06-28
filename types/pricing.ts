@@ -70,7 +70,8 @@ export type ValidationErrorCode =
   | "EMPTY"
   | "OUT_OF_RANGE"
   | "NOT_FOUND"
-  | "INVALID_INGREDIENT";
+  | "INVALID_INGREDIENT"
+  | "CIRCULAR_REFERENCE";
 
 /** Erro de validação de um campo. */
 export interface ValidationError {
@@ -90,13 +91,17 @@ export type CalculationResult<T> =
   | { ok: true; value: T }
   | { ok: false; errors: ValidationError[] };
 
-/* ─────────────────────────── Receitas (Fase 1B-1) ─────────────────────────── */
+/* ──────────────────── Receitas (Fase 1B-1 + sub-receitas 1B-2) ──────────────────── */
+
+/** Discriminador do tipo de item de receita. */
+export type RecipeItemKind = "ingredient" | "subRecipe";
 
 /**
- * Item de uma receita: referência a um ingrediente e quanto dele é usado.
- * Os campos derivados (fator de correção e custo) ficam em `CalculatedRecipeItem`.
+ * Item de receita baseado em INGREDIENTE.
+ * Os campos derivados (fator de correção e custo) ficam em `CalculatedIngredientItem`.
  */
-export interface RecipeItem {
+export interface IngredientRecipeItem {
+  kind: "ingredient";
   /** Id do ingrediente referenciado (deve existir na coleção de ingredientes). */
   ingredientId: string;
   /** Nome do ingrediente (para exibição e mensagens). */
@@ -108,8 +113,27 @@ export interface RecipeItem {
 }
 
 /**
- * Receita simples (Fase 1B-1): lista de itens, rendimento e perda de produção.
- * Sub-receitas e medidas caseiras NÃO entram nesta subfase.
+ * Item de receita baseado em SUB-RECEITA (uma receita usada dentro de outra).
+ * A sub-receita é calculada e seu custo por unidade de rendimento é aplicado.
+ */
+export interface SubRecipeItem {
+  kind: "subRecipe";
+  /** Id da sub-receita referenciada (deve existir na coleção de receitas). */
+  subRecipeId: string;
+  /** Nome da sub-receita (para exibição e mensagens). */
+  subRecipeName: string;
+  /** Quantidade usada da sub-receita, na unidade `unit`. */
+  quantityUsed: number;
+  /** Unidade da quantidade usada (deve ser compatível com a unidade de rendimento da sub-receita). */
+  unit: PurchaseUnit;
+}
+
+/** Item de receita: ingrediente OU sub-receita (união discriminada por `kind`). */
+export type RecipeItem = IngredientRecipeItem | SubRecipeItem;
+
+/**
+ * Receita: lista de itens (ingredientes e/ou sub-receitas), rendimento e perda.
+ * Medidas caseiras NÃO entram nesta subfase.
  */
 export interface Recipe {
   /** Identificador da receita. */
@@ -118,7 +142,7 @@ export interface Recipe {
   name: string;
   /** Itens (pelo menos 1). */
   items: RecipeItem[];
-  /** Rendimento: quantas unidades/porções a receita produz (> 0). */
+  /** Rendimento: quantas unidades/porções/gramas a receita produz (> 0). */
   yieldQuantity: number;
   /** Unidade do rendimento (ex.: "un", "porções", "g"). */
   yieldUnit: string;
@@ -128,10 +152,11 @@ export interface Recipe {
   notes?: string;
 }
 
-/** Item de receita após o cálculo de custo. */
-export interface CalculatedRecipeItem {
+/** Item de ingrediente após o cálculo de custo. */
+export interface CalculatedIngredientItem {
+  kind: "ingredient";
   /** Item de origem. */
-  item: RecipeItem;
+  item: IngredientRecipeItem;
   /** Fator de correção vindo do ingrediente. */
   correctionFactor: number;
   /** Quantidade usada convertida para a unidade-base do ingrediente. */
@@ -143,6 +168,26 @@ export interface CalculatedRecipeItem {
   /** Custo calculado do item. */
   itemCost: number;
 }
+
+/** Item de sub-receita após o cálculo de custo. */
+export interface CalculatedSubRecipeItem {
+  kind: "subRecipe";
+  /** Item de origem. */
+  item: SubRecipeItem;
+  /** Custo por unidade de rendimento da sub-receita. */
+  costPerYieldUnit: number;
+  /** Quantidade usada convertida para a unidade de rendimento da sub-receita. */
+  quantityInYieldUnit: number;
+  /** Custo calculado do item. */
+  itemCost: number;
+  /** Custo completo calculado da sub-receita (para detalhamento/aninhamento). */
+  subRecipe: CalculatedRecipe;
+}
+
+/** Item de receita calculado: ingrediente OU sub-receita. */
+export type CalculatedRecipeItem =
+  | CalculatedIngredientItem
+  | CalculatedSubRecipeItem;
 
 /** Receita após o cálculo de custo total, perda e custo unitário. */
 export interface CalculatedRecipe {
