@@ -66,7 +66,11 @@ export type ValidationErrorCode =
   | "ZERO"
   | "NON_POSITIVE"
   | "INCOMPATIBLE_UNIT"
-  | "UNKNOWN_UNIT";
+  | "UNKNOWN_UNIT"
+  | "EMPTY"
+  | "OUT_OF_RANGE"
+  | "NOT_FOUND"
+  | "INVALID_INGREDIENT";
 
 /** Erro de validação de um campo. */
 export interface ValidationError {
@@ -85,3 +89,73 @@ export interface ValidationError {
 export type CalculationResult<T> =
   | { ok: true; value: T }
   | { ok: false; errors: ValidationError[] };
+
+/* ─────────────────────────── Receitas (Fase 1B-1) ─────────────────────────── */
+
+/**
+ * Item de uma receita: referência a um ingrediente e quanto dele é usado.
+ * Os campos derivados (fator de correção e custo) ficam em `CalculatedRecipeItem`.
+ */
+export interface RecipeItem {
+  /** Id do ingrediente referenciado (deve existir na coleção de ingredientes). */
+  ingredientId: string;
+  /** Nome do ingrediente (para exibição e mensagens). */
+  ingredientName: string;
+  /** Quantidade usada na receita, na unidade `unit`. */
+  quantityUsed: number;
+  /** Unidade da quantidade usada (deve ser compatível com a unidade-base do ingrediente). */
+  unit: PurchaseUnit;
+}
+
+/**
+ * Receita simples (Fase 1B-1): lista de itens, rendimento e perda de produção.
+ * Sub-receitas e medidas caseiras NÃO entram nesta subfase.
+ */
+export interface Recipe {
+  /** Identificador da receita. */
+  id: string;
+  /** Nome da receita. */
+  name: string;
+  /** Itens (pelo menos 1). */
+  items: RecipeItem[];
+  /** Rendimento: quantas unidades/porções a receita produz (> 0). */
+  yieldQuantity: number;
+  /** Unidade do rendimento (ex.: "un", "porções", "g"). */
+  yieldUnit: string;
+  /** Perda de produção em PORCENTAGEM (0 a <100). Se omitida, vale 0. */
+  productionLossPercent?: number;
+  /** Observações opcionais. */
+  notes?: string;
+}
+
+/** Item de receita após o cálculo de custo. */
+export interface CalculatedRecipeItem {
+  /** Item de origem. */
+  item: RecipeItem;
+  /** Fator de correção vindo do ingrediente. */
+  correctionFactor: number;
+  /** Quantidade usada convertida para a unidade-base do ingrediente. */
+  quantityInBaseUnit: number;
+  /** Quantidade base após aplicar o fator de correção. */
+  correctedQuantity: number;
+  /** Custo por unidade-base do ingrediente. */
+  costPerBaseUnit: number;
+  /** Custo calculado do item. */
+  itemCost: number;
+}
+
+/** Receita após o cálculo de custo total, perda e custo unitário. */
+export interface CalculatedRecipe {
+  /** Receita de origem. */
+  recipe: Recipe;
+  /** Itens calculados. */
+  items: CalculatedRecipeItem[];
+  /** Custo total bruto (soma dos itens, sem perda). */
+  grossCost: number;
+  /** Perda de produção efetivamente aplicada (em %). */
+  productionLossPercent: number;
+  /** Custo total considerando a perda de produção. */
+  totalCostWithLoss: number;
+  /** Custo por unidade de rendimento. */
+  unitCost: number;
+}

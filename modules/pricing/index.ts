@@ -7,6 +7,8 @@
 export * from "./units";
 export * from "./validators";
 export * from "./ingredients";
+export * from "./recipe-validators";
+export * from "./recipes";
 export * from "./examples";
 
 export type {
@@ -19,4 +21,8 @@ export type {
   ValidationError,
   ValidationErrorCode,
   CalculationResult,
+  RecipeItem,
+  Recipe,
+  CalculatedRecipeItem,
+  CalculatedRecipe,
 } from "@/types/pricing";

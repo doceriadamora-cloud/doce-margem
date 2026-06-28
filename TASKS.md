@@ -4,7 +4,7 @@
 > Marcar `[x]` ao concluir. Adicionar novas tarefas quando surgirem.
 > Antes de iniciar uma nova fase: parar, resumir o que foi feito e aguardar aprovação.
 
-**Fase atual:** Fase 1A concluída → aguardando aprovação para a Fase 1B.
+**Fase atual:** Fase 1B-1 concluída → aguardando aprovação para a Fase 1B-2.
 
 ## Fase 0 — Setup e documentação ✅
 - [x] Criar projeto em C:\dev\doce-margem
@@ -33,13 +33,20 @@
 - [x] Criar barrel de exportação (`modules/pricing/index.ts`)
 - [x] Validar cálculos (custos, conversões, bloqueios e entrada inválida) e rodar `typecheck` + `lint`
 
-### Fase 1B — Receitas e rendimento (pendente)
-- [ ] Criar módulo de receitas (ficha técnica)
-- [ ] Implementar rendimento, custo total e custo unitário
-- [ ] Aplicar fator de correção e perda de produção em receitas
-- [ ] Sub-receitas
-- [ ] Medidas caseiras
-- [ ] Dados de exemplo de receitas (Brownie Ferrero, Cookie Kinder, Brigadeiro)
+### Fase 1B-1 — Receitas simples e rendimento ✅
+- [x] Criar tipos de receita (`RecipeItem`, `Recipe`, `CalculatedRecipeItem`, `CalculatedRecipe`)
+- [x] Criar módulo de receitas (ficha técnica) (`modules/pricing/recipes.ts`)
+- [x] Implementar rendimento, custo total bruto, custo com perda e custo unitário
+- [x] Aplicar fator de correção (vindo do ingrediente) nos itens
+- [x] Implementar perda de produção simples (0 a <100%)
+- [x] Criar validações de receita (`modules/pricing/recipe-validators.ts`)
+- [x] Criar exemplo do brigadeiro + validação (`modules/pricing/examples.ts`)
+- [x] Rodar `typecheck` + `lint` e validar o exemplo
+
+### Fase 1B-2 — Sub-receitas, medidas caseiras e mais exemplos (pendente)
+- [ ] Sub-receitas (receita usada como ingrediente de outra)
+- [ ] Medidas caseiras (xícara, colher de sopa/chá/café)
+- [ ] Dados de exemplo de receitas adicionais (Brownie Ferrero, Cookie Kinder)
 
 ### Fase 1C — Canais, custos fixos e pricing engine (pendente)
 - [ ] Criar módulo de canais (taxas %, taxa fixa, comissão marketplace)
