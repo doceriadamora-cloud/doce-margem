@@ -94,7 +94,7 @@ export type CalculationResult<T> =
 /* ──────────────────── Receitas (Fase 1B-1 + sub-receitas 1B-2) ──────────────────── */
 
 /** Discriminador do tipo de item de receita. */
-export type RecipeItemKind = "ingredient" | "subRecipe";
+export type RecipeItemKind = "ingredient" | "subRecipe" | "householdMeasure";
 
 /**
  * Item de receita baseado em INGREDIENTE.
@@ -113,6 +113,25 @@ export interface IngredientRecipeItem {
 }
 
 /**
+ * Item de receita que usa MEDIDA CASEIRA (xícara, colher de sopa/chá/café).
+ * A conversão para unidade-base depende de uma chave de tabela (ex.: "farinha_trigo").
+ * Medidas caseiras não convertem para "un" — apenas para "g" ou "ml".
+ */
+export interface HouseholdMeasureRecipeItem {
+  kind: "householdMeasure";
+  /** Id do ingrediente referenciado. */
+  ingredientId: string;
+  /** Nome do ingrediente (para exibição e mensagens). */
+  ingredientName: string;
+  /** Quantidade de medidas usadas (ex.: 2 para "2 xícaras"). */
+  quantityUsed: number;
+  /** Medida caseira utilizada. */
+  measure: HouseholdMeasure;
+  /** Chave de conversão na tabela de densidades (ex.: "farinha_trigo", "acucar", "liquido"). */
+  conversionKey: string;
+}
+
+/**
  * Item de receita baseado em SUB-RECEITA (uma receita usada dentro de outra).
  * A sub-receita é calculada e seu custo por unidade de rendimento é aplicado.
  */
@@ -128,8 +147,11 @@ export interface SubRecipeItem {
   unit: PurchaseUnit;
 }
 
-/** Item de receita: ingrediente OU sub-receita (união discriminada por `kind`). */
-export type RecipeItem = IngredientRecipeItem | SubRecipeItem;
+/** Item de receita: ingrediente, medida caseira OU sub-receita (união discriminada por `kind`). */
+export type RecipeItem =
+  | IngredientRecipeItem
+  | HouseholdMeasureRecipeItem
+  | SubRecipeItem;
 
 /**
  * Receita: lista de itens (ingredientes e/ou sub-receitas), rendimento e perda.
@@ -150,6 +172,25 @@ export interface Recipe {
   productionLossPercent?: number;
   /** Observações opcionais. */
   notes?: string;
+}
+
+/** Item de medida caseira após o cálculo de custo. */
+export interface CalculatedHouseholdMeasureItem {
+  kind: "householdMeasure";
+  /** Item de origem. */
+  item: HouseholdMeasureRecipeItem;
+  /** Quantidade em unidade-base por medida (ex.: 120 g por xícara de farinha). */
+  amountPerMeasure: number;
+  /** Quantidade total em unidade-base (quantityUsed × amountPerMeasure). */
+  quantityInBaseUnit: number;
+  /** Fator de correção vindo do ingrediente. */
+  correctionFactor: number;
+  /** Quantidade base após aplicar o fator de correção. */
+  correctedQuantity: number;
+  /** Custo por unidade-base do ingrediente. */
+  costPerBaseUnit: number;
+  /** Custo calculado do item. */
+  itemCost: number;
 }
 
 /** Item de ingrediente após o cálculo de custo. */
@@ -184,9 +225,10 @@ export interface CalculatedSubRecipeItem {
   subRecipe: CalculatedRecipe;
 }
 
-/** Item de receita calculado: ingrediente OU sub-receita. */
+/** Item de receita calculado: ingrediente, medida caseira OU sub-receita. */
 export type CalculatedRecipeItem =
   | CalculatedIngredientItem
+  | CalculatedHouseholdMeasureItem
   | CalculatedSubRecipeItem;
 
 /** Receita após o cálculo de custo total, perda e custo unitário. */

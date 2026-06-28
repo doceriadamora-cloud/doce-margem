@@ -99,7 +99,36 @@
 - **Pendências:** medidas caseiras + densidades, exemplos adicionais (Fase 1B-3).
 
 #### Fase 1B-3 — Medidas caseiras e mais exemplos
-- **Status:** ⏳ Não iniciada (aguardando aprovação)
+- **Status:** ✅ Concluída
+- **O que foi feito:**
+  - `modules/pricing/household-measures.ts` (novo): tabela de conversões caseiras por chave (`farinha_trigo`, `acucar`, `cacau`, `liquido`), função `getHouseholdConversion(key, measure)`. Conversão nunca produz `un`.
+  - `types/pricing.ts`: `HouseholdMeasureRecipeItem` (novo), `CalculatedHouseholdMeasureItem` (novo). `RecipeItemKind` e `RecipeItem` / `CalculatedRecipeItem` atualizados para incluir o novo kind `"householdMeasure"`.
+  - `modules/pricing/recipe-validators.ts`: `validateHouseholdMeasureItem` — valida chave inexistente, ingrediente `un`, dimensão incompatível (g × ml em qualquer direção), quantidade ≤ 0.
+  - `modules/pricing/recipes.ts`: `calculateHouseholdMeasureItem` — converte `quantityUsed × amountPerMeasure`, aplica fator de correção e custo por unidade-base.
+  - `modules/pricing/examples.ts`: `householdExampleIngredients` (5 ingredientes), `cookieKinderRecipe`, `brownierFerreroRecipe`, `runHouseholdMeasureValidations`, `allHouseholdMeasureExamplesPass`.
+  - `modules/pricing/index.ts`: exporta `household-measures` e os novos tipos.
+- **Fórmula de medida caseira:**
+  - `quantityInBaseUnit = quantityUsed × amountPerMeasure` (da tabela)
+  - `correctedQuantity = quantityInBaseUnit × correctionFactor`
+  - `itemCost = correctedQuantity × costPerBaseUnit`
+- **Validações executadas (todas PASS):**
+  - Farinha 1 xícara → 120 g × 0,008/g = R$ 0,96 ✓
+  - Açúcar 2 col. sopa → 22,5 g × 0,005/g = R$ 0,1125 ✓
+  - Leite 0,5 xícara → 120 ml × 0,006/ml = R$ 0,72 ✓
+  - Cookie Kinder: bruto R$ 8,82; unitário R$ 0,3675 (24 un) ✓
+  - Brownie Ferrero: bruto R$ 7,56; unitário R$ 0,63 (12 un) ✓
+  - Erros: chave inexistente → NOT_FOUND; ingrediente `un` → INCOMPATIBLE_UNIT; líquido × massa → INCOMPATIBLE_UNIT; quantidade zero → ZERO ✓
+  - Tabela: `farinha_trigo/xicara=120g`; `acucar/colher_sopa=11,25g`; `liquido/xicara=240ml`; chave ausente → null ✓
+  - Todos os testes das fases anteriores (1A, 1B-1, 1B-2) continuam PASS.
+  - `npm run typecheck` → exit 0; `npm run lint` → exit 0.
+- **Decisões de implementação:**
+  - `HouseholdMeasureRecipeItem` como terceiro kind da união discriminada — sem campo `unit` (a unidade-base vem da tabela de conversão, não do item).
+  - Chave de conversão (`conversionKey`) é uma string livre referenciando a tabela em `household-measures.ts`; expansível sem alterar a API.
+  - Conversão nunca produz `un`: validação bloqueia ingredientes de contagem antes de consultar a tabela.
+  - Hoisting de `function` declarations utilizado (como nas fases anteriores) — IDE mostrou diagnósticos defasados, mas `tsc` confirmou exit 0.
+- **Problemas encontrados:** diagnósticos defasados do IDE (mesma situação da Fase 1B-2); ignorados após confirmação do `typecheck`.
+- **Riscos:** float (ex.: 7,56000…5) — mitigado por `RECIPE_EPSILON`; tabela de conversão é MVP estática (personalização por usuária fica para versão futura).
+- **Pendências:** canais, custos fixos e pricing engine (Fase 1C).
 
 ### Fase 2 — Interface Essencial
 - **Status:** ⏳ Não iniciada

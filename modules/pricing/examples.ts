@@ -1,5 +1,5 @@
 /**
- * Dados de exemplo e validação dos cálculos — Fase 1A.
+ * Dados de exemplo e validação dos cálculos — Fase 1A a 1B-3.
  *
  * Serve para confirmar, com funções puras, que o custo por unidade-base bate
  * com o esperado. Usado pelo runner de validação (ver REVIEW.md / TASKS.md).
@@ -447,4 +447,256 @@ export function runSubRecipeValidations(): RecipeCheckResult[] {
 /** Retorna true se todas as checagens de sub-receita baterem com o esperado. */
 export function allSubRecipeExamplesPass(): boolean {
   return runSubRecipeValidations().every((r) => r.pass);
+}
+
+/* ─────────────────────────── Medidas caseiras (Fase 1B-3) ─────────────────────────── */
+
+/**
+ * Ingredientes para os exemplos de medidas caseiras.
+ * IDs distintos dos exemplos anteriores para evitar colisão em mapa combinado.
+ */
+export const householdExampleIngredients: Ingredient[] = [
+  {
+    id: "farinha-trigo",
+    name: "Farinha de trigo",
+    purchaseQuantity: 1,
+    purchaseUnit: "kg",
+    purchasePrice: 8,
+    baseUnit: "g",
+    correctionFactor: 1,
+    category: "Secos",
+  },
+  {
+    id: "acucar-cristal",
+    name: "Açúcar cristal",
+    purchaseQuantity: 1,
+    purchaseUnit: "kg",
+    purchasePrice: 5,
+    baseUnit: "g",
+    correctionFactor: 1,
+    category: "Secos",
+  },
+  {
+    id: "leite-integral",
+    name: "Leite integral",
+    purchaseQuantity: 1,
+    purchaseUnit: "l",
+    purchasePrice: 6,
+    baseUnit: "ml",
+    correctionFactor: 1,
+    category: "Laticínios",
+  },
+  {
+    id: "manteiga-sem-sal",
+    name: "Manteiga sem sal",
+    purchaseQuantity: 200,
+    purchaseUnit: "g",
+    purchasePrice: 12,
+    baseUnit: "g",
+    correctionFactor: 1,
+    category: "Laticínios",
+  },
+  {
+    id: "choc-amargo",
+    name: "Chocolate meio amargo",
+    purchaseQuantity: 1,
+    purchaseUnit: "kg",
+    purchasePrice: 38,
+    baseUnit: "g",
+    correctionFactor: 1,
+    category: "Chocolate",
+  },
+];
+
+/**
+ * Receita Cookie Kinder — usa medidas caseiras para farinha e açúcar.
+ *
+ * Farinha   : 2 xícaras (farinha_trigo) = 2 × 120 g = 240 g → 240 × 0,008 = R$ 1,92
+ * Açúcar    : 1 xícara  (acucar)        = 1 × 180 g = 180 g → 180 × 0,005 = R$ 0,90
+ * Manteiga  : 100 g (padrão)                                → 100 × 0,06  = R$ 6,00
+ * Total bruto: R$ 8,82 → rendimento 24 un → unitCost R$ 0,3675
+ */
+export const cookieKinderRecipe: Recipe = {
+  id: "cookie-kinder",
+  name: "Cookie Kinder",
+  items: [
+    {
+      kind: "householdMeasure",
+      ingredientId: "farinha-trigo",
+      ingredientName: "Farinha de trigo",
+      quantityUsed: 2,
+      measure: "xicara",
+      conversionKey: "farinha_trigo",
+    },
+    {
+      kind: "householdMeasure",
+      ingredientId: "acucar-cristal",
+      ingredientName: "Açúcar cristal",
+      quantityUsed: 1,
+      measure: "xicara",
+      conversionKey: "acucar",
+    },
+    {
+      kind: "ingredient",
+      ingredientId: "manteiga-sem-sal",
+      ingredientName: "Manteiga sem sal",
+      quantityUsed: 100,
+      unit: "g",
+    },
+  ],
+  yieldQuantity: 24,
+  yieldUnit: "un",
+  productionLossPercent: 0,
+};
+
+/**
+ * Receita Brownie Ferrero — mistura medidas caseiras com unidade padrão.
+ *
+ * Farinha   : 1 xícara  (farinha_trigo) = 1 × 120 g = 120 g → 120 × 0,008 = R$ 0,96
+ * Açúcar    : 1 xícara  (acucar)        = 1 × 180 g = 180 g → 180 × 0,005 = R$ 0,90
+ * Chocolate : 150 g (padrão)                                 → 150 × 0,038 = R$ 5,70
+ * Total bruto: R$ 7,56 → rendimento 12 un → unitCost R$ 0,63
+ */
+export const brownierFerreroRecipe: Recipe = {
+  id: "brownie-ferrero",
+  name: "Brownie Ferrero",
+  items: [
+    {
+      kind: "householdMeasure",
+      ingredientId: "farinha-trigo",
+      ingredientName: "Farinha de trigo",
+      quantityUsed: 1,
+      measure: "xicara",
+      conversionKey: "farinha_trigo",
+    },
+    {
+      kind: "householdMeasure",
+      ingredientId: "acucar-cristal",
+      ingredientName: "Açúcar cristal",
+      quantityUsed: 1,
+      measure: "xicara",
+      conversionKey: "acucar",
+    },
+    {
+      kind: "ingredient",
+      ingredientId: "choc-amargo",
+      ingredientName: "Chocolate meio amargo",
+      quantityUsed: 150,
+      unit: "g",
+    },
+  ],
+  yieldQuantity: 12,
+  yieldUnit: "un",
+  productionLossPercent: 0,
+};
+
+/**
+ * Valida os 3 exemplos individuais de medida caseira (brief da Fase 1B-3)
+ * e as 2 receitas de exemplo (Cookie Kinder, Brownie Ferrero).
+ *
+ * Exemplos individuais (receita mínima de 1 item para isolar o custo do item):
+ *   1. Farinha  — 1 xícara  (farinha_trigo)  → 120 g  × 0,008/g = R$ 0,96
+ *   2. Açúcar   — 2 colheres de sopa (acucar) → 22,5 g × 0,005/g = R$ 0,1125
+ *   3. Leite    — 0,5 xícara (liquido)         → 120 ml × 0,006/ml = R$ 0,72
+ */
+export function runHouseholdMeasureValidations(): RecipeCheckResult[] {
+  const checks: RecipeCheckResult[] = [];
+  const near = (a: number, b: number) => Math.abs(a - b) < RECIPE_EPSILON;
+  const hmById = indexById(householdExampleIngredients);
+
+  // ── Exemplo 1: 1 xícara de farinha ──
+  const farinhaRecipe: Recipe = {
+    id: "val-farinha",
+    name: "Validação Farinha",
+    items: [{
+      kind: "householdMeasure",
+      ingredientId: "farinha-trigo",
+      ingredientName: "Farinha de trigo",
+      quantityUsed: 1,
+      measure: "xicara",
+      conversionKey: "farinha_trigo",
+    }],
+    yieldQuantity: 1,
+    yieldUnit: "un",
+  };
+  const r1 = calculateRecipe(farinhaRecipe, hmById);
+  if (!r1.ok) {
+    checks.push({ label: "Farinha 1 xícara — calcula sem erros", expected: 0, actual: r1.errors.length, pass: false, detail: r1.errors.map((e) => e.message).join("; ") });
+  } else {
+    const itemCost = r1.value.items[0]?.itemCost ?? null;
+    checks.push({ label: "Farinha 1 xícara — itemCost", expected: 0.96, actual: itemCost, pass: itemCost !== null && near(itemCost, 0.96) });
+  }
+
+  // ── Exemplo 2: 2 colheres de sopa de açúcar ──
+  const acucarRecipe: Recipe = {
+    id: "val-acucar",
+    name: "Validação Açúcar",
+    items: [{
+      kind: "householdMeasure",
+      ingredientId: "acucar-cristal",
+      ingredientName: "Açúcar cristal",
+      quantityUsed: 2,
+      measure: "colher_sopa",
+      conversionKey: "acucar",
+    }],
+    yieldQuantity: 1,
+    yieldUnit: "un",
+  };
+  const r2 = calculateRecipe(acucarRecipe, hmById);
+  if (!r2.ok) {
+    checks.push({ label: "Açúcar 2 col. sopa — calcula sem erros", expected: 0, actual: r2.errors.length, pass: false, detail: r2.errors.map((e) => e.message).join("; ") });
+  } else {
+    const itemCost = r2.value.items[0]?.itemCost ?? null;
+    checks.push({ label: "Açúcar 2 col. sopa — itemCost", expected: 0.1125, actual: itemCost, pass: itemCost !== null && near(itemCost, 0.1125) });
+  }
+
+  // ── Exemplo 3: 0,5 xícara de leite ──
+  const leiteRecipe: Recipe = {
+    id: "val-leite",
+    name: "Validação Leite",
+    items: [{
+      kind: "householdMeasure",
+      ingredientId: "leite-integral",
+      ingredientName: "Leite integral",
+      quantityUsed: 0.5,
+      measure: "xicara",
+      conversionKey: "liquido",
+    }],
+    yieldQuantity: 1,
+    yieldUnit: "un",
+  };
+  const r3 = calculateRecipe(leiteRecipe, hmById);
+  if (!r3.ok) {
+    checks.push({ label: "Leite 0,5 xícara — calcula sem erros", expected: 0, actual: r3.errors.length, pass: false, detail: r3.errors.map((e) => e.message).join("; ") });
+  } else {
+    const itemCost = r3.value.items[0]?.itemCost ?? null;
+    checks.push({ label: "Leite 0,5 xícara — itemCost", expected: 0.72, actual: itemCost, pass: itemCost !== null && near(itemCost, 0.72) });
+  }
+
+  // ── Cookie Kinder ──
+  const cookieResult = calculateRecipe(cookieKinderRecipe, hmById);
+  if (!cookieResult.ok) {
+    checks.push({ label: "Cookie Kinder — calcula sem erros", expected: 0, actual: cookieResult.errors.length, pass: false, detail: cookieResult.errors.map((e) => e.message).join("; ") });
+  } else {
+    const c = cookieResult.value;
+    checks.push({ label: "Cookie Kinder — custo total bruto", expected: 8.82, actual: c.grossCost, pass: near(c.grossCost, 8.82) });
+    checks.push({ label: "Cookie Kinder — custo unitário (24 un)", expected: 0.3675, actual: c.unitCost, pass: near(c.unitCost, 0.3675) });
+  }
+
+  // ── Brownie Ferrero ──
+  const brownieResult = calculateRecipe(brownierFerreroRecipe, hmById);
+  if (!brownieResult.ok) {
+    checks.push({ label: "Brownie Ferrero — calcula sem erros", expected: 0, actual: brownieResult.errors.length, pass: false, detail: brownieResult.errors.map((e) => e.message).join("; ") });
+  } else {
+    const b = brownieResult.value;
+    checks.push({ label: "Brownie Ferrero — custo total bruto", expected: 7.56, actual: b.grossCost, pass: near(b.grossCost, 7.56) });
+    checks.push({ label: "Brownie Ferrero — custo unitário (12 un)", expected: 0.63, actual: b.unitCost, pass: near(b.unitCost, 0.63) });
+  }
+
+  return checks;
+}
+
+/** Retorna true se todas as checagens de medidas caseiras baterem com o esperado. */
+export function allHouseholdMeasureExamplesPass(): boolean {
+  return runHouseholdMeasureValidations().every((r) => r.pass);
 }

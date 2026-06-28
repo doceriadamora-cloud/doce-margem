@@ -4,7 +4,7 @@
 > Marcar `[x]` ao concluir. Adicionar novas tarefas quando surgirem.
 > Antes de iniciar uma nova fase: parar, resumir o que foi feito e aguardar aprovação.
 
-**Fase atual:** Fase 1B-2 (sub-receitas) concluída → aguardando aprovação para a Fase 1B-3 (medidas caseiras).
+**Fase atual:** Fase 1B-3 (medidas caseiras) concluída → aguardando aprovação para a Fase 1C (canais, custos fixos e pricing engine).
 
 ## Fase 0 — Setup e documentação ✅
 - [x] Criar projeto em C:\dev\doce-margem
@@ -53,9 +53,9 @@
 - [x] Exemplo Recheio de brigadeiro + Brownie com recheio + validação
 - [x] Rodar `typecheck` + `lint`
 
-### Fase 1B-3 — Medidas caseiras e mais exemplos (pendente)
-- [ ] Medidas caseiras (xícara, colher de sopa/chá/café) + densidades
-- [ ] Dados de exemplo de receitas adicionais (Brownie Ferrero, Cookie Kinder)
+### Fase 1B-3 — Medidas caseiras e mais exemplos ✅
+- [x] Medidas caseiras (xícara, colher de sopa/chá/café) + densidades
+- [x] Dados de exemplo de receitas adicionais (Brownie Ferrero, Cookie Kinder)
 
 ### Fase 1C — Canais, custos fixos e pricing engine (pendente)
 - [ ] Criar módulo de canais (taxas %, taxa fixa, comissão marketplace)

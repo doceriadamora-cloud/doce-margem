@@ -16,16 +16,22 @@
  *   custo com perda   = custo total bruto / (1 − perda%/100)
  *   custo unitário    = custo com perda / rendimento
  *
+ * Itens de medida caseira (Fase 1B-3):
+ *   quantidade base = quantityUsed × amountPerMeasure (tabela household-measures)
+ *   custo do item   = quantidade base corrigida × custo por unidade-base
+ *
  * Referências circulares são bloqueadas na validação; aqui há um guard de
- * invariante por segurança. Não inclui medidas caseiras, canais nem pricing engine.
+ * invariante por segurança. Não inclui canais nem pricing engine.
  */
 
 import type {
+  CalculatedHouseholdMeasureItem,
   CalculatedIngredientItem,
   CalculatedRecipe,
   CalculatedRecipeItem,
   CalculatedSubRecipeItem,
   CalculationResult,
+  HouseholdMeasureRecipeItem,
   Ingredient,
   IngredientRecipeItem,
   Recipe,
@@ -34,6 +40,7 @@ import type {
 import { convert, isPurchaseUnit } from "./units";
 import { applyCorrectionFactor, calculateIngredient } from "./ingredients";
 import { validateRecipe } from "./recipe-validators";
+import { getHouseholdConversion } from "./household-measures";
 
 /**
  * Calcula custo total, custo com perda e custo unitário de uma receita,
@@ -77,11 +84,13 @@ function calculateRecipeUnchecked(
   const nextAncestry = new Set(ancestry);
   nextAncestry.add(recipe.id);
 
-  const items: CalculatedRecipeItem[] = recipe.items.map((item) =>
-    item.kind === "ingredient"
-      ? calculateIngredientItem(item, ingredientsById)
-      : calculateSubRecipeItem(item, ingredientsById, recipesById, nextAncestry),
-  );
+  const items: CalculatedRecipeItem[] = recipe.items.map((item) => {
+    if (item.kind === "ingredient")
+      return calculateIngredientItem(item, ingredientsById);
+    if (item.kind === "householdMeasure")
+      return calculateHouseholdMeasureItem(item, ingredientsById);
+    return calculateSubRecipeItem(item, ingredientsById, recipesById, nextAncestry);
+  });
 
   const grossCost = items.reduce((sum, i) => sum + i.itemCost, 0);
   const productionLossPercent = recipe.productionLossPercent ?? 0;
@@ -127,6 +136,43 @@ function calculateIngredientItem(
     item,
     correctionFactor,
     quantityInBaseUnit,
+    correctedQuantity,
+    costPerBaseUnit,
+    itemCost,
+  };
+}
+
+function calculateHouseholdMeasureItem(
+  item: HouseholdMeasureRecipeItem,
+  ingredientsById: Record<string, Ingredient>,
+): CalculatedHouseholdMeasureItem {
+  const ingredient = ingredientsById[item.ingredientId];
+  const calc = calculateIngredient(ingredient);
+  if (!calc.ok) {
+    throw new Error(
+      `Ingrediente inválido não detectado na validação: ${item.ingredientId}`,
+    );
+  }
+
+  const { costPerBaseUnit, correctionFactor } = calc.value;
+  const conv = getHouseholdConversion(item.conversionKey, item.measure);
+  if (!conv) {
+    throw new Error(
+      `Conversão caseira não detectada na validação: ${item.conversionKey}`,
+    );
+  }
+
+  const { amountPerMeasure } = conv;
+  const quantityInBaseUnit = item.quantityUsed * amountPerMeasure;
+  const correctedQuantity = applyCorrectionFactor(quantityInBaseUnit, correctionFactor);
+  const itemCost = correctedQuantity * costPerBaseUnit;
+
+  return {
+    kind: "householdMeasure",
+    item,
+    amountPerMeasure,
+    quantityInBaseUnit,
+    correctionFactor,
     correctedQuantity,
     costPerBaseUnit,
     itemCost,

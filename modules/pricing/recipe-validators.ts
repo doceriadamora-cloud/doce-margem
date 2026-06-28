@@ -7,6 +7,7 @@
  */
 
 import type {
+  HouseholdMeasureRecipeItem,
   IngredientRecipeItem,
   Ingredient,
   PurchaseUnit,
@@ -16,6 +17,7 @@ import type {
 } from "@/types/pricing";
 import { areUnitsCompatible, isPurchaseUnit } from "./units";
 import { validateIngredient } from "./validators";
+import { getHouseholdConversion } from "./household-measures";
 
 /**
  * Compatibilidade entre a unidade usada de uma sub-receita e a unidade de
@@ -114,6 +116,8 @@ function validateRecipeWithAncestry(
     const field = `items[${index}]`;
     if (item.kind === "ingredient") {
       validateIngredientItem(item, field, ingredientsById, errors);
+    } else if (item.kind === "householdMeasure") {
+      validateHouseholdMeasureItem(item, field, ingredientsById, errors);
     } else {
       validateSubRecipeItem(
         item,
@@ -184,6 +188,65 @@ function validateIngredientItem(
       field: `${field}.unit`,
       code: "INCOMPATIBLE_UNIT",
       message: `Unidade "${item.unit}" do item "${item.ingredientName}" é incompatível com o ingrediente (base "${ingredient.baseUnit}").`,
+    });
+  }
+}
+
+function validateHouseholdMeasureItem(
+  item: HouseholdMeasureRecipeItem,
+  field: string,
+  ingredientsById: Record<string, Ingredient>,
+  errors: ValidationError[],
+): void {
+  validateQuantity(item.quantityUsed, item.ingredientName, field, errors);
+
+  const ingredient = ingredientsById[item.ingredientId];
+  if (!ingredient) {
+    errors.push({
+      field: `${field}.ingredientId`,
+      code: "NOT_FOUND",
+      message: `Ingrediente "${item.ingredientName}" (${item.ingredientId}) não encontrado.`,
+    });
+    return;
+  }
+
+  const ingredientErrors = validateIngredient(ingredient);
+  if (ingredientErrors.length > 0) {
+    errors.push({
+      field: `${field}.ingredient`,
+      code: "INVALID_INGREDIENT",
+      message: `Ingrediente "${ingredient.name}" é inválido: ${ingredientErrors
+        .map((e) => e.message)
+        .join("; ")}`,
+    });
+  }
+
+  // Medidas caseiras nunca produzem "un": bloquear antes de buscar na tabela.
+  if (ingredient.baseUnit === "un") {
+    errors.push({
+      field: `${field}.measure`,
+      code: "INCOMPATIBLE_UNIT",
+      message: `Medidas caseiras não podem ser usadas com ingredientes contados por unidade ("${ingredient.name}"). Use uma quantidade direta.`,
+    });
+    return;
+  }
+
+  const conv = getHouseholdConversion(item.conversionKey, item.measure);
+  if (!conv) {
+    errors.push({
+      field: `${field}.conversionKey`,
+      code: "NOT_FOUND",
+      message: `Tabela de conversão caseira "${item.conversionKey}" não encontrada. Chaves disponíveis: farinha_trigo, acucar, cacau, liquido.`,
+    });
+    return;
+  }
+
+  // Dimensão da conversão deve bater com a unidade-base do ingrediente.
+  if (conv.baseUnit !== ingredient.baseUnit) {
+    errors.push({
+      field: `${field}.measure`,
+      code: "INCOMPATIBLE_UNIT",
+      message: `A tabela "${item.conversionKey}" converte para ${conv.baseUnit}, mas "${ingredient.name}" usa ${ingredient.baseUnit} como unidade-base.`,
     });
   }
 }
