@@ -1,0 +1,115 @@
+# TASKS — Doce Margem
+
+> Desenvolvimento por fases e em tarefas pequenas. **Não executar tudo de uma vez.**
+> Marcar `[x]` ao concluir. Adicionar novas tarefas quando surgirem.
+> Antes de iniciar uma nova fase: parar, resumir o que foi feito e aguardar aprovação.
+
+**Fase atual:** Fase 1A concluída → aguardando aprovação para a Fase 1B.
+
+## Fase 0 — Setup e documentação ✅
+- [x] Criar projeto em C:\dev\doce-margem
+- [x] Criar README.md
+- [x] Criar TASKS.md
+- [x] Criar REVIEW.md
+- [x] Configurar Next.js, TypeScript e Tailwind
+- [x] Criar estrutura base de pastas
+- [x] Adicionar script `typecheck`
+- [x] Criar `.env.example`
+- [x] Ajustar `.gitignore` para versionar `.env.example`
+
+### Fase 0 — Etapa complementar (organização da documentação) ✅
+- [x] Criar `DECISIONS.md` (histórico oficial de decisões) com as 6 decisões iniciais
+- [x] Atualizar `CLAUDE.md` como memória permanente de execução
+- [x] Revisar/criar `AGENTS.md` com os papéis conceituais (preservando regras do Next.js)
+
+## Fase 1 — Núcleo de cálculo (dividida em subfases)
+
+### Fase 1A — Tipos base, unidades e ingredientes ✅
+- [x] Criar tipos base (`types/pricing.ts`)
+- [x] Criar módulo de unidades + conversões (`modules/pricing/units.ts`)
+- [x] Criar módulo de ingredientes (custo por unidade-base) (`modules/pricing/ingredients.ts`)
+- [x] Criar validações de domínio (`modules/pricing/validators.ts`)
+- [x] Criar dados de exemplo de ingredientes + validação dos cálculos (`modules/pricing/examples.ts`)
+- [x] Criar barrel de exportação (`modules/pricing/index.ts`)
+- [x] Validar cálculos (custos, conversões, bloqueios e entrada inválida) e rodar `typecheck` + `lint`
+
+### Fase 1B — Receitas e rendimento (pendente)
+- [ ] Criar módulo de receitas (ficha técnica)
+- [ ] Implementar rendimento, custo total e custo unitário
+- [ ] Aplicar fator de correção e perda de produção em receitas
+- [ ] Sub-receitas
+- [ ] Medidas caseiras
+- [ ] Dados de exemplo de receitas (Brownie Ferrero, Cookie Kinder, Brigadeiro)
+
+### Fase 1C — Canais, custos fixos e pricing engine (pendente)
+- [ ] Criar módulo de canais (taxas %, taxa fixa, comissão marketplace)
+- [ ] Criar módulo de custos fixos (rateio)
+- [ ] Criar pricing engine (CMV, preço sugerido, margem, markup)
+- [ ] Dados de exemplo de canais (Balcão/Pix, Cartão, iFood, Rappi, Uber Eats)
+- [ ] Engenharia de cardápio (pode ir para fase própria se crescer)
+
+## Fase 2 — Interface Essencial
+- [ ] Criar layout base
+- [ ] Criar dashboard inicial
+- [ ] Criar tela de ingredientes
+- [ ] Criar tela de receitas
+- [ ] Criar tela de precificação simples (modo simples)
+- [ ] Criar camada `storageService` (localStorage desacoplado)
+- [ ] Criar backup export/import
+
+## Fase 3 — Modo avançado
+- [ ] Criar fator de correção
+- [ ] Criar perda de produção
+- [ ] Criar medidas caseiras
+- [ ] Criar sub-receitas
+- [ ] Criar multicanal
+- [ ] Criar custos fixos
+- [ ] Criar engenharia de cardápio
+
+## Fase 4 — Acesso e licenças
+- [ ] Preparar Supabase Auth
+- [ ] Criar tabela/profiles
+- [ ] Criar tabela/licenses
+- [ ] Criar feature flags (`lib/features.ts`) + `canAccessFeature`
+- [ ] Criar funções de acesso (getCurrentUserAccess, hasEssentialAccess, hasProAccess, require*)
+- [ ] Criar proteção de acesso (middleware/server checks)
+- [ ] Criar telas de bloqueio
+- [ ] Aplicar RLS no Supabase
+
+## Fase 5 — Produto final + Pro Anual
+- [ ] Criar página de preços (/precos)
+- [ ] Separar Essencial e Pro Anual
+- [ ] Garantir que não há nenhuma referência a plano mensal
+- [ ] Preparar recursos Pro bloqueados (rotas Pro)
+
+## Fase 6 — Webhooks
+- [ ] Criar webhook Kiwify (POST /api/webhooks/kiwify)
+- [ ] Criar webhook Hotmart (POST /api/webhooks/hotmart)
+- [ ] Criar tabela webhook_events
+- [ ] Criar idempotência
+- [ ] Criar lógica de venda aprovada, reembolso, chargeback, cancelamento e expiração
+
+## Fase 7 — Admin
+- [ ] Criar área admin (protegida por ADMIN_EMAILS)
+- [ ] Buscar usuário por email
+- [ ] Ver perfil e licenças
+- [ ] Criar licença manual / ativar compra única / conceder Pro Anual
+- [ ] Bloquear acesso
+- [ ] Marcar reembolso / chargeback
+- [ ] Ver webhooks e status de processamento
+
+## Fase 8 — Revisão e deploy
+- [ ] Rodar lint
+- [ ] Rodar typecheck
+- [ ] Rodar build
+- [ ] Revisar segurança
+- [ ] Preparar GitHub (e-mail noreply, repo, push main)
+- [ ] Preparar Vercel (preset Next.js, variáveis de ambiente)
+
+---
+
+### Mapeamento (ordem de execução do briefing → fases acima)
+A "ordem obrigatória de execução" do briefing agrupa algumas fases:
+- Execução Fase 4 (Licenciamento e acesso) = Fases 4 + 5 acima.
+- Execução Fase 5 (Webhooks e admin) = Fases 6 + 7 acima.
+- Execução Fase 6 (Revisão e deploy) = Fase 8 acima.

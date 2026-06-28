@@ -1,0 +1,97 @@
+# REVIEW — Doce Margem
+
+> Registro de revisão técnica, riscos e pendências. Atualizar ao final de cada fase.
+
+## Revisões por fase
+
+### Fase 0 — Setup e documentação
+- **Status:** ✅ Concluída
+- **O que foi feito:**
+  - Projeto Next.js criado em `C:\dev\doce-margem` (fora de OneDrive/Desktop/Downloads).
+  - Next.js 16.2.9, React 19.2.4, TypeScript 5 (strict), Tailwind CSS v4, ESLint 9, App Router, alias `@/*`.
+  - Estrutura base de pastas: `app/`, `components/`, `lib/`, `modules/`, `services/`, `types/`, `hooks/`, `supabase/`, `public/` (`.gitkeep` nas pastas vazias).
+  - `README.md`, `TASKS.md`, `REVIEW.md` criados como artefatos-guia.
+  - `.env.example` criado com todas as variáveis previstas.
+  - Script `typecheck` (`tsc --noEmit`) adicionado ao `package.json`.
+  - `.gitignore` ajustado para versionar `.env.example` (mantendo `.env.local` ignorado).
+  - Git já inicializado pelo create-next-app (repositório local).
+  - **Etapa complementar (organização da documentação):**
+    - Criado `DECISIONS.md` — histórico oficial de decisões (6 decisões iniciais registradas: local fora de pasta sincronizada; duas modalidades sem mensal; compra única = vitalícia da versão atual; acesso por login/licença revogável; modo simples padrão; cálculo separado da UI).
+    - Motivo do `DECISIONS.md`: manter rastreabilidade cronológica das decisões arquiteturais/comerciais/de produto, sem perder histórico quando algo mudar.
+    - Atualizado `CLAUDE.md` como memória permanente de execução (regras de fases, aprovação, docs vivas, comercial sem mensal, cálculo separado da UI, TS estrito, typecheck).
+    - Revisado/atualizado `AGENTS.md` com papéis conceituais (Produto, Arquitetura, Domínio, Front-end, QA), preservando o bloco de regras do Next.js gerado pelo create-next-app.
+    - Confirmação: **a Fase 1 (núcleo de cálculo) ainda NÃO foi iniciada** — nenhum código de cálculo foi escrito.
+- **Problemas encontrados:**
+  - `.gitignore` padrão ignorava `.env*` (incluindo `.env.example`) — corrigido com exceção `!.env.example`.
+  - create-next-app instalou Next 16 (não 14). Atende ao requisito "14 ou superior"; sem impacto.
+- **Riscos:** nenhum bloqueante nesta fase.
+- **Pendências:**
+  - Configurar e-mail noreply do GitHub antes do 1º commit (Fase 8).
+  - Validar cálculos só será possível a partir da Fase 1.
+
+### Fase 1 — Núcleo de cálculo
+
+#### Fase 1A — Tipos base, unidades e ingredientes
+- **Status:** ✅ Concluída
+- **O que foi feito:**
+  - `types/pricing.ts`: tipos base (`BaseUnit`, `PurchaseUnit`, `UnitDimension`, `Ingredient`, `CalculatedIngredient`, `ValidationError`/`ValidationErrorCode`, `CalculationResult<T>`). Medidas caseiras (`HouseholdMeasure`) **declaradas mas não implementadas** (preparadas para receitas).
+  - `modules/pricing/units.ts`: `getUnitDimension`, `areUnitsCompatible`, `convert` (kg↔g, l↔ml, un→un; bloqueia conversão entre dimensões).
+  - `modules/pricing/validators.ts`: `validateIngredient` (nome, preço, quantidade, fator de correção, compatibilidade de unidade).
+  - `modules/pricing/ingredients.ts`: `calculateIngredient` (custo por unidade-base), `applyCorrectionFactor`, `costForQuantity` (helper preparado para receitas, sem perdas).
+  - `modules/pricing/examples.ts`: 4 ingredientes de exemplo + `runExampleValidations`/`allExamplesPass`.
+  - `modules/pricing/index.ts`: barrel de exportação.
+- **Validações executadas (todas PASS):**
+  - Custo por unidade-base: Chocolate 0,038/g; Leite 0,006/ml; Ovo 0,80/un; Creme de leite 0,0225/g.
+  - Conversões: kg→g=1000, l→ml=1000, g→kg=1; kg↔ml incompatível; `convert(kg→ml)` lança erro.
+  - Entrada inválida rejeitada com 5 erros (nome vazio, preço negativo, quantidade zero, fator ≤ 0, unidade incompatível).
+  - `npm run typecheck` → exit 0; `npm run lint` → exit 0.
+- **Problemas encontrados:**
+  - Node 24 não resolve import de TS sem extensão; mantive imports idiomáticos no código (extensionless + alias `@/`) e validei compilando os módulos para CJS num diretório temporário (scratchpad), fora do projeto. Decisão registrada em DECISIONS.md.
+- **Riscos:**
+  - Precisão de ponto flutuante em divisões (mitigado com tolerância `EPSILON` nas comparações).
+  - Ainda sem framework de testes formal — validação é por script puro; reavaliar na Fase 1C.
+- **Pendências:**
+  - Receitas, rendimento, perdas, sub-receitas, medidas caseiras (Fase 1B).
+  - Canais, custos fixos, pricing engine (Fase 1C).
+
+#### Fase 1B — Receitas e rendimento
+- **Status:** ⏳ Não iniciada (aguardando aprovação)
+
+### Fase 2 — Interface Essencial
+- **Status:** ⏳ Não iniciada
+- O que foi feito:
+- Problemas encontrados:
+- Riscos:
+- Pendências:
+
+## Checklist técnico
+- [x] O projeto está em C:\dev\doce-margem
+- [x] Não há dependência de OneDrive
+- [x] A lógica de cálculo está separada da UI _(módulos puros em `modules/pricing/`, sem UI)_
+- [~] Os cálculos principais foram validados _(ingredientes/unidades validados na Fase 1A; receitas/canais/engine pendentes)_
+- [ ] A interface simples não assusta iniciantes
+- [ ] O modo avançado preserva recursos profissionais
+- [x] Não existe plano mensal _(nada de mensal documentado)_
+- [ ] Compra única tem acesso controlado
+- [ ] Reembolso revoga acesso
+- [x] Plano Pro é anual _(modelo definido no README)_
+- [ ] Permissões não dependem apenas do frontend
+- [ ] Webhooks estão protegidos
+- [ ] Admin está protegido
+- [ ] Build passa _(validar na Fase 8; ambiente já roda)_
+
+## Checklist de produto
+- [x] Promessa principal está clara _(documentada no README)_
+- [ ] Essencial resolve a dor principal
+- [ ] Pro Anual tem valor recorrente real
+- [ ] Usuária iniciante entende o primeiro passo
+- [ ] Recursos avançados não aparecem cedo demais
+- [ ] Backup está claro
+- [ ] Bloqueio de acesso tem copy clara
+
+## Riscos conhecidos
+- Complexidade excessiva para confeiteiras iniciantes.
+- Quebrar a matemática ao refatorar.
+- Depender apenas do frontend para bloquear acesso.
+- Criar SaaS robusto antes do Essencial vendável.
+- Misturar compra única com assinatura sem regra clara.
