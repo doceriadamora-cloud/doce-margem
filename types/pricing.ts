@@ -246,3 +246,56 @@ export interface CalculatedRecipe {
   /** Custo por unidade de rendimento. */
   unitCost: number;
 }
+
+/* ──────────────────── Canais de venda (Fase 1C-1) ──────────────────── */
+
+/**
+ * Canal de venda e suas taxas. Todos os percentuais são informados de 0 a 100
+ * (não em decimal). A conversão para decimal acontece no cálculo.
+ *
+ * A `monthlyFee` (mensalidade) NÃO entra no cálculo por pedido nesta fase — fica
+ * registrada como dado do canal para uso futuro em custos fixos/rateio.
+ */
+export interface SalesChannel {
+  /** Identificador do canal. */
+  id: string;
+  /** Nome do canal (ex.: "iFood Básico"). */
+  name: string;
+  /** Comissão do canal em % (0–100). */
+  commissionPercent: number;
+  /** Taxa de pagamento online em % (0–100). */
+  paymentPercent: number;
+  /** Taxa fixa por pedido em R$ (≥ 0). Não entra no percentual. */
+  fixedFee: number;
+  /** Percentual de anúncio/destaque em % (0–100). */
+  adPercent: number;
+  /** Mensalidade do canal em R$ (≥ 0). NÃO usada no cálculo por pedido nesta fase. */
+  monthlyFee: number;
+  /** Observações opcionais. */
+  notes?: string;
+}
+
+/**
+ * Detalhamento do cálculo de preço por canal: o preço de venda necessário para,
+ * após descontar todas as taxas, restar exatamente o valor líquido desejado.
+ */
+export interface ChannelPriceBreakdown {
+  /** Canal de origem. */
+  channel: SalesChannel;
+  /** Valor líquido desejado (entrada). */
+  desiredNet: number;
+  /** Preço de venda necessário para cobrir as taxas e manter o líquido desejado. */
+  requiredPrice: number;
+  /** Comissão em R$. */
+  commissionAmount: number;
+  /** Taxa de pagamento em R$. */
+  paymentAmount: number;
+  /** Taxa fixa em R$. */
+  fixedFeeAmount: number;
+  /** Anúncio/destaque em R$. */
+  adAmount: number;
+  /** Total de taxas em R$ (comissão + pagamento + anúncio + taxa fixa). */
+  totalFees: number;
+  /** Valor líquido após as taxas (deve bater com `desiredNet`). */
+  netAfterFees: number;
+}

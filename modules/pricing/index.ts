@@ -10,6 +10,8 @@ export * from "./ingredients";
 export * from "./household-measures";
 export * from "./recipe-validators";
 export * from "./recipes";
+export * from "./channel-validators";
+export * from "./channels";
 export * from "./examples";
 
 export type {
@@ -33,4 +35,6 @@ export type {
   CalculatedSubRecipeItem,
   CalculatedRecipeItem,
   CalculatedRecipe,
+  SalesChannel,
+  ChannelPriceBreakdown,
 } from "@/types/pricing";

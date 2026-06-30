@@ -1,13 +1,14 @@
 /**
- * Dados de exemplo e validação dos cálculos — Fase 1A a 1B-3.
+ * Dados de exemplo e validação dos cálculos — Fase 1A a 1C-1.
  *
  * Serve para confirmar, com funções puras, que o custo por unidade-base bate
  * com o esperado. Usado pelo runner de validação (ver REVIEW.md / TASKS.md).
  */
 
-import type { Ingredient, Recipe } from "@/types/pricing";
+import type { Ingredient, Recipe, SalesChannel } from "@/types/pricing";
 import { calculateIngredient } from "./ingredients";
 import { calculateRecipe } from "./recipes";
+import { calculateChannelPrice, defaultSalesChannels } from "./channels";
 
 /** Ingredientes de exemplo para teste manual e seed futuro. */
 export const exampleIngredients: Ingredient[] = [
@@ -699,4 +700,72 @@ export function runHouseholdMeasureValidations(): RecipeCheckResult[] {
 /** Retorna true se todas as checagens de medidas caseiras baterem com o esperado. */
 export function allHouseholdMeasureExamplesPass(): boolean {
   return runHouseholdMeasureValidations().every((r) => r.pass);
+}
+
+/* ─────────────────────────── Canais de venda (Fase 1C-1) ─────────────────────────── */
+
+/** Acha um canal da biblioteca padrão pelo id (helper dos exemplos). */
+function findChannel(id: string): SalesChannel | undefined {
+  return defaultSalesChannels.find((c) => c.id === id);
+}
+
+/**
+ * Valida o cálculo de preço por canal a partir de um líquido desejado de R$ 20,00.
+ *
+ *   Balcão/Pix      → preço R$ 20,00;     taxas R$ 0,00; líquido R$ 20,00
+ *   Cartão          → preço 20 / 0,965  = R$ 20,7254
+ *   iFood Básico    → preço 21 / 0,848  = R$ 24,7641
+ *   iFood Entrega   → preço 21 / 0,738  = R$ 28,4553
+ */
+export function runChannelValidations(): RecipeCheckResult[] {
+  const checks: RecipeCheckResult[] = [];
+  const near = (a: number, b: number) => Math.abs(a - b) < RECIPE_EPSILON;
+  const desiredNet = 20;
+
+  function pushPriceCheck(channelId: string, label: string, expected: number): void {
+    const channel = findChannel(channelId);
+    if (!channel) {
+      checks.push({ label, expected, actual: null, pass: false, detail: `canal "${channelId}" não encontrado` });
+      return;
+    }
+    const result = calculateChannelPrice(channel, desiredNet);
+    if (!result.ok) {
+      checks.push({ label, expected, actual: null, pass: false, detail: result.errors.map((e) => e.message).join("; ") });
+      return;
+    }
+    checks.push({ label, expected, actual: result.value.requiredPrice, pass: near(result.value.requiredPrice, expected) });
+  }
+
+  // Balcão/Pix — sem taxas: preço = líquido, taxas = 0.
+  const balcao = findChannel("balcao-pix");
+  if (balcao) {
+    const r = calculateChannelPrice(balcao, desiredNet);
+    if (r.ok) {
+      checks.push({ label: "Balcão/Pix — preço necessário", expected: 20, actual: r.value.requiredPrice, pass: near(r.value.requiredPrice, 20) });
+      checks.push({ label: "Balcão/Pix — total de taxas", expected: 0, actual: r.value.totalFees, pass: near(r.value.totalFees, 0) });
+      checks.push({ label: "Balcão/Pix — líquido após taxas", expected: 20, actual: r.value.netAfterFees, pass: near(r.value.netAfterFees, 20) });
+    } else {
+      checks.push({ label: "Balcão/Pix — calcula sem erros", expected: 0, actual: r.errors.length, pass: false, detail: r.errors.map((e) => e.message).join("; ") });
+    }
+  }
+
+  pushPriceCheck("cartao-maquininha", "Cartão maquininha — preço necessário", 20.72538860103627);
+  pushPriceCheck("ifood-basico", "iFood Básico — preço necessário", 24.764150943396228);
+  pushPriceCheck("ifood-entrega", "iFood Entrega — preço necessário", 28.45528455284553);
+
+  // Detalhamento do iFood Básico: o líquido após taxas deve voltar a R$ 20,00.
+  const ifoodBasico = findChannel("ifood-basico");
+  if (ifoodBasico) {
+    const r = calculateChannelPrice(ifoodBasico, desiredNet);
+    if (r.ok) {
+      checks.push({ label: "iFood Básico — líquido após taxas = desejado", expected: 20, actual: r.value.netAfterFees, pass: near(r.value.netAfterFees, 20) });
+    }
+  }
+
+  return checks;
+}
+
+/** Retorna true se todas as checagens de canais baterem com o esperado. */
+export function allChannelExamplesPass(): boolean {
+  return runChannelValidations().every((r) => r.pass);
 }

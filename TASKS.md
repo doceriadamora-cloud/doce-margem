@@ -4,7 +4,7 @@
 > Marcar `[x]` ao concluir. Adicionar novas tarefas quando surgirem.
 > Antes de iniciar uma nova fase: parar, resumir o que foi feito e aguardar aprovação.
 
-**Fase atual:** Fase 1B-3 (medidas caseiras) concluída → aguardando aprovação para a Fase 1C (canais, custos fixos e pricing engine).
+**Fase atual:** Fase 1C-1 (canais e taxas) concluída → aguardando aprovação para a Fase 1C-2 (custos fixos e rateio).
 
 ## Fase 0 — Setup e documentação ✅
 - [x] Criar projeto em C:\dev\doce-margem
@@ -57,11 +57,23 @@
 - [x] Medidas caseiras (xícara, colher de sopa/chá/café) + densidades
 - [x] Dados de exemplo de receitas adicionais (Brownie Ferrero, Cookie Kinder)
 
-### Fase 1C — Canais, custos fixos e pricing engine (pendente)
-- [ ] Criar módulo de canais (taxas %, taxa fixa, comissão marketplace)
-- [ ] Criar módulo de custos fixos (rateio)
+### Fase 1C-1 — Canais e taxas ✅
+- [x] Tipos de canal e taxas (`SalesChannel`, `ChannelPriceBreakdown`)
+- [x] Cálculo de preço necessário por canal (cobre taxas % + taxa fixa)
+- [x] Detalhamento das taxas (comissão, pagamento, anúncio, taxa fixa, total, líquido)
+- [x] Biblioteca inicial de canais (`defaultSalesChannels`) — Balcão/Pix, Cartão, WhatsApp, iFood Básico/Entrega, 99Food, Rappi, Uber Eats
+- [x] Validações de canal (`channel-validators.ts`)
+- [x] Exemplos manuais + validação (`runChannelValidations`)
+- [x] Rodar `typecheck` + `lint`
+
+### Fase 1C-2 — Custos fixos e rateio (pendente)
+- [ ] Criar módulo de custos fixos (rateio por unidade)
+- [ ] Mensalidade de canal entra no rateio de custos fixos
+- [ ] Dados de exemplo + validação
+
+### Fase 1C-3 — Pricing engine (pendente)
 - [ ] Criar pricing engine (CMV, preço sugerido, margem, markup)
-- [ ] Dados de exemplo de canais (Balcão/Pix, Cartão, iFood, Rappi, Uber Eats)
+- [ ] Integrar custo de receita + custos fixos + taxas de canal
 - [ ] Engenharia de cardápio (pode ir para fase própria se crescer)
 
 ## Fase 2 — Interface Essencial

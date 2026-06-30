@@ -131,3 +131,19 @@ A união discriminada deixa o modelo explícito e seguro em tipos (o `kind` estr
 
 ### Impacto
 Técnico: `RecipeItem`/`CalculatedRecipeItem` passaram a ser uniões; `calculateRecipe`/`validateRecipe` agora recebem também `recipesById`. Consumidores devem checar `item.kind` antes de acessar campos específicos. Base pronta para canais/pricing engine consumirem o custo unitário de qualquer receita (com ou sem sub-receitas).
+
+---
+
+## 2026-06-28 — Canais de venda: percentuais em 0–100 e mensalidade fora do cálculo por pedido
+
+### Decisão
+Os percentuais de canal (comissão, pagamento, anúncio) são armazenados de **0 a 100** e convertidos para decimal apenas no cálculo. A **taxa fixa não entra no percentual**. A **mensalidade do canal (`monthlyFee`) NÃO entra no cálculo de preço por pedido** — fica registrada como dado do canal para uso futuro em custos fixos/rateio. O preço necessário por canal é `(líquido desejado + taxa fixa) / (1 − total%/100)`, exigindo que a soma dos percentuais seja `< 100`.
+
+### Contexto
+Início da Fase 1C-1 (canais e taxas). Era preciso definir como representar taxas e o que entra no cálculo por pedido versus o que pertence ao rateio de custos fixos.
+
+### Motivo
+Percentuais em 0–100 batem com o que a confeiteira lê nos contratos dos canais (UX). Misturar mensalidade no preço por pedido distorceria o custo unitário (a mensalidade independe do volume vendido) — ela é um custo fixo e será rateada na fase de custos fixos. Exigir soma `< 100` evita denominador zero/negativo.
+
+### Impacto
+Técnico: `SalesChannel` carrega `monthlyFee` sem usá-la em `calculateChannelPrice`; a Fase 1C-2 (custos fixos) consumirá esse campo no rateio. A biblioteca inicial de canais vive em `channels.ts` (dado de domínio), como a tabela de medidas caseiras em `household-measures.ts`.

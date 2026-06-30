@@ -130,6 +130,37 @@
 - **Riscos:** float (ex.: 7,56000…5) — mitigado por `RECIPE_EPSILON`; tabela de conversão é MVP estática (personalização por usuária fica para versão futura).
 - **Pendências:** canais, custos fixos e pricing engine (Fase 1C).
 
+#### Fase 1C-1 — Canais e taxas
+- **Status:** ✅ Concluída
+- **O que foi feito:**
+  - `types/pricing.ts`: `SalesChannel` (canal + taxas) e `ChannelPriceBreakdown` (detalhamento) — novos. Nenhum código de erro novo foi necessário (REQUIRED/NEGATIVE/OUT_OF_RANGE/NON_POSITIVE já existiam).
+  - `modules/pricing/channel-validators.ts` (novo): `validateChannel` e `validateChannelPrice` (canal + líquido desejado).
+  - `modules/pricing/channels.ts` (novo): `defaultSalesChannels` (biblioteca inicial de 8 canais) + `calculateChannelPrice`.
+  - `modules/pricing/examples.ts`: `runChannelValidations`, `allChannelExamplesPass`.
+  - `modules/pricing/index.ts`: exporta `channels`, `channel-validators` e os novos tipos.
+- **Fórmula do preço necessário por canal:**
+  - `total% = comissão% + pagamento% + anúncio%` (taxa fixa NÃO entra no percentual)
+  - `preço necessário = (líquido desejado + taxa fixa) / (1 − total%/100)`
+  - Detalhamento: cada taxa em R$ = preço × taxa%; `total de taxas = comissão + pagamento + anúncio + taxa fixa`; `líquido após taxas = preço − total de taxas` (volta ao desejado).
+- **Validações executadas (todas PASS), líquido desejado R$ 20,00:**
+  - Balcão/Pix → preço R$ 20,00; taxas R$ 0,00; líquido R$ 20,00 ✓
+  - Cartão maquininha → R$ 20,7254 (20 / 0,965) ✓
+  - iFood Básico → R$ 24,7642 (21 / 0,848) ✓
+  - iFood Entrega → R$ 28,4553 (21 / 0,738) ✓
+  - iFood Básico: líquido após taxas volta a R$ 20,00 ✓
+  - Erros: sem nome → REQUIRED; comissão/pagamento/anúncio/taxa fixa/mensalidade negativas → NEGATIVE; comissão > 100 → OUT_OF_RANGE; soma ≥ 100 → OUT_OF_RANGE (e calc falha); líquido ≤ 0 → NON_POSITIVE ✓
+  - Biblioteca inicial com 8 canais ✓
+  - Todos os testes das fases anteriores (1A, 1B-1, 1B-2, 1B-3) continuam PASS.
+  - `npm run typecheck` → exit 0; `npm run lint` → exit 0.
+- **Decisões de implementação:**
+  - Percentuais armazenados em 0–100 (não decimal); conversão para decimal só no cálculo.
+  - Taxa fixa NÃO entra no percentual; soma % deve ser < 100 (senão o denominador `1 − total%` zera/inverte).
+  - **Mensalidade (`monthlyFee`) NÃO entra no cálculo por pedido** — fica registrada no canal para uso em custos fixos/rateio (Fase 1C-2). Registrado em DECISIONS.md.
+  - Biblioteca de canais vive em `channels.ts` (dado de domínio canônico), análogo à tabela de medidas caseiras em `household-measures.ts`.
+- **Problemas encontrados:** diagnósticos defasados do IDE (mesma situação das fases anteriores); ignorados após confirmação do `typecheck`.
+- **Riscos:** float nos preços — mitigado por `RECIPE_EPSILON`; valores da biblioteca são aproximados de MVP (editáveis depois).
+- **Pendências:** custos fixos e rateio (Fase 1C-2); pricing engine (Fase 1C-3).
+
 ### Fase 2 — Interface Essencial
 - **Status:** ⏳ Não iniciada
 - O que foi feito:
