@@ -299,3 +299,74 @@ export interface ChannelPriceBreakdown {
   /** Valor líquido após as taxas (deve bater com `desiredNet`). */
   netAfterFees: number;
 }
+
+/* ──────────────────── Custos fixos (Fase 1C-2) ──────────────────── */
+
+/** Categorias de custo fixo mensal. */
+export type FixedCostCategory =
+  | "aluguel"
+  | "energia"
+  | "agua"
+  | "internet"
+  | "gas"
+  | "telefone"
+  | "contador"
+  | "software"
+  | "funcionario"
+  | "pro_labore"
+  | "marketplace"
+  | "outros";
+
+/** Custo fixo mensal da operação (ex.: aluguel, energia, pró-labore). */
+export interface FixedCost {
+  /** Identificador do custo fixo. */
+  id: string;
+  /** Nome do custo (ex.: "Aluguel"). */
+  name: string;
+  /** Categoria do custo. */
+  category: FixedCostCategory;
+  /** Valor mensal em R$ (≥ 0). */
+  monthlyValue: number;
+  /** Se inativo, não entra no total. */
+  active: boolean;
+  /** Observações opcionais. */
+  notes?: string;
+}
+
+/**
+ * Entrada do cálculo de custos fixos.
+ *
+ * `channels` representa os canais ativos cuja mensalidade pode ser somada quando
+ * `includeChannelMonthlyFees` for `true` (a mensalidade vem da Fase 1C-1,
+ * campo `monthlyFee`). A lista de canais é a própria seleção de "ativos".
+ */
+export interface FixedCostCalculationInput {
+  /** Lista de custos fixos (pode ser vazia → total 0). */
+  fixedCosts: FixedCost[];
+  /** Faturamento mensal estimado em R$ (> 0). */
+  estimatedMonthlyRevenue: number;
+  /** Volume mensal estimado de unidades (se informado, > 0). */
+  estimatedMonthlyUnits?: number;
+  /** Canais cujas mensalidades podem ser incluídas. */
+  channels?: SalesChannel[];
+  /** Se `true`, soma as mensalidades dos canais ao total. */
+  includeChannelMonthlyFees?: boolean;
+}
+
+/** Resultado do cálculo de custos fixos e do percentual sobre o faturamento. */
+export interface FixedCostSummary {
+  /** Soma dos custos fixos ATIVOS (sem mensalidades de canais). */
+  totalFixedCosts: number;
+  /** Soma das mensalidades de canais incluídas (0 se não incluídas). */
+  channelMonthlyFeesTotal: number;
+  /** Total efetivamente considerado (custos fixos + mensalidades incluídas). */
+  totalConsidered: number;
+  /** Faturamento mensal estimado (entrada). */
+  estimatedMonthlyRevenue: number;
+  /** Percentual de custo fixo sobre o faturamento, em decimal (ex.: 0,231 = 23,1%). */
+  fixedCostRate: number;
+  /** Volume mensal estimado, se informado. */
+  estimatedMonthlyUnits?: number;
+  /** Custo fixo médio por unidade, se houver volume estimado. */
+  fixedCostPerUnit?: number;
+}

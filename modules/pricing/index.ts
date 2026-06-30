@@ -12,6 +12,8 @@ export * from "./recipe-validators";
 export * from "./recipes";
 export * from "./channel-validators";
 export * from "./channels";
+export * from "./fixed-cost-validators";
+export * from "./fixed-costs";
 export * from "./examples";
 
 export type {
@@ -37,4 +39,8 @@ export type {
   CalculatedRecipe,
   SalesChannel,
   ChannelPriceBreakdown,
+  FixedCostCategory,
+  FixedCost,
+  FixedCostCalculationInput,
+  FixedCostSummary,
 } from "@/types/pricing";

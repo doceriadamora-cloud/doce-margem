@@ -5,10 +5,16 @@
  * com o esperado. Usado pelo runner de validação (ver REVIEW.md / TASKS.md).
  */
 
-import type { Ingredient, Recipe, SalesChannel } from "@/types/pricing";
+import type {
+  FixedCost,
+  Ingredient,
+  Recipe,
+  SalesChannel,
+} from "@/types/pricing";
 import { calculateIngredient } from "./ingredients";
 import { calculateRecipe } from "./recipes";
 import { calculateChannelPrice, defaultSalesChannels } from "./channels";
+import { calculateFixedCostSummary } from "./fixed-costs";
 
 /** Ingredientes de exemplo para teste manual e seed futuro. */
 export const exampleIngredients: Ingredient[] = [
@@ -768,4 +774,85 @@ export function runChannelValidations(): RecipeCheckResult[] {
 /** Retorna true se todas as checagens de canais baterem com o esperado. */
 export function allChannelExamplesPass(): boolean {
   return runChannelValidations().every((r) => r.pass);
+}
+
+/* ─────────────────────────── Custos fixos (Fase 1C-2) ─────────────────────────── */
+
+/**
+ * Custos fixos de exemplo. Os 8 ativos somam R$ 2.310; o telefone está inativo
+ * (R$ 90) para provar que custos inativos não entram no total.
+ */
+export const exampleFixedCosts: FixedCost[] = [
+  { id: "aluguel", name: "Aluguel", category: "aluguel", monthlyValue: 1200, active: true },
+  { id: "energia", name: "Energia", category: "energia", monthlyValue: 300, active: true },
+  { id: "agua", name: "Água", category: "agua", monthlyValue: 80, active: true },
+  { id: "internet", name: "Internet", category: "internet", monthlyValue: 100, active: true },
+  { id: "gas", name: "Gás", category: "gas", monthlyValue: 150, active: true },
+  { id: "contador", name: "Contador", category: "contador", monthlyValue: 180, active: true },
+  { id: "software", name: "Software", category: "software", monthlyValue: 100, active: true },
+  { id: "pro-labore", name: "Pró-labore", category: "pro_labore", monthlyValue: 200, active: true },
+  { id: "telefone-desativado", name: "Telefone (desativado)", category: "telefone", monthlyValue: 90, active: false },
+];
+
+/**
+ * Valida custos fixos: total dos ativos, percentual sobre faturamento, custo
+ * fixo médio por unidade e o cenário com mensalidades de canais incluídas.
+ *
+ *   Total ativos        = R$ 2.310 (telefone inativo de R$ 90 é ignorado)
+ *   fixedCostRate       = 2310 / 10000 = 0,231 (23,1%)
+ *   fixedCostPerUnit    = 2310 / 770   = R$ 3,00
+ *   Com iFood Básico (100) + iFood Entrega (130) = +230 → 2540 → 0,254 (25,4%)
+ */
+export function runFixedCostValidations(): RecipeCheckResult[] {
+  const checks: RecipeCheckResult[] = [];
+  const near = (a: number, b: number) => Math.abs(a - b) < RECIPE_EPSILON;
+
+  // Cenário base (sem canais), com volume estimado.
+  const base = calculateFixedCostSummary({
+    fixedCosts: exampleFixedCosts,
+    estimatedMonthlyRevenue: 10000,
+    estimatedMonthlyUnits: 770,
+  });
+  if (!base.ok) {
+    checks.push({ label: "Custos fixos base — calcula sem erros", expected: 0, actual: base.errors.length, pass: false, detail: base.errors.map((e) => e.message).join("; ") });
+  } else {
+    const s = base.value;
+    checks.push({ label: "Custos fixos — total ativos (inativo excluído)", expected: 2310, actual: s.totalFixedCosts, pass: near(s.totalFixedCosts, 2310) });
+    checks.push({ label: "Custos fixos — fixedCostRate", expected: 0.231, actual: s.fixedCostRate, pass: near(s.fixedCostRate, 0.231) });
+    checks.push({ label: "Custos fixos — fixedCostPerUnit", expected: 3, actual: s.fixedCostPerUnit ?? null, pass: s.fixedCostPerUnit !== undefined && near(s.fixedCostPerUnit, 3) });
+  }
+
+  // Cenário com mensalidades de canais (iFood Básico + iFood Entrega).
+  const ifoodBasico = defaultSalesChannels.find((c) => c.id === "ifood-basico");
+  const ifoodEntrega = defaultSalesChannels.find((c) => c.id === "ifood-entrega");
+  const withChannels = calculateFixedCostSummary({
+    fixedCosts: exampleFixedCosts,
+    estimatedMonthlyRevenue: 10000,
+    channels: ifoodBasico && ifoodEntrega ? [ifoodBasico, ifoodEntrega] : [],
+    includeChannelMonthlyFees: true,
+  });
+  if (!withChannels.ok) {
+    checks.push({ label: "Custos fixos c/ canais — calcula sem erros", expected: 0, actual: withChannels.errors.length, pass: false, detail: withChannels.errors.map((e) => e.message).join("; ") });
+  } else {
+    const s = withChannels.value;
+    checks.push({ label: "Custos fixos — mensalidades de canais", expected: 230, actual: s.channelMonthlyFeesTotal, pass: near(s.channelMonthlyFeesTotal, 230) });
+    checks.push({ label: "Custos fixos — total com canais", expected: 2540, actual: s.totalConsidered, pass: near(s.totalConsidered, 2540) });
+    checks.push({ label: "Custos fixos — fixedCostRate com canais", expected: 0.254, actual: s.fixedCostRate, pass: near(s.fixedCostRate, 0.254) });
+  }
+
+  // Lista vazia é permitida → total 0, rate 0.
+  const empty = calculateFixedCostSummary({ fixedCosts: [], estimatedMonthlyRevenue: 10000 });
+  if (!empty.ok) {
+    checks.push({ label: "Custos fixos vazio — calcula sem erros", expected: 0, actual: empty.errors.length, pass: false, detail: empty.errors.map((e) => e.message).join("; ") });
+  } else {
+    checks.push({ label: "Custos fixos — lista vazia → total 0", expected: 0, actual: empty.value.totalFixedCosts, pass: near(empty.value.totalFixedCosts, 0) });
+    checks.push({ label: "Custos fixos — lista vazia → rate 0", expected: 0, actual: empty.value.fixedCostRate, pass: near(empty.value.fixedCostRate, 0) });
+  }
+
+  return checks;
+}
+
+/** Retorna true se todas as checagens de custos fixos baterem com o esperado. */
+export function allFixedCostExamplesPass(): boolean {
+  return runFixedCostValidations().every((r) => r.pass);
 }

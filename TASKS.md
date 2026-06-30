@@ -4,7 +4,7 @@
 > Marcar `[x]` ao concluir. Adicionar novas tarefas quando surgirem.
 > Antes de iniciar uma nova fase: parar, resumir o que foi feito e aguardar aprovação.
 
-**Fase atual:** Fase 1C-1 (canais e taxas) concluída → aguardando aprovação para a Fase 1C-2 (custos fixos e rateio).
+**Fase atual:** Fase 1C-2 (custos fixos e rateio) concluída → aguardando aprovação para a Fase 1C-3 (pricing engine).
 
 ## Fase 0 — Setup e documentação ✅
 - [x] Criar projeto em C:\dev\doce-margem
@@ -66,10 +66,15 @@
 - [x] Exemplos manuais + validação (`runChannelValidations`)
 - [x] Rodar `typecheck` + `lint`
 
-### Fase 1C-2 — Custos fixos e rateio (pendente)
-- [ ] Criar módulo de custos fixos (rateio por unidade)
-- [ ] Mensalidade de canal entra no rateio de custos fixos
-- [ ] Dados de exemplo + validação
+### Fase 1C-2 — Custos fixos e rateio ✅
+- [x] Tipos de custos fixos (`FixedCost`, `FixedCostCategory`, `FixedCostSummary`, `FixedCostCalculationInput`)
+- [x] Total mensal de custos fixos ativos (inativos excluídos)
+- [x] Inclusão opcional das mensalidades dos canais (`monthlyFee` da Fase 1C-1)
+- [x] Percentual de custo fixo sobre faturamento estimado (`fixedCostRate`)
+- [x] Custo fixo médio por unidade quando há volume estimado (`fixedCostPerUnit`)
+- [x] Validações (`fixed-cost-validators.ts`)
+- [x] Exemplos manuais + validação (`runFixedCostValidations`)
+- [x] Rodar `typecheck` + `lint`
 
 ### Fase 1C-3 — Pricing engine (pendente)
 - [ ] Criar pricing engine (CMV, preço sugerido, margem, markup)

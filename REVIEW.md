@@ -161,6 +161,39 @@
 - **Riscos:** float nos preços — mitigado por `RECIPE_EPSILON`; valores da biblioteca são aproximados de MVP (editáveis depois).
 - **Pendências:** custos fixos e rateio (Fase 1C-2); pricing engine (Fase 1C-3).
 
+#### Fase 1C-2 — Custos fixos e rateio
+- **Status:** ✅ Concluída
+- **O que foi feito:**
+  - `types/pricing.ts`: `FixedCostCategory` (12 categorias), `FixedCost`, `FixedCostCalculationInput`, `FixedCostSummary` — novos. Nenhum código de erro novo (REQUIRED/NEGATIVE/NON_POSITIVE já existiam).
+  - `modules/pricing/fixed-cost-validators.ts` (novo): `validateFixedCost` e `validateFixedCostCalculation`.
+  - `modules/pricing/fixed-costs.ts` (novo): `sumActiveFixedCosts`, `sumChannelMonthlyFees`, `calculateFixedCostSummary`.
+  - `modules/pricing/examples.ts`: `exampleFixedCosts` (8 ativos + 1 inativo), `runFixedCostValidations`, `allFixedCostExamplesPass`.
+  - `modules/pricing/index.ts`: exporta `fixed-costs`, `fixed-cost-validators` e os novos tipos.
+  - **`channels.ts` NÃO foi modificado** — a mensalidade é lida via `channel.monthlyFee` (campo já existente da Fase 1C-1).
+- **Fórmulas:**
+  - `totalFixedCosts = Σ custos fixos ATIVOS`
+  - `channelMonthlyFeesTotal = Σ monthlyFee dos canais` (só se `includeChannelMonthlyFees`)
+  - `totalConsidered = totalFixedCosts + channelMonthlyFeesTotal`
+  - `fixedCostRate = totalConsidered / faturamento estimado` (decimal)
+  - `fixedCostPerUnit = totalConsidered / volume estimado` (só se volume informado)
+- **Como as mensalidades de canais entram:** a lista `channels` representa os canais ativos; quando `includeChannelMonthlyFees = true`, a soma das `monthlyFee` é adicionada ao total. A lista (não um flag `active` no canal) é a seleção.
+- **Validações executadas (todas PASS):**
+  - Total ativos R$ 2.310 (telefone inativo de R$ 90 ignorado) ✓
+  - `fixedCostRate` 0,231 (23,1%); `fixedCostPerUnit` R$ 3,00 (770 un) ✓
+  - Com iFood Básico (100) + Entrega (130): canais R$ 230; total R$ 2.540; rate 0,254 (25,4%) ✓
+  - Lista vazia → total 0, rate 0 ✓
+  - Erros: sem nome → REQUIRED; valor negativo → NEGATIVE; faturamento ≤ 0 → NON_POSITIVE; volume ≤ 0 → NON_POSITIVE; mensalidade de canal negativa → NEGATIVE ✓
+  - Sem volume → `fixedCostPerUnit` undefined; `includeChannelMonthlyFees=false` ignora mensalidades ✓
+  - Todos os testes das fases anteriores (1A → 1C-1) continuam PASS.
+  - `npm run typecheck` → exit 0; `npm run lint` → exit 0.
+- **Decisões de implementação:**
+  - `fixedCostRate` e `fixedCostPerUnit` usam o **total efetivo** (`totalConsidered` = base + mensalidades incluídas), não só a base. Reconcilia os dois exemplos do briefing (23,1% sem canais; 25,4% com canais). Registrado em DECISIONS.md.
+  - Canal não ganhou flag `active`: a lista de canais passada já é a seleção de ativos (evita alterar a Fase 1C-1).
+  - `fixedCostRate` é só o percentual/rateio; nenhum preço sugerido, margem ou markup foi calculado.
+- **Problemas encontrados:** diagnósticos defasados do IDE (mesma situação das fases anteriores); ignorados após `typecheck` limpo.
+- **Riscos:** float nos percentuais — mitigado por `RECIPE_EPSILON`; valores de exemplo são ilustrativos.
+- **Pendências:** pricing engine — CMV, preço sugerido, margem, markup (Fase 1C-3); engenharia de cardápio.
+
 ### Fase 2 — Interface Essencial
 - **Status:** ⏳ Não iniciada
 - O que foi feito:

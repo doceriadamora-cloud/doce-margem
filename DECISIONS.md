@@ -147,3 +147,19 @@ Percentuais em 0–100 batem com o que a confeiteira lê nos contratos dos canai
 
 ### Impacto
 Técnico: `SalesChannel` carrega `monthlyFee` sem usá-la em `calculateChannelPrice`; a Fase 1C-2 (custos fixos) consumirá esse campo no rateio. A biblioteca inicial de canais vive em `channels.ts` (dado de domínio), como a tabela de medidas caseiras em `household-measures.ts`.
+
+---
+
+## 2026-06-30 — Custos fixos: percentual e rateio sobre o total efetivo (com mensalidades de canais)
+
+### Decisão
+O percentual de custo fixo (`fixedCostRate`) e o custo fixo médio por unidade (`fixedCostPerUnit`) são calculados sobre o **total efetivo** (`totalConsidered` = soma dos custos fixos ativos + mensalidades de canais incluídas), e não apenas sobre a base de custos fixos. Quando nenhuma mensalidade é incluída, o total efetivo é igual à base. A seleção de canais "ativos" é a própria lista de canais passada ao cálculo — não foi adicionado um flag `active` ao `SalesChannel` da Fase 1C-1.
+
+### Contexto
+O briefing da Fase 1C-2 trazia a fórmula `fixedCostRate = totalFixedCosts / faturamento`, mas o exemplo com canais exigia o percentual de 25,4% calculado sobre R$ 2.540 (base R$ 2.310 + R$ 230 de mensalidades). Era preciso reconciliar a fórmula literal com o exemplo.
+
+### Motivo
+Usar o total efetivo satisfaz os dois exemplos do briefing (23,1% sem canais; 25,4% com canais) e é coerente: a mensalidade do canal é um custo fixo real e deve compor o rateio quando a confeiteira opta por incluí-la. Não criar flag `active` no canal evita alterar a Fase 1C-1 e mantém a responsabilidade da seleção com quem chama.
+
+### Impacto
+Técnico: `FixedCostSummary` expõe `totalFixedCosts`, `channelMonthlyFeesTotal` e `totalConsidered` separadamente (transparência), e `fixedCostRate`/`fixedCostPerUnit` derivam de `totalConsidered`. O pricing engine (Fase 1C-3) consumirá `fixedCostRate` para compor o preço sugerido — sem que esta fase calcule preço, margem ou markup.
