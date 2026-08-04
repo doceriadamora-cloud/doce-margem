@@ -4,7 +4,7 @@
 > Marcar `[x]` ao concluir. Adicionar novas tarefas quando surgirem.
 > Antes de iniciar uma nova fase: parar, resumir o que foi feito e aguardar aprovação.
 
-**Fase atual:** Fase 2-1 (storageService local) concluída → aguardando aprovação para a próxima fase.
+**Fase atual:** Fase 2-2 (layout base e dashboard inicial) concluída → aguardando aprovação para a próxima fase.
 
 ## Fase 0 — Setup e documentação ✅
 - [x] Criar projeto em C:\dev\doce-margem
@@ -106,9 +106,19 @@
 - [x] Barrel de exportação (`services/index.ts`)
 - [x] Rodar `typecheck` + `lint`
 
-### Fase 2-2 — Telas e camada de UI (pendente)
-- [ ] Criar layout base
-- [ ] Criar dashboard inicial
+### Fase 2-2 — Layout base e dashboard inicial ✅
+- [x] Layout base (`app/layout.tsx`) — metadata, `lang="pt-BR"`, cabeçalho fixo
+- [x] Navegação principal (`components/layout/Header.tsx`) — marca + seções (Ingredientes/Receitas/Precificação marcadas "em breve", sem linkar rota inexistente)
+- [x] Dashboard inicial (`components/dashboard/Dashboard.tsx`) — cards de resumo, próximos passos, estado vazio, aviso de storage local
+- [x] Card reutilizável de estatística (`components/dashboard/StatCard.tsx`)
+- [x] Leitura do storageService da Fase 2-1 via `useSyncExternalStore` (sem hydration mismatch, sem `useEffect`+`setState`)
+- [x] Estado vazio amigável quando não há nenhum dado cadastrado
+- [x] Aviso quando `localStorage` está indisponível (`isStorageAvailable`)
+- [x] Responsividade básica (grid 1→2→4 colunas)
+- [x] Testado com o servidor de dev real (SSR sem erros, conteúdo esperado no HTML)
+- [x] Rodar `typecheck` + `lint`
+
+### Fase 2-3 — Telas de CRUD (pendente)
 - [ ] Criar tela de ingredientes
 - [ ] Criar tela de receitas
 - [ ] Criar tela de precificação simples (modo simples)

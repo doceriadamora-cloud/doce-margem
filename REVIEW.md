@@ -268,6 +268,29 @@
   - `isStorageAvailable()` roda uma escrita de sonda a cada chamada (sem cache) — custo desprezível, mas é uma chamada de storage a mais por operação; pode ser revisto se performance virar problema.
 - **Pendências:** telas e camada de UI (Fase 2-2): layout, dashboard, ingredientes, receitas, precificação simples, backup export/import.
 
+#### Fase 2-2 — Layout base e dashboard inicial
+- **Status:** ✅ Concluída
+- **O que foi feito:**
+  - `app/layout.tsx` (editado): `lang="pt-BR"` (era `"en"`); `metadata.title` = "Doce Margem", `description` = a promessa completa do README; `<body>` agora renderiza `<Header />` + `<main>{children}</main>` (shell compartilhado por toda futura rota).
+  - `components/layout/Header.tsx` (novo, Server Component): marca "Doce Margem" + navegação principal. "Painel" é um `<Link href="/">` ativo; "Ingredientes"/"Receitas"/"Precificação" aparecem como rótulos "em breve" (não são `<Link>`) — a Fase 2-2 não cria essas rotas, então não há link quebrado apontando para uma tela que não existe.
+  - `components/dashboard/Dashboard.tsx` (novo, Client Component — `"use client"`): orquestra o dashboard. Lê o estado via `@/services` (barrel da Fase 2-1), nunca `localStorage` direto.
+  - `components/dashboard/StatCard.tsx` (novo): card de resumo numérico reutilizável (usado 4x — ingredientes, receitas, custos fixos, canais customizados).
+  - `app/page.tsx` (reescrito): Server Component — renderiza o título (a promessa curta "Pare de vender doce no achismo.") e um subtítulo estáticos, e delega a parte dependente de dados a `<Dashboard />`. Mantém o mínimo de JavaScript no cliente (só o que precisa de `localStorage` é Client Component).
+- **Como o dashboard usa o storage local:** só por `@/services` (barrel), nunca importa `services/storage-service` diretamente nem toca `window.localStorage`. Usa `loadAppState()` para os 4 contadores e `isStorageAvailable()` para o aviso de indisponibilidade.
+- **Como lida com estado vazio:** quando a soma dos 4 contadores é 0, os cards de resumo são substituídos por um card único de boas-vindas ("Você ainda não cadastrou nada por aqui" + CTA para começar pelos ingredientes) — decisão de design: mostrar "0/0/0/0" na primeira visita pareceria quebrado para uma iniciante; um card de boas-vindas é mais acolhedor. A seção "Próximos passos" aparece sempre, independente de haver dados.
+- **Problema real encontrado e corrigido:** a primeira versão usava `useEffect` + `useState` para ler o `localStorage` após montar (padrão comum, mas o ESLint do projeto tem a regra `react-hooks/set-state-in-effect`, que rejeitou por causar "cascading renders"). Troquei por `useSyncExternalStore` (a API do próprio React para sincronizar com sistemas externos como `localStorage`): `getServerSnapshot()` devolve um estado vazio fixo (usado no servidor e na primeira pintura do cliente, evitando divergência de hidratação) e `getSnapshot()` lê o valor real do navegador uma vez, cacheado em uma variável de módulo (`useSyncExternalStore` exige referência estável ou o React reflui em loop). Resultado: sem `useEffect`, sem aviso do lint, sem mismatch de hidratação.
+- **Testado com o app real rodando:** subi `npm run dev`, aguardei o servidor responder (poll em `curl`, não `sleep` fixo) e inspecionei o HTML servido por `GET /`. Confirmado no HTML gerado pelo servidor: "Doce Margem", "Pare de vender doce no achismo.", os 3 rótulos "em breve" da navegação, os 3 títulos de "Próximos passos", o aviso de dados salvos localmente e a mensagem de estado vazio ("Você ainda não cadastrou nada por aqui" — coerente, já que o servidor nunca tem dados no `localStorage`). Duas requisições `GET /` retornaram `200`; nenhum erro no log do servidor nem texto de erro no HTML.
+  - **Limitação da verificação:** não havia `chromium-cli`/Playwright disponíveis neste ambiente, e instalar um seria uma dependência nova (fora do escopo pedido) — então não produzi um screenshot real de navegador nem testei a hidratação/interatividade no cliente visualmente. A prova ficou no nível de SSR (HTML correto, sem erro) + `typecheck`/`lint` limpos + revisão do código do `useSyncExternalStore` (API síncrona e determinística do React, sem superfície para bugs de timing). Recomendo um teste manual num navegador real antes de considerar a Fase 2-2 validada para produção.
+- **Decisões de implementação (não estruturais):**
+  - Seções de navegação sem tela ainda (Ingredientes/Receitas/Precificação) são rótulos não clicáveis, não `<Link>` — evita 404. Quando a Fase 2-3 criar essas rotas, é só trocar o rótulo por `<Link>`.
+  - Paleta: neutros `stone` (cinza com viés quente) + acento `rose` (rosa/framboesa) — combina com o universo de confeitaria sem parecer "sistema financeiro" (evitado azul/cinza corporativo). Usa só as cores padrão do Tailwind v4, sem novo arquivo de tema.
+  - Sem dependências novas: `useSyncExternalStore` é nativo do React 19 já instalado; ícones/ilustrações não foram usados (mantém o pacote enxuto).
+- **Riscos:**
+  - Sem verificação visual em navegador real (ver limitação acima) — a interatividade client-side (hidratação, correção do snapshot pós-montagem) não foi vista rodando, só validada pela leitura do código e pelo HTML de SSR.
+  - `cachedSnapshot` em `Dashboard.tsx` é um módulo-singleton: se a usuária salvar dados em outra aba/tela na mesma sessão sem recarregar esta página, o dashboard não atualiza sozinho (não há mecanismo de notificação de mudança no storageService ainda). Aceitável para a Fase 2-2 (ainda não existe nenhuma tela que escreva dados); reavaliar quando a Fase 2-3 criar CRUD de verdade.
+  - Rótulos "em breve" na navegação podem gerar expectativa; nenhuma tela foi prometida com prazo.
+- **Pendências:** telas de CRUD — ingredientes, receitas, precificação simples, backup export/import (Fase 2-3).
+
 ## Checklist técnico
 - [x] O projeto está em C:\dev\doce-margem
 - [x] Não há dependência de OneDrive

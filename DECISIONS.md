@@ -195,3 +195,19 @@ Uma chave única mantém `schemaVersion` e `updatedAt` centralizados e as funç�
 
 ### Impacto
 Técnico: `services/storage-service.ts` nunca lança (localStorage indisponível, JSON inválido, schema ausente/desconhecido ou campos corrompidos sempre caem em `createEmptyAppState()` ou `false`). Mudar a forma do `AppState` no futuro exige decidir explicitamente entre migrar (escrever uma função de migração antes do bump) ou aceitar perda de dados — hoje o comportamento é sempre perda. A Fase 4 (Supabase) provavelmente introduzirá um seletor Essencial (local) × Pro (nuvem) por cima de `@/services`, sem precisar mudar as assinaturas já usadas pela futura UI (`loadAppState`, `saveIngredients`, etc.).
+
+---
+
+## 2026-08-04 — Ler o storageService em Client Components com useSyncExternalStore, não useEffect+setState
+
+### Decisão
+Toda leitura do `localStorage` (via `@/services`) dentro de um Client Component deve usar **`useSyncExternalStore`**, não `useEffect` + `useState`. O padrão: `getServerSnapshot()` devolve um `AppState` vazio fixo (usado no servidor e na primeira pintura do cliente, antes da hidratação); `getSnapshot()` lê o valor real do navegador uma única vez por carregamento de página, cacheado numa variável de módulo (`useSyncExternalStore` exige que `getSnapshot` devolva uma referência estável quando nada mudou, senão o React entra em loop de re-render). Navegação principal para telas que ainda não existem (Ingredientes, Receitas, Precificação) usa rótulos "em breve" não clicáveis, em vez de criar rotas placeholder.
+
+### Contexto
+Fase 2-2 (layout base e dashboard inicial), primeira tela a consumir o storageService da Fase 2-1. A primeira implementação usava `useEffect` + `setState` para ler o `localStorage` após montar (padrão comum), mas o ESLint do projeto (regra `react-hooks/set-state-in-effect`, parte do `eslint-config-next` atual) rejeitou por causar "cascading renders".
+
+### Motivo
+`useSyncExternalStore` é a API que o próprio React recomenda para sincronizar um componente com um sistema externo que não existe durante SSR (a mensagem de erro do lint aponta exatamente para esse padrão: "subscribe for updates... calling setState in a callback"). Resolve dois problemas ao mesmo tempo: (1) evita o `useEffect`+`setState` que o lint rejeita; (2) evita divergência de hidratação, porque servidor e primeira pintura do cliente usam o mesmo `getServerSnapshot()` fixo, e só depois da hidratação o React troca para o valor real via `getSnapshot()` — sem essa técnica, ler `localStorage` direto no corpo do componente faria o servidor (sem `window`) renderizar algo diferente do cliente. Não criar rotas placeholder para Ingredientes/Receitas/Precificação respeita "não crie telas completas ainda": um rótulo "em breve" comunica a navegação futura sem prometer uma tela que não existe nem gerar um link morto (404).
+
+### Impacto
+Técnico: qualquer tela futura (Fase 2-3+) que precise ler `@/services` dentro de um Client Component deve seguir o mesmo padrão `useSyncExternalStore` (ver `components/dashboard/Dashboard.tsx` como referência), não reintroduzir `useEffect`+`setState`. Como o cache de snapshot é por módulo e nunca invalida sozinho (o storageService não emite eventos de mudança), uma tela que ESCREVE dados (Fase 2-3, CRUD) precisará decidir como invalidar esse cache após salvar — hoje não há solução pronta para isso; avaliar na Fase 2-3.
