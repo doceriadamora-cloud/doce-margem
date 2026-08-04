@@ -65,6 +65,7 @@ export type ValidationErrorCode =
   | "NEGATIVE"
   | "ZERO"
   | "NON_POSITIVE"
+  | "INVALID_NUMBER"
   | "INCOMPATIBLE_UNIT"
   | "UNKNOWN_UNIT"
   | "EMPTY"

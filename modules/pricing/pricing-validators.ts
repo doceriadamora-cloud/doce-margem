@@ -3,6 +3,7 @@
  *
  * `fixedCostRate` e `desiredProfitRate` são DECIMAIS (0 a <1); os percentuais do
  * canal seguem 0–100 (validados por `validateChannel`). Regras:
+ *  - todo valor numérico precisa ser finito (NaN/Infinity → INVALID_NUMBER);
  *  - custo direto unitário: obrigatório (direto ou via receita) e > 0;
  *  - fixedCostRate: ≥ 0 e < 1 (100%);
  *  - desiredProfitRate: ≥ 0 e < 1 (100%);
@@ -33,6 +34,12 @@ export function validatePricingEngineInput(
       message:
         "Informe o custo direto unitário (ou uma receita calculada).",
     });
+  } else if (!Number.isFinite(directUnitCost)) {
+    errors.push({
+      field: "directUnitCost",
+      code: "INVALID_NUMBER",
+      message: "Informe um número válido para o custo direto unitário.",
+    });
   } else if (directUnitCost <= 0) {
     errors.push({
       field: "directUnitCost",
@@ -43,7 +50,14 @@ export function validatePricingEngineInput(
 
   // Percentual de custo fixo (decimal 0 a <1).
   let fixedValid = true;
-  if (input.fixedCostRate < 0) {
+  if (!Number.isFinite(input.fixedCostRate)) {
+    fixedValid = false;
+    errors.push({
+      field: "fixedCostRate",
+      code: "INVALID_NUMBER",
+      message: "Informe um número válido para o percentual de custo fixo.",
+    });
+  } else if (input.fixedCostRate < 0) {
     fixedValid = false;
     errors.push({
       field: "fixedCostRate",
@@ -61,7 +75,14 @@ export function validatePricingEngineInput(
 
   // Lucro desejado (decimal 0 a <1).
   let profitValid = true;
-  if (input.desiredProfitRate < 0) {
+  if (!Number.isFinite(input.desiredProfitRate)) {
+    profitValid = false;
+    errors.push({
+      field: "desiredProfitRate",
+      code: "INVALID_NUMBER",
+      message: "Informe um número válido para o lucro desejado.",
+    });
+  } else if (input.desiredProfitRate < 0) {
     profitValid = false;
     errors.push({
       field: "desiredProfitRate",
@@ -96,12 +117,20 @@ export function validatePricingEngineInput(
   }
 
   // Preço praticado (opcional): > 0.
-  if (input.practicedPrice !== undefined && input.practicedPrice <= 0) {
-    errors.push({
-      field: "practicedPrice",
-      code: "NON_POSITIVE",
-      message: "O preço praticado precisa ser maior que zero.",
-    });
+  if (input.practicedPrice !== undefined) {
+    if (!Number.isFinite(input.practicedPrice)) {
+      errors.push({
+        field: "practicedPrice",
+        code: "INVALID_NUMBER",
+        message: "Informe um número válido para o preço praticado.",
+      });
+    } else if (input.practicedPrice <= 0) {
+      errors.push({
+        field: "practicedPrice",
+        code: "NON_POSITIVE",
+        message: "O preço praticado precisa ser maior que zero.",
+      });
+    }
   }
 
   // Soma das taxas: o denominador (1 − custo fixo − lucro − taxas de canal) tem

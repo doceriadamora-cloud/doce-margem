@@ -12,14 +12,26 @@
 
 import type { SalesChannel, ValidationError } from "@/types/pricing";
 
-/** Valida um percentual (0–100): negativo → NEGATIVE; acima de 100 → OUT_OF_RANGE. */
+/**
+ * Valida um percentual (0–100): NaN/Infinity → INVALID_NUMBER; negativo →
+ * NEGATIVE; acima de 100 → OUT_OF_RANGE.
+ *
+ * O guard de número finito vem primeiro porque NaN faz toda comparação
+ * (`<`, `>`) devolver false e passaria silenciosamente pela validação.
+ */
 function validatePercent(
   value: number,
   field: string,
   label: string,
   errors: ValidationError[],
 ): void {
-  if (value < 0) {
+  if (!Number.isFinite(value)) {
+    errors.push({
+      field,
+      code: "INVALID_NUMBER",
+      message: `Informe um número válido para a ${label}.`,
+    });
+  } else if (value < 0) {
     errors.push({
       field,
       code: "NEGATIVE",
@@ -34,14 +46,20 @@ function validatePercent(
   }
 }
 
-/** Valida um valor em R$ que não pode ser negativo. */
+/** Valida um valor em R$ que não pode ser NaN/Infinity nem negativo. */
 function validateNonNegative(
   value: number,
   field: string,
   label: string,
   errors: ValidationError[],
 ): void {
-  if (value < 0) {
+  if (!Number.isFinite(value)) {
+    errors.push({
+      field,
+      code: "INVALID_NUMBER",
+      message: `Informe um número válido para a ${label}.`,
+    });
+  } else if (value < 0) {
     errors.push({
       field,
       code: "NEGATIVE",
@@ -96,7 +114,13 @@ export function validateChannelPrice(
 ): ValidationError[] {
   const errors = validateChannel(channel);
 
-  if (desiredNet <= 0) {
+  if (!Number.isFinite(desiredNet)) {
+    errors.push({
+      field: "desiredNet",
+      code: "INVALID_NUMBER",
+      message: "Informe um número válido para o valor líquido desejado.",
+    });
+  } else if (desiredNet <= 0) {
     errors.push({
       field: "desiredNet",
       code: "NON_POSITIVE",
