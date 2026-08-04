@@ -243,3 +243,19 @@ Como o cache de cada store reativo é um singleton por módulo (não por página
 
 ### Impacto
 Técnico: a tela de precificação (Fase 2-5+) deve seguir o mesmo padrão — ler `recipes-store` (e possivelmente `ingredients-store`) diretamente para calcular preço sugerido, sem duplicar a leitura via `@/services`. Cada novo store deve continuar exportando as três funções (`subscribeX`/`getXSnapshot`/`getXServerSnapshot`) justamente para permitir esse reaproveitamento entre features.
+
+---
+
+## 2026-08-04 — Store de leitura mora com o dono do dado, não com quem só consome; inputs efêmeros de precificação não são persistidos
+
+### Decisão
+Um store reativo (mesmo só de leitura, sem CRUD ainda) fica na pasta da feature **dona daquele dado**, não na pasta de quem primeiro precisou lê-lo. Por isso `channels-store.ts` (leitura de `customChannels`, sem escrita) foi criado em `components/channels/`, não em `components/pricing/`, mesmo a tela de precificação sendo a primeira e única consumidora hoje — quando existir CRUD de canais, ele ganha as funções de escrita nesse MESMO arquivo, sem precisar mover nada. Separadamente: os inputs da tela de precificação que não têm uma fatia própria no `AppState` (custo fixo %, lucro desejado %, canal escolhido, preço praticado) **não são persistidos** — vivem só como `useState` local, perdidos ao sair da tela.
+
+### Contexto
+Fase 2-5 (tela de precificação): era preciso ler `customChannels` de forma reativa e segura para hidratação (mesmo padrão dos outros stores), mas ainda não existe CRUD de canais. Era preciso decidir onde esse arquivo deveria morar, e se valia a pena persistir os campos de custo fixo/lucro/canal para poupar a usuária de preencher de novo a cada visita.
+
+### Motivo
+Colocar o store na pasta do DONO do dado (não do primeiro consumidor) evita um retrabalho previsível: se `channels-store.ts` nascesse em `components/pricing/`, o dia que a Fase 2-6 criar o CRUD de canais teria que mover o arquivo (ou duplicar) para um lugar mais correto — melhor já nascer no lugar certo. Não persistir os inputs de precificação é a opção mais simples e honesta agora: criar uma fatia nova no `AppState` só para "preferências de precificação" implica decidir versionamento de schema (ver decisão de 2026-08-04 sobre `storageService`) para um dado que a própria tarefa pediu para não salvar sem necessidade real comprovada — melhor reconhecer o atrito (preencher de novo a cada visita) como um risco documentado do que resolver com uma estrutura de dados provisória.
+
+### Impacto
+Técnico: futuros stores de leitura (para dados que ainda não têm CRUD) devem seguir o padrão `channels-store.ts` — só as três funções (`subscribeX` no-op, `getXSnapshot`, `getXServerSnapshot`), sem `addX`/`removeX` até existir de fato uma tela que escreve. Produto: a Fase 2-6 (CRUD de custos fixos) precisa decidir se resolve esse atrito de verdade (persistindo custo fixo/canal como preferência real da usuária) — hoje é um risco conhecido, não um problema resolvido.

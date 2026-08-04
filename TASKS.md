@@ -4,7 +4,7 @@
 > Marcar `[x]` ao concluir. Adicionar novas tarefas quando surgirem.
 > Antes de iniciar uma nova fase: parar, resumir o que foi feito e aguardar aprovação.
 
-**Fase atual:** Fase 2-4 (tela simples de receitas) concluída → aguardando aprovação para a próxima fase.
+**Fase atual:** Fase 2-5 (tela simples de precificação) concluída → aguardando aprovação para a próxima fase.
 
 ## Fase 0 — Setup e documentação ✅
 - [x] Criar projeto em C:\dev\doce-margem
@@ -147,9 +147,26 @@
 - [x] Testado com o servidor de dev real + validação isolada do store (18 checagens, incluindo o exemplo exato da tarefa: Brownie simples → custo total R$ 3,80, custo unitário R$ 0,38/un)
 - [x] Rodar `typecheck` + `lint`
 
-### Fase 2-5 — Telas restantes (pendente)
-- [ ] Criar tela de precificação simples (modo simples)
+### Fase 2-5 — Tela simples de precificação ✅
+- [x] Rota `/precificacao` (`app/precificacao/page.tsx`)
+- [x] Link real para Precificação no Header (`components/layout/Header.tsx`) — todas as 4 seções principais agora têm tela própria; removido o bloco de rótulos "em breve" (ficaria sempre vazio)
+- [x] Seleção de receita cadastrada + custo calculado com `calculateRecipe` (custo total, rendimento, custo unitário)
+- [x] Campo de custo fixo sobre faturamento (%) — convertido para decimal antes de ir ao pricing engine, não persistido
+- [x] Campo de lucro desejado (%) — convertido para decimal
+- [x] Seleção de canal (biblioteca padrão da Fase 1C-1 + canais customizados do storage, sem CRUD de canais)
+- [x] Campo opcional de preço praticado + comparação com o sugerido (status abaixo/no ideal/acima)
+- [x] Resultado completo com `calculatePricing` — custo direto, custo fixo, lucro esperado, preço sem canal, preço com canal, taxas do canal, margem, markup, praticado, diferença, status
+- [x] Store de leitura para canais customizados (`components/channels/channels-store.ts`) — só leitura, sem CRUD ainda
+- [x] Reaproveita os stores de ingredientes (Fase 2-3) e receitas (Fase 2-4) já existentes, sem duplicar leitura de storage
+- [x] Calculadora ao vivo (sem botão "calcular"): resultado aparece assim que os campos fazem sentido
+- [x] Validado com o cenário exato da tarefa (Brownie simples, custo fixo 23,1%, lucro 20%): preço sugerido sem canal ≈ R$ 0,6678; com iFood Básico, preço maior
+- [x] Testado com o servidor de dev real + validação isolada do cálculo (11 checagens)
+- [x] Rodar `typecheck` + `lint`
+
+### Fase 2-6 — Telas restantes (pendente)
 - [ ] Criar backup export/import (usando o storageService da Fase 2-1)
+- [ ] CRUD de custos fixos (hoje só um campo percentual avulso na precificação)
+- [ ] CRUD de canais customizados (hoje `channels-store.ts` só lê)
 
 ## Fase 3 — Modo avançado
 - [ ] Criar fator de correção

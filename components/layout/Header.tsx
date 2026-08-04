@@ -8,18 +8,13 @@ interface NavItem {
   href: string;
 }
 
-/** Seções com tela própria — links reais, destacados quando ativos. */
+/** Todas as seções principais já têm tela própria — links reais, destacados quando ativos. */
 const availableSections: NavItem[] = [
   { label: "Painel", href: "/" },
   { label: "Ingredientes", href: "/ingredientes" },
   { label: "Receitas", href: "/receitas" },
+  { label: "Precificação", href: "/precificacao" },
 ];
-
-/**
- * Seções planejadas que ainda não têm tela própria. Mostradas como rótulos
- * "em breve", não como links — evita apontar para rotas inexistentes.
- */
-const upcomingSections = ["Precificação"];
 
 const activeClass =
   "rounded-full bg-rose-50 px-3 py-1 font-medium text-rose-700 dark:bg-rose-950 dark:text-rose-300";
@@ -53,15 +48,6 @@ export default function Header() {
               </Link>
             );
           })}
-          {upcomingSections.map((section) => (
-            <span
-              key={section}
-              className="rounded-full px-3 py-1 text-stone-400 dark:text-stone-600"
-            >
-              {section}{" "}
-              <span className="text-[10px] font-medium uppercase tracking-wide">em breve</span>
-            </span>
-          ))}
         </nav>
       </div>
     </header>
