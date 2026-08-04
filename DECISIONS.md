@@ -291,3 +291,19 @@ O gate de versão em `normalizeStoredState()` (`raw.schemaVersion !== APP_STATE_
 
 ### Impacto
 Técnico: incrementar `APP_STATE_SCHEMA_VERSION` fica reservado para quando a forma de um campo **existente** mudar de um jeito que a reconstrução automática não resolva sozinha (ex.: renomear um campo, mudar o tipo de algo que já era obrigatório) — nesse caso sim será preciso escrever uma função de migração de verdade (risco já registrado desde a Fase 2-1: hoje o comportamento em schema desconhecido é sempre perda de dado, nunca migração). Adicionar um campo NOVO e opcional-por-padrão, como `businessSettings`, não exige isso. `services/storage-examples.ts` ganhou um teste dedicado (nº 12) que simula exatamente um estado salvo antes da Fase 2-6 e confirma que os dados antigos sobrevivem — é a prova viva desta decisão.
+
+---
+
+## 2026-08-04 — Todo componente que lê uma fatia do storage deve ler o store reativo dela; `subscribe` no-op só para dado imutável na sessão
+
+### Decisão
+Nenhum componente pode manter um cache próprio de dados que outra tela consegue alterar. Todo componente que lê uma fatia do `AppState` (`ingredients`, `recipes`, `fixedCosts`, `customChannels`, `businessSettings`) deve consumir o **store reativo dono daquela fatia** — nunca `loadAppState()`/`loadX()` direto de `@/services` dentro de um cache local. Um `subscribe` no-op só é aceitável para dado que comprovadamente **não muda durante a sessão** (hoje, só `isStorageAvailable()`).
+
+### Contexto
+Revisão da Fase 2. `Dashboard.tsx` (escrito na Fase 2-2, quando NENHUMA tela ainda escrevia dados) mantinha um cache de módulo próprio alimentado por `loadAppState()`, com `subscribe` no-op. Isso era correto naquele momento e o risco foi documentado no `REVIEW.md` da Fase 2-2 com a instrução "reavaliar quando a Fase 2-3 criar CRUD de verdade". As Fases 2-3 a 2-6 criaram quatro telas de escrita e a reavaliação nunca aconteceu — o risco virou um bug real: a usuária cadastrava ingredientes e, ao voltar ao Painel por navegação client-side, ainda via "Você ainda não cadastrou nada por aqui".
+
+### Motivo
+Caches de módulo sobrevivem à navegação client-side do Next (o módulo não é reavaliado ao trocar de rota), então um cache sem `subscribe` congela o valor da primeira leitura pelo resto da sessão. Como já existe exatamente um store reativo por fatia, com `subscribe`/`notify` corretos, reusá-los custa nada e elimina de vez essa classe de bug — além de remover a duplicação de responsabilidade de leitura (dois lugares lendo a mesma fatia por caminhos diferentes). A lição de processo importa tanto quanto a técnica: **um risco documentado com "reavaliar na fase X" precisa virar item de tarefa da fase X**, senão passa despercebido — cada fase validou sua própria tela isoladamente, e o bug só aparecia na transição entre telas, que nenhuma fase testou.
+
+### Impacto
+Técnico: `Dashboard.tsx` agora lê os quatro stores de CRUD. Qualquer tela futura de resumo/relatório (ex.: engenharia de cardápio, relatórios do Pro) deve fazer o mesmo, nunca reintroduzir um cache próprio de `loadAppState()`. Processo: ao registrar um risco com condição de reavaliação ("quando a Fase X fizer Y"), adicionar também um item correspondente no `TASKS.md` da fase X — a revisão de fim de fase deve incluir explicitamente o teste do fluxo ENTRE telas, não só de cada tela isolada. Limite conhecido que permanece: os stores não escutam o evento `storage`, então duas abas abertas continuam divergindo até um reload.

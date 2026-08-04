@@ -1,81 +1,98 @@
 "use client";
 
 import { useSyncExternalStore } from "react";
-import { isStorageAvailable, loadAppState } from "@/services";
-import type { AppState } from "@/types/app-state";
+import { isStorageAvailable } from "@/services";
+import {
+  getIngredientsServerSnapshot,
+  getIngredientsSnapshot,
+  subscribeIngredients,
+} from "@/components/ingredients/ingredients-store";
+import {
+  getRecipesServerSnapshot,
+  getRecipesSnapshot,
+  subscribeRecipes,
+} from "@/components/recipes/recipes-store";
+import {
+  getFixedCostsServerSnapshot,
+  getFixedCostsSnapshot,
+  subscribeFixedCosts,
+} from "@/components/fixed-costs/fixed-costs-store";
+import {
+  getCustomChannelsServerSnapshot,
+  getCustomChannelsSnapshot,
+  subscribeCustomChannels,
+} from "@/components/channels/channels-store";
 import StatCard from "./StatCard";
 
 /**
- * Dashboard inicial — Fase 2-2. Client Component: lê o storageService local
- * (localStorage), que só existe no navegador.
+ * Dashboard inicial — Fase 2-2 (revisado na Fase 2). Client Component: lê o
+ * storage local, que só existe no navegador.
  *
- * Usa `useSyncExternalStore` (não `useEffect` + `setState`) para sincronizar com
- * o localStorage: no servidor e na primeira pintura do cliente (antes da
- * hidratação), devolve `SERVER_SNAPSHOT`; assim que o React hidrata, lê o valor
- * real do navegador e corrige a tela — sem divergência de hidratação e sem o
- * "cascading render" de chamar `setState` dentro de um efeito.
+ * Lê os MESMOS stores reativos das telas de CRUD (ingredientes, receitas,
+ * custos fixos, canais) em vez de um cache próprio de `loadAppState()`. A
+ * versão original tinha cache próprio com `subscribe` no-op — o que funcionava
+ * quando nenhuma tela escrevia dados (Fase 2-2), mas passou a mostrar contagens
+ * DESATUALIZADAS assim que as Fases 2-3 a 2-6 criaram telas de cadastro: quem
+ * cadastrasse um ingrediente e voltasse ao Painel por navegação client-side
+ * ainda via "Você ainda não cadastrou nada". Reusar os stores existentes (ver
+ * DECISIONS.md, "uma feature pode LER o store de outra") resolve e ainda elimina
+ * a duplicação de responsabilidade de leitura.
  */
-
-interface DashboardSnapshot {
-  appState: AppState;
-  storageOk: boolean;
-}
-
-/** Estado usado no servidor (sem `window`) e na primeira pintura do cliente. */
-const SERVER_SNAPSHOT: DashboardSnapshot = {
-  appState: {
-    schemaVersion: 1,
-    ingredients: [],
-    recipes: [],
-    fixedCosts: [],
-    customChannels: [],
-    businessSettings: { estimatedMonthlyRevenue: null, estimatedMonthlyUnits: null, updatedAt: "" },
-    updatedAt: "",
-  },
-  // Otimista: assume que o storage funciona até o cliente provar o contrário,
-  // para não piscar o aviso de indisponibilidade em todo carregamento normal.
-  storageOk: true,
-};
 
 /**
- * Cache do snapshot real. `useSyncExternalStore` exige que `getSnapshot`
- * devolva uma referência ESTÁVEL quando nada mudou (senão o React re-renderiza
- * em loop). Como o Dashboard só lê (não grava), uma leitura por carregamento de
- * página é suficiente.
+ * Disponibilidade do storage é a única coisa aqui que NÃO muda durante a
+ * sessão — por isso continua com `subscribe` no-op e cache próprio. O snapshot
+ * de servidor é otimista (`true`) para não piscar o aviso durante a hidratação.
  */
-let cachedSnapshot: DashboardSnapshot | null = null;
+let cachedStorageOk: boolean | null = null;
 
-function getSnapshot(): DashboardSnapshot {
-  if (cachedSnapshot === null) {
-    cachedSnapshot = {
-      appState: loadAppState(),
-      storageOk: isStorageAvailable(),
-    };
+function getStorageOkSnapshot(): boolean {
+  if (cachedStorageOk === null) {
+    cachedStorageOk = isStorageAvailable();
   }
-  return cachedSnapshot;
+  return cachedStorageOk;
 }
 
-function getServerSnapshot(): DashboardSnapshot {
-  return SERVER_SNAPSHOT;
+function getStorageOkServerSnapshot(): boolean {
+  return true;
 }
 
-/** Sem eventos de mudança no storageService ainda — nada para assinar. */
-function subscribe(): () => void {
+function subscribeStorageOk(): () => void {
   return () => {};
 }
 
 export default function Dashboard() {
-  const { appState, storageOk } = useSyncExternalStore(
-    subscribe,
-    getSnapshot,
-    getServerSnapshot,
+  const storageOk = useSyncExternalStore(
+    subscribeStorageOk,
+    getStorageOkSnapshot,
+    getStorageOkServerSnapshot,
+  );
+  const ingredients = useSyncExternalStore(
+    subscribeIngredients,
+    getIngredientsSnapshot,
+    getIngredientsServerSnapshot,
+  );
+  const recipes = useSyncExternalStore(
+    subscribeRecipes,
+    getRecipesSnapshot,
+    getRecipesServerSnapshot,
+  );
+  const fixedCosts = useSyncExternalStore(
+    subscribeFixedCosts,
+    getFixedCostsSnapshot,
+    getFixedCostsServerSnapshot,
+  );
+  const customChannels = useSyncExternalStore(
+    subscribeCustomChannels,
+    getCustomChannelsSnapshot,
+    getCustomChannelsServerSnapshot,
   );
 
   const counts = {
-    ingredients: appState.ingredients.length,
-    recipes: appState.recipes.length,
-    fixedCosts: appState.fixedCosts.length,
-    customChannels: appState.customChannels.length,
+    ingredients: ingredients.length,
+    recipes: recipes.length,
+    fixedCosts: fixedCosts.length,
+    customChannels: customChannels.length,
   };
   const hasAnyData =
     counts.ingredients + counts.recipes + counts.fixedCosts + counts.customChannels > 0;

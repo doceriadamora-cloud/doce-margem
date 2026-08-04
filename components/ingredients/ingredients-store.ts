@@ -4,12 +4,12 @@
  * Store reativo de ingredientes — Fase 2-3. Ponte entre o storageService
  * (persistência pura, `@/services`) e `useSyncExternalStore` (React).
  *
- * Por que existe: `Dashboard.tsx` (Fase 2-2) só LÊ o storage — um cache de
- * módulo simples bastava. Esta tela também ESCREVE (adiciona/exclui), e
- * `useSyncExternalStore` exige uma referência estável em `getSnapshot` mais um
- * `subscribe` real para saber quando avisar o React de uma mudança. Este módulo
- * é exatamente isso: cache + lista de assinantes + funções que gravam no
- * storageService e notificam.
+ * Por que existe: telas que ESCREVEM (adicionam/excluem) precisam de uma
+ * referência estável em `getSnapshot` MAIS um `subscribe` real, para o
+ * `useSyncExternalStore` saber quando avisar o React de uma mudança. Este
+ * módulo é exatamente isso: cache + lista de assinantes + funções que gravam no
+ * storageService e notificam. O `Dashboard` também lê daqui (revisão da Fase 2),
+ * justamente para as contagens dele reagirem a cadastros feitos nesta tela.
  *
  * Fica em `components/ingredients/` (não em `services/`) de propósito: depende
  * de conceitos de React (assinantes) e do navegador (`crypto.randomUUID`), algo

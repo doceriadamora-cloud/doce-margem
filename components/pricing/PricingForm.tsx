@@ -119,10 +119,12 @@ function computePricingResult(params: {
 }
 
 /**
- * Tela de precificação simples — Fase 2-5. Conecta receitas + ingredientes já
- * cadastrados, custo fixo percentual e lucro desejado (informados aqui, sem
- * persistir) e canal de venda (biblioteca padrão da Fase 1C-1 + customizados,
- * sem CRUD de canais ainda) ao pricing engine da Fase 1C-3.
+ * Tela de precificação simples — Fase 2-5, integrada às Configurações na 2-6.
+ * Conecta receitas + ingredientes cadastrados, custo fixo percentual (vem
+ * pré-preenchido das Configurações quando houver faturamento salvo; sempre
+ * editável aqui), lucro desejado (informado aqui, não persistido) e canal de
+ * venda (biblioteca padrão da Fase 1C-1 + canais customizados da Fase 2-6) ao
+ * pricing engine da Fase 1C-3.
  *
  * Funciona como calculadora ao vivo: não há botão "calcular" — o resultado
  * aparece assim que os campos necessários fazem sentido.

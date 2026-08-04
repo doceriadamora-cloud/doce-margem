@@ -4,7 +4,7 @@
 > Marcar `[x]` ao concluir. Adicionar novas tarefas quando surgirem.
 > Antes de iniciar uma nova fase: parar, resumir o que foi feito e aguardar aprovação.
 
-**Fase atual:** Fase 2-6 (configurações financeiras básicas) concluída → aguardando aprovação para a próxima fase.
+**Fase atual:** Fase 2 (Interface Essencial) concluída e revisada → aguardando aprovação para a próxima fase.
 
 ## Fase 0 — Setup e documentação ✅
 - [x] Criar projeto em C:\dev\doce-margem
@@ -177,9 +177,21 @@
 - [x] Testado com o servidor de dev real (5 rotas) + validação isolada (12 checagens de integração + 16 do storageService, incluindo compatibilidade retroativa)
 - [x] Rodar `typecheck` + `lint`
 
+### Revisão da Fase 2 — fluxo completo ✅
+- [x] Revisar navegação principal, 5 rotas, 5 stores, storage-service, app-state e documentação
+- [x] **Bug real corrigido:** Painel mostrava contagens desatualizadas após cadastro em outra tela (`Dashboard.tsx` tinha cache próprio com `subscribe` no-op) — agora lê os stores reativos das telas de CRUD
+- [x] Validar app com localStorage vazio, com dados antigos sem `businessSettings`, e com ingrediente excluído em uso por receita
+- [x] Confirmar ausência de hydration bug (todas as rotas estáticas + `useSyncExternalStore` com snapshots estáveis)
+- [x] Corrigir documentação desatualizada em `PricingForm.tsx` e `ingredients-store.ts`
+- [x] Rodar `typecheck` + `lint` + `build`
+- [x] Registrar 8 pendências de UX/futuro no `REVIEW.md` (não implementadas)
+
 ### Fase 2-7 — Telas restantes (pendente)
 - [ ] Criar backup export/import (usando o storageService da Fase 2-1)
-- [ ] Edição de custos fixos e de canais customizados (hoje só criar/listar/excluir)
+- [ ] **Edição** de ingredientes, receitas, custos fixos e canais (hoje só criar/listar/excluir) — maior lacuna de UX
+- [ ] Confirmação ao excluir + aviso de itens em uso (ex.: ingrediente usado por N receitas)
+- [ ] Padronizar entrada decimal entre todos os formulários (vírgula vs. ponto)
+- [ ] Teste manual em navegador real antes de seguir para Supabase/Auth
 
 ## Fase 3 — Modo avançado
 - [ ] Criar fator de correção

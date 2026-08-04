@@ -287,7 +287,7 @@
   - Sem dependências novas: `useSyncExternalStore` é nativo do React 19 já instalado; ícones/ilustrações não foram usados (mantém o pacote enxuto).
 - **Riscos:**
   - Sem verificação visual em navegador real (ver limitação acima) — a interatividade client-side (hidratação, correção do snapshot pós-montagem) não foi vista rodando, só validada pela leitura do código e pelo HTML de SSR.
-  - `cachedSnapshot` em `Dashboard.tsx` é um módulo-singleton: se a usuária salvar dados em outra aba/tela na mesma sessão sem recarregar esta página, o dashboard não atualiza sozinho (não há mecanismo de notificação de mudança no storageService ainda). Aceitável para a Fase 2-2 (ainda não existe nenhuma tela que escreva dados); reavaliar quando a Fase 2-3 criar CRUD de verdade.
+  - ~~`cachedSnapshot` em `Dashboard.tsx` é um módulo-singleton: se a usuária salvar dados em outra aba/tela na mesma sessão sem recarregar esta página, o dashboard não atualiza sozinho (não há mecanismo de notificação de mudança no storageService ainda). Aceitável para a Fase 2-2 (ainda não existe nenhuma tela que escreva dados); reavaliar quando a Fase 2-3 criar CRUD de verdade.~~ **→ Este risco VIROU um bug real e foi corrigido na Revisão da Fase 2 (ver abaixo).** O "reavaliar na Fase 2-3" nunca foi feito nas Fases 2-3 a 2-6.
   - Rótulos "em breve" na navegação podem gerar expectativa; nenhuma tela foi prometida com prazo.
 - **Pendências:** telas de CRUD — ingredientes, receitas, precificação simples, backup export/import (Fase 2-3).
 
@@ -411,6 +411,47 @@
   - `calculateFixedCostSummary` na tela de Configurações não inclui mensalidades de canais (`includeChannelMonthlyFees`) — segue exatamente o exemplo da tarefa (23,1% sem canais), mas é uma opção do domínio que a UI ainda não expõe.
   - Sem verificação visual em navegador real (ver limitação acima).
 - **Pendências:** backup export/import; edição de custos fixos/canais/ingredientes/receitas (Fase 2-7+).
+
+### Revisão da Fase 2 — Interface Essencial (fluxo completo)
+- **Status:** ✅ Revisada. Fase 2 pode ser considerada concluída para uma primeira versão local.
+- **Escopo:** revisão crítica do fluxo `Painel → Ingredientes → Receitas → Configurações → Precificação`, das 5 rotas, dos 5 stores, do `storage-service.ts`, do `app-state.ts` e da documentação viva. Nenhuma funcionalidade nova implementada.
+
+#### 🐞 Bug real encontrado e corrigido — Painel com contagens desatualizadas
+- **Sintoma:** a usuária cadastrava ingredientes (ou receitas/custos fixos/canais) e, ao voltar para o Painel por **navegação client-side** (sem recarregar a página), o Painel continuava exibindo "Você ainda não cadastrou nada por aqui". Na prática, o app parecia ter perdido os dados dela — logo na primeira tela, e exatamente no fluxo principal do produto.
+- **Causa:** `Dashboard.tsx` mantinha um cache de módulo próprio (`cachedSnapshot`, alimentado por `loadAppState()`) com `subscribe` **no-op**. Como o cache é um singleton de módulo, ele sobrevive à navegação client-side; e como ninguém notificava, `useSyncExternalStore` nunca era avisado para reler. O valor lido na primeira visita ficava congelado pelo resto da sessão.
+- **Por que passou despercebido até aqui:** o risco foi corretamente identificado e documentado na Fase 2-2 (ver risco riscado acima), com a instrução explícita "reavaliar quando a Fase 2-3 criar CRUD de verdade". As Fases 2-3, 2-4, 2-5 e 2-6 criaram quatro telas de escrita — e a reavaliação nunca aconteceu. Cada fase validou a **sua** tela isoladamente; o bug só aparece na **transição entre telas**, que nenhuma fase testou.
+- **Correção:** `Dashboard.tsx` agora lê os mesmos stores reativos das telas de CRUD (`ingredients-store`, `recipes-store`, `fixed-costs-store`, `channels-store`) em vez do cache próprio — todos já têm `subscribe`/`notify` corretos desde que foram criados. Segue o padrão já registrado em `DECISIONS.md` ("uma feature pode LER o store de outra feature diretamente") e, de quebra, elimina a duplicação de responsabilidade de leitura que existia. Só `storageOk` mantém cache próprio com `subscribe` no-op — disponibilidade de `localStorage` genuinamente não muda durante a sessão, então ali o no-op é correto.
+- **Prova da correção:** simulação do fluxo completo (mesma técnica de compilação temporária das fases anteriores) — Painel vazio → cadastrar 2 ingredientes → Painel mostra 2 → cadastrar receita → Painel mostra 1 → cadastrar custo fixo + canal → Painel mostra 1 e 1 → excluir ingrediente → Painel mostra 1. Antes da correção, o passo 2 devolvia `0`. 7/7 checagens.
+
+#### ✅ Verificações que passaram (sem alteração necessária)
+- **Navegação principal coerente:** 5 links reais no Header, `usePathname` destacando o ativo, todas as 5 rotas respondendo `200`, todos os 4 links de seção presentes em todas as páginas. Nenhum link morto, nenhum rótulo "em breve" sobrando.
+- **App com `localStorage` vazio:** `loadAppState()` devolve estado vazio válido; cada tela mostra seu estado vazio amigável; `calculateFixedCostSummary` com lista vazia devolve `rate 0` sem erro.
+- **App com dados antigos sem `businessSettings`:** ingredientes/receitas preservados, `businessSettings` recomposto com padrão seguro, `loadBusinessSettings()` não quebra. (Coberto também pelos 16 testes de `storage-examples.ts`.)
+- **Excluir ingrediente usado em receita:** não lança exceção; `calculateRecipe` devolve `NOT_FOUND` tratável; `RecipeList` e `PricingForm` exibem a mensagem do domínio em vez de quebrar; `PricingForm` corretamente não chama `calculatePricing` nesse caso.
+- **Sem clobbering entre fatias:** salvar receita não apaga ingredientes (cada `saveX` faz read-modify-write com `loadAppState()` fresco).
+- **Stores sem duplicação de responsabilidade:** após a correção, cada fatia tem exatamente um dono que escreve; leitores reusam o store do dono. Nenhum componente fala com `localStorage` direto.
+- **Sem risco de hydration bug:** todas as 5 rotas são prerenderizadas estáticas; todo acesso a `localStorage` passa por `useSyncExternalStore` com `getServerSnapshot` devolvendo referências estáveis. Servidor e primeira pintura do cliente sempre concordam.
+- **Fórmulas da Fase 1 intactas:** 50/50 testes de precificação continuam passando.
+
+#### 📄 Documentação desatualizada (corrigida)
+- `PricingForm.tsx`: comentário de cabeçalho dizia "sem persistir" e "sem CRUD de canais ainda" — ambos deixaram de ser verdade na Fase 2-6. Atualizado.
+- `ingredients-store.ts`: comentário descrevia o comportamento antigo do `Dashboard` ("só LÊ o storage — um cache de módulo simples bastava"), que acabou de mudar. Atualizado.
+
+#### ⏳ Pendências registradas (NÃO implementadas nesta revisão)
+Melhorias de UX/futuro, deliberadamente deixadas para uma fase própria:
+1. **Nenhuma tela tem edição** — ingredientes, receitas, custos fixos e canais só permitem criar e excluir. Corrigir um valor errado exige excluir e recadastrar. É a lacuna de UX mais relevante para uma usuária real.
+2. **Exclusão sem confirmação nem aviso de uso** — excluir um ingrediente usado por receitas não pede confirmação nem avisa quantas receitas vão quebrar; o erro só aparece depois, ao abrir a receita. Sugestão: confirmar e listar os usos antes de excluir.
+3. **Texto inválido no "preço praticado" some com o resultado inteiro** — em `PricingForm`, digitar algo não numérico nesse campo opcional faz `computePricingResult` devolver `null` e a seção de resultado desaparecer sem explicação. Sugestão: ignorar o campo inválido (tratando como vazio) ou mostrar erro inline, em vez de esconder o resultado.
+4. **Inconsistência de entrada decimal** — `IngredientForm`/`RecipeForm` usam `<input type="number">` (rejeita vírgula na maioria dos navegadores); `PricingForm`/`FixedCostForm`/`CustomChannelForm`/`BusinessSettingsForm` usam `type="text"` com vírgula aceita. Padronizar numa passada de polimento.
+5. **Marca não é link para a home** — "Doce Margem" no Header é um `<span>`; o convencional é levar para `/`. Trivial, mas quebra expectativa.
+6. **Lucro desejado não é persistido** — a usuária redigita a cada visita à Precificação. Candidato natural a entrar em `businessSettings` numa próxima fase.
+7. **`includeChannelMonthlyFees` não é exposto na UI** — o domínio (Fase 1C-2) suporta somar mensalidades de canais ao rateio de custo fixo, mas a tela de Configurações não oferece a opção.
+8. **Sem verificação visual em navegador real** — limitação de todas as fases (sem `chromium-cli`/Playwright disponível, e instalar seria dependência nova). A prova continua sendo SSR + lógica isolada + leitura de código. **Recomendo fortemente um passe manual em navegador antes de seguir para Supabase/Auth.**
+
+#### Riscos restantes
+- As pendências 1–3 acima são as que mais impactam uma usuária real numa primeira versão.
+- Continua sem migração de schema: mudar a forma de um campo **existente** exigirá escrever uma migração antes de incrementar `APP_STATE_SCHEMA_VERSION` (adicionar campo novo, como na Fase 2-6, não exige — ver `DECISIONS.md`). Precisa ser resolvido antes de existirem dados reais de produção.
+- Stores continuam sendo singletons de módulo, sem sincronização **entre abas** (`storage` event não é escutado). Duas abas abertas divergem até um reload. Não é um problema no uso esperado (uma aba), mas é um limite conhecido.
 
 ## Checklist técnico
 - [x] O projeto está em C:\dev\doce-margem
