@@ -12,13 +12,14 @@ interface NavItem {
 const availableSections: NavItem[] = [
   { label: "Painel", href: "/" },
   { label: "Ingredientes", href: "/ingredientes" },
+  { label: "Receitas", href: "/receitas" },
 ];
 
 /**
  * Seções planejadas que ainda não têm tela própria. Mostradas como rótulos
  * "em breve", não como links — evita apontar para rotas inexistentes.
  */
-const upcomingSections = ["Receitas", "Precificação"];
+const upcomingSections = ["Precificação"];
 
 const activeClass =
   "rounded-full bg-rose-50 px-3 py-1 font-medium text-rose-700 dark:bg-rose-950 dark:text-rose-300";

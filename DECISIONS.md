@@ -227,3 +227,19 @@ Um `Set` de assinantes é exatamente o contrato que `useSyncExternalStore` esper
 
 ### Impacto
 Técnico: `components/recipes/`, `components/fixed-costs/`, `components/channels/` (Fase 2-4+) devem seguir o mesmo padrão — copiar a forma de `ingredients-store.ts`, trocando a fatia (`saveRecipes`/`loadRecipes` etc.) e o tipo (`Recipe`, `FixedCost`, `SalesChannel`). Se, no futuro, duas telas precisarem refletir mudanças uma da outra em tempo real, será preciso um mecanismo de notificação compartilhado entre stores — não existe hoje.
+
+---
+
+## 2026-08-04 — Uma feature pode LER o store de outra feature diretamente; só grava no próprio
+
+### Decisão
+Um componente pode importar e ler (via `useSyncExternalStore` com `subscribeX`/`getXSnapshot`/`getXServerSnapshot`) o store reativo de OUTRA feature quando precisa dos dados dela — sem duplicar leitura de storage nem criar uma cópia local. Só continua valendo que cada store só é ESCRITO pela sua própria feature (ex.: só `ingredients-store.ts` chama `saveIngredients`).
+
+### Contexto
+Fase 2-4 (tela de receitas): o formulário de receita precisa listar os ingredientes já cadastrados (Fase 2-3) para a usuária escolher. A dúvida era se `RecipeForm`/`RecipeList` deveriam chamar `loadIngredients()` de `@/services` direto (bypassando o store reativo) ou importar `components/ingredients/ingredients-store.ts`.
+
+### Motivo
+Como o cache de cada store reativo é um singleton por módulo (não por página), ele já persiste durante toda a navegação client-side dentro da mesma aba — ler o store de ingredientes a partir de receitas reflete corretamente qualquer ingrediente cadastrado antes na mesma sessão, sem exigir reload. Chamar `loadIngredients()` direto de `@/services` funcionaria também (sempre pega o dado mais recente do storage), mas ignoraria a camada reativa: se, no futuro, duas telas do mesmo layout mostrarem ingredientes lado a lado, só o store reativo garante que ambas atualizem juntas ao vivo. Manter a escrita restrita ao dono da fatia evita que duas features conflitem sobre quem é responsável por gerar id/persistir aquele dado.
+
+### Impacto
+Técnico: a tela de precificação (Fase 2-5+) deve seguir o mesmo padrão — ler `recipes-store` (e possivelmente `ingredients-store`) diretamente para calcular preço sugerido, sem duplicar a leitura via `@/services`. Cada novo store deve continuar exportando as três funções (`subscribeX`/`getXSnapshot`/`getXServerSnapshot`) justamente para permitir esse reaproveitamento entre features.

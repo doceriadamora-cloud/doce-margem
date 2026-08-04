@@ -4,7 +4,7 @@
 > Marcar `[x]` ao concluir. Adicionar novas tarefas quando surgirem.
 > Antes de iniciar uma nova fase: parar, resumir o que foi feito e aguardar aprovação.
 
-**Fase atual:** Fase 2-3 (tela simples de ingredientes) concluída → aguardando aprovação para a próxima fase.
+**Fase atual:** Fase 2-4 (tela simples de receitas) concluída → aguardando aprovação para a próxima fase.
 
 ## Fase 0 — Setup e documentação ✅
 - [x] Criar projeto em C:\dev\doce-margem
@@ -132,8 +132,22 @@
 - [x] Testado com o servidor de dev real + validação isolada do store (16 checagens)
 - [x] Rodar `typecheck` + `lint`
 
-### Fase 2-4 — Telas restantes (pendente)
-- [ ] Criar tela de receitas
+### Fase 2-4 — Tela simples de receitas ✅
+- [x] Rota `/receitas` (`app/receitas/page.tsx`)
+- [x] Link real para Receitas no Header (`components/layout/Header.tsx`)
+- [x] Formulário de cadastro (`components/recipes/RecipeForm.tsx`) — nome, seleção de ingredientes já cadastrados, quantidade usada, unidade, rendimento, unidade do rendimento, perda de produção (padrão 0)
+- [x] Seleção de ingrediente lê o mesmo store da Fase 2-3 (`components/ingredients/ingredients-store.ts`) — reativo, sem duplicar leitura de storage
+- [x] Listagem das receitas cadastradas (`components/recipes/RecipeList.tsx`) — mostra custo total e custo unitário
+- [x] Botão para excluir receita
+- [x] Estado vazio amigável (+ aviso quando não há nenhum ingrediente cadastrado ainda)
+- [x] Persistência via `storageService` (`saveRecipes`/`loadRecipes`, através de `@/services`)
+- [x] Store reativo (`components/recipes/recipes-store.ts`) — mesmo padrão do store de ingredientes (`DECISIONS.md`)
+- [x] Validação com `validateRecipe` e cálculo com `calculateRecipe` (Fase 1B) — nenhuma regra reimplementada na UI
+- [x] Não criou sub-receitas nem medidas caseiras na interface (só itens de ingrediente)
+- [x] Testado com o servidor de dev real + validação isolada do store (18 checagens, incluindo o exemplo exato da tarefa: Brownie simples → custo total R$ 3,80, custo unitário R$ 0,38/un)
+- [x] Rodar `typecheck` + `lint`
+
+### Fase 2-5 — Telas restantes (pendente)
 - [ ] Criar tela de precificação simples (modo simples)
 - [ ] Criar backup export/import (usando o storageService da Fase 2-1)
 
