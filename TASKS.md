@@ -4,7 +4,7 @@
 > Marcar `[x]` ao concluir. Adicionar novas tarefas quando surgirem.
 > Antes de iniciar uma nova fase: parar, resumir o que foi feito e aguardar aprovação.
 
-**Fase atual:** Fase 2-2 (layout base e dashboard inicial) concluída → aguardando aprovação para a próxima fase.
+**Fase atual:** Fase 2-3 (tela simples de ingredientes) concluída → aguardando aprovação para a próxima fase.
 
 ## Fase 0 — Setup e documentação ✅
 - [x] Criar projeto em C:\dev\doce-margem
@@ -118,8 +118,21 @@
 - [x] Testado com o servidor de dev real (SSR sem erros, conteúdo esperado no HTML)
 - [x] Rodar `typecheck` + `lint`
 
-### Fase 2-3 — Telas de CRUD (pendente)
-- [ ] Criar tela de ingredientes
+### Fase 2-3 — Tela simples de ingredientes ✅
+- [x] Rota `/ingredientes` (`app/ingredientes/page.tsx`)
+- [x] Link real para Ingredientes no Header (`components/layout/Header.tsx`) — e correção do estado ativo (`usePathname`, antes fixo em "Painel")
+- [x] Formulário de cadastro (`components/ingredients/IngredientForm.tsx`) — nome, quantidade comprada, unidade de compra, preço pago, unidade-base, fator de correção (padrão 1)
+- [x] Listagem dos ingredientes cadastrados (`components/ingredients/IngredientList.tsx`) — mostra custo por unidade-base
+- [x] Botão para excluir ingrediente
+- [x] Estado vazio amigável
+- [x] Persistência via `storageService` (`saveIngredients`/`loadIngredients`, através de `@/services`)
+- [x] Store reativo (`components/ingredients/ingredients-store.ts`) — resolve a pendência registrada em `DECISIONS.md` sobre invalidar o cache do `useSyncExternalStore` ao escrever
+- [x] Validação com `validateIngredient` (Fase 1A) — nenhuma regra de validação reimplementada na UI
+- [x] Custo calculado com `calculateIngredient` (Fase 1A) — prévia no formulário e valor na listagem
+- [x] Testado com o servidor de dev real + validação isolada do store (16 checagens)
+- [x] Rodar `typecheck` + `lint`
+
+### Fase 2-4 — Telas restantes (pendente)
 - [ ] Criar tela de receitas
 - [ ] Criar tela de precificação simples (modo simples)
 - [ ] Criar backup export/import (usando o storageService da Fase 2-1)

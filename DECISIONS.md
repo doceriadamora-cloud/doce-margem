@@ -211,3 +211,19 @@ Fase 2-2 (layout base e dashboard inicial), primeira tela a consumir o storageSe
 
 ### Impacto
 Técnico: qualquer tela futura (Fase 2-3+) que precise ler `@/services` dentro de um Client Component deve seguir o mesmo padrão `useSyncExternalStore` (ver `components/dashboard/Dashboard.tsx` como referência), não reintroduzir `useEffect`+`setState`. Como o cache de snapshot é por módulo e nunca invalida sozinho (o storageService não emite eventos de mudança), uma tela que ESCREVE dados (Fase 2-3, CRUD) precisará decidir como invalidar esse cache após salvar — hoje não há solução pronta para isso; avaliar na Fase 2-3.
+
+---
+
+## 2026-08-04 — Store reativo por feature (components/<feature>/<feature>-store.ts) para telas que escrevem no storageService
+
+### Decisão
+Toda tela que **escreve** dados (não só lê) implementa um pequeno store reativo próprio, em `components/<feature>/<feature>-store.ts`, seguindo o padrão de `components/ingredients/ingredients-store.ts`: cache de módulo + `Set` de assinantes + funções de escrita (`addX`/`removeX`/`updateX`) que gravam via `@/services` e notificam os assinantes. Expõe `subscribeX`/`getXSnapshot`/`getXServerSnapshot` no formato que `useSyncExternalStore` exige. Esse store fica dentro de `components/<feature>/`, não em `services/` — `services/storage-service.ts` continua puro I/O (sem depender de React nem do navegador além de `localStorage`), enquanto o store reativo depende deliberadamente de conceitos de UI (assinantes React) e do navegador (`crypto.randomUUID`).
+
+### Contexto
+Fase 2-3 (tela de ingredientes) era a primeira tela a ESCREVER dados, não só ler — a decisão anterior (2026-08-04, `useSyncExternalStore` no Dashboard) já tinha deixado em aberto como invalidar o cache de snapshot depois de um `save`. Era preciso resolver isso sem reintroduzir `useEffect`+`setState` (rejeitado pelo lint) nem duplicar lógica de cache em cada tela.
+
+### Motivo
+Um `Set` de assinantes é exatamente o contrato que `useSyncExternalStore` espera de um "external store" — ao chamar `notify()` depois de gravar, o próprio hook cuida de re-renderizar quem estiver inscrito, sem `useEffect`. Ter um store por feature (não um store global único) evita acoplar telas que não têm relação (ingredientes não precisa saber de receitas); o custo é que hoje duas telas escrevendo a MESMA fatia em abas diferentes não se sincronizam sozinhas — aceitável por enquanto (nenhuma tela faz isso), documentado como risco em `REVIEW.md`.
+
+### Impacto
+Técnico: `components/recipes/`, `components/fixed-costs/`, `components/channels/` (Fase 2-4+) devem seguir o mesmo padrão — copiar a forma de `ingredients-store.ts`, trocando a fatia (`saveRecipes`/`loadRecipes` etc.) e o tipo (`Recipe`, `FixedCost`, `SalesChannel`). Se, no futuro, duas telas precisarem refletir mudanças uma da outra em tempo real, será preciso um mecanismo de notificação compartilhado entre stores — não existe hoje.
