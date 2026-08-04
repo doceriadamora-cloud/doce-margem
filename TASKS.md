@@ -4,7 +4,7 @@
 > Marcar `[x]` ao concluir. Adicionar novas tarefas quando surgirem.
 > Antes de iniciar uma nova fase: parar, resumir o que foi feito e aguardar aprovação.
 
-**Fase atual:** Fase 2-5 (tela simples de precificação) concluída → aguardando aprovação para a próxima fase.
+**Fase atual:** Fase 2-6 (configurações financeiras básicas) concluída → aguardando aprovação para a próxima fase.
 
 ## Fase 0 — Setup e documentação ✅
 - [x] Criar projeto em C:\dev\doce-margem
@@ -163,10 +163,23 @@
 - [x] Testado com o servidor de dev real + validação isolada do cálculo (11 checagens)
 - [x] Rodar `typecheck` + `lint`
 
-### Fase 2-6 — Telas restantes (pendente)
+### Fase 2-6 — Configurações financeiras básicas ✅
+- [x] Rota `/configuracoes` (`app/configuracoes/page.tsx`)
+- [x] Link real para Configurações no Header (`components/layout/Header.tsx`)
+- [x] `BusinessSettings` novo em `types/app-state.ts` (`estimatedMonthlyRevenue`, `estimatedMonthlyUnits`, `updatedAt`) — guarda só insumos, nunca o percentual calculado
+- [x] `storageService` (`services/storage-service.ts`): `createEmptyBusinessSettings`, `normalizeBusinessSettings`, `saveBusinessSettings`/`loadBusinessSettings` — `APP_STATE_SCHEMA_VERSION` **não** foi incrementada (compatibilidade via reconstrução campo a campo, já estabelecida na Fase 2-1)
+- [x] `services/storage-examples.ts` ampliado: 16 checagens agora (era 13), incluindo o teste explícito de dado antigo pré-Fase 2-6 sem `businessSettings`
+- [x] **Parte 1 — Custos fixos:** `components/fixed-costs/fixed-costs-store.ts` (novo store reativo), `FixedCostForm.tsx` (nome, categoria, valor mensal, ativo/inativo, observação), `FixedCostList.tsx` (lista + excluir) — usa `validateFixedCost` (Fase 1C-2), nenhuma regra reimplementada
+- [x] **Parte 2 — Configurações:** `components/settings/business-settings-store.ts` (novo, objeto único — `updateBusinessSettings`, não uma lista), `BusinessSettingsForm.tsx` (faturamento + volume estimado, resumo ao vivo com `calculateFixedCostSummary`)
+- [x] **Parte 3 — Canais customizados:** `components/channels/channels-store.ts` **estendido** (ganhou `addCustomChannel`/`removeCustomChannel`, exatamente como o `DECISIONS.md` da Fase 2-5 já previa), `CustomChannelForm.tsx`, `CustomChannelList.tsx` — usa `validateChannel` (Fase 1C-1), sem edição (só criar/listar/excluir)
+- [x] **Parte 4 — Integração com precificação:** `PricingForm.tsx` calcula o percentual via `calculateFixedCostSummary` (custos fixos + faturamento salvos) e pré-preenche o campo "Custo fixo sobre faturamento (%)" — edição manual continua livre; sem configuração salva, comportamento idêntico ao da Fase 2-5
+- [x] Validado com o cenário clássico (custos fixos R$ 2.310, faturamento R$ 10.000) → 23,1%, batendo com o texto exato que o campo de precificação recebe ("23,1")
+- [x] Testado com o servidor de dev real (5 rotas) + validação isolada (12 checagens de integração + 16 do storageService, incluindo compatibilidade retroativa)
+- [x] Rodar `typecheck` + `lint`
+
+### Fase 2-7 — Telas restantes (pendente)
 - [ ] Criar backup export/import (usando o storageService da Fase 2-1)
-- [ ] CRUD de custos fixos (hoje só um campo percentual avulso na precificação)
-- [ ] CRUD de canais customizados (hoje `channels-store.ts` só lê)
+- [ ] Edição de custos fixos e de canais customizados (hoje só criar/listar/excluir)
 
 ## Fase 3 — Modo avançado
 - [ ] Criar fator de correção

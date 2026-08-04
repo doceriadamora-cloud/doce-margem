@@ -259,3 +259,35 @@ Colocar o store na pasta do DONO do dado (não do primeiro consumidor) evita um 
 
 ### Impacto
 Técnico: futuros stores de leitura (para dados que ainda não têm CRUD) devem seguir o padrão `channels-store.ts` — só as três funções (`subscribeX` no-op, `getXSnapshot`, `getXServerSnapshot`), sem `addX`/`removeX` até existir de fato uma tela que escreve. Produto: a Fase 2-6 (CRUD de custos fixos) precisa decidir se resolve esse atrito de verdade (persistindo custo fixo/canal como preferência real da usuária) — hoje é um risco conhecido, não um problema resolvido.
+
+---
+
+## 2026-08-04 — Fase 2-6: três stores por feature (não um settings-store.ts único); percentual de custo fixo nunca persistido, só recalculado
+
+### Decisão
+A Fase 2-6 ("configurações financeiras") foi implementada com **três stores em três pastas diferentes** — `components/fixed-costs/fixed-costs-store.ts` (novo), `components/settings/business-settings-store.ts` (novo, objeto único com `updateX`, não uma lista com `addX`/`removeX`) e `components/channels/channels-store.ts` (**estendido** com `addCustomChannel`/`removeCustomChannel`, não recriado) — em vez do único `components/settings/settings-store.ts` sugerido pela tarefa. Separadamente: o campo `defaultFixedCostRate` sugerido para `BusinessSettings` **não foi criado** — o `AppState.businessSettings` guarda só `estimatedMonthlyRevenue`/`estimatedMonthlyUnits` (os insumos); o percentual de custo fixo é sempre recalculado on-demand via `calculateFixedCostSummary`, nunca persistido já calculado.
+
+### Contexto
+Fase 2-6 pedia custos fixos + configurações financeiras + canais customizados numa mesma leva de trabalho, com um arquivo de storage sugerido (`settings-store.ts`) cobrindo os três. Também pedia persistir algo como `defaultFixedCostRate: number | null` nas configurações, para a tela de precificação usar sem recalcular.
+
+### Motivo
+Cada uma dessas três fatias de dado (`fixedCosts`, `businessSettings`, `customChannels`) já tem — ou está prestes a ganhar — sua própria tela e seu próprio dono conceitual; um `settings-store.ts` único misturaria três responsabilidades num arquivo, contrariando a decisão já registrada de que "o store mora com o dono do dado" (2026-08-04, mais acima). `channels-store.ts` em particular já existia (Fase 2-5, só leitura) e o `DECISIONS.md` daquela fase já tinha literalmente prescrito este exato momento: "quando existir CRUD de canais, ele ganha as funções de escrita nesse MESMO arquivo" — seguir a receita já escrita evita um retrabalho inútil. Não persistir `defaultFixedCostRate` evita uma fonte de verdade duplicada: se ele fosse salvo e depois a usuária editasse ou excluísse um custo fixo (Fase 2-6 tela), o valor cacheado ficaria desatualizado até alguém reabrir a tela de Configurações para recalcular — um bug de estado obsoleto silencioso. Recalcular sempre a partir de `fixedCosts` + `estimatedMonthlyRevenue` (ambos já persistidos) custa a mesma chamada de função pura (`calculateFixedCostSummary`) que já é usada em dois lugares (Configurações e Precificação) — sem custo real, e sem risco de dessincronia.
+
+### Impacto
+Técnico: telas futuras que precisarem de outra fatia de dado nova devem continuar criando (ou estendendo) um store na pasta da feature dona, nunca um arquivo "genérico" compartilhado por múltiplas fatias. `PricingForm.tsx` lê `fixed-costs-store` + `business-settings-store` diretamente e chama `calculateFixedCostSummary` ela mesma para pré-preencher o campo — não existe (nem deve existir) um valor "prontinho" gravado em `businessSettings` para ler direto.
+
+---
+
+## 2026-08-04 — Adicionar businessSettings ao AppState sem incrementar APP_STATE_SCHEMA_VERSION
+
+### Decisão
+`AppState` ganhou o campo `businessSettings` (Fase 2-6) **sem** incrementar `APP_STATE_SCHEMA_VERSION` (continua `1`). A compatibilidade com dados salvos antes da Fase 2-6 (que não têm esse campo) é garantida pela reconstrução campo a campo que `normalizeStoredState()` já fazia desde a Fase 2-1: `businessSettings` ausente, de tipo errado, ou com campos internos inválidos vira `createEmptyBusinessSettings()`, sem descartar `ingredients`/`recipes`/`fixedCosts`/`customChannels` que já estivessem no mesmo estado salvo.
+
+### Contexto
+A tarefa da Fase 2-6 pedia explicitamente: "preservar compatibilidade com dados antigos do localStorage", "se o campo não existir, usar valor seguro", "não quebrar quem já tem ingredientes e receitas cadastradas" e "atualizar `schemaVersion` somente se necessário". Era preciso decidir se adicionar um campo novo ao `AppState` justificava um bump de versão.
+
+### Motivo
+O gate de versão em `normalizeStoredState()` (`raw.schemaVersion !== APP_STATE_SCHEMA_VERSION → devolve estado vazio`) existe para descartar dados de um schema **desconhecido** (ver decisão de 2026-08-04 sobre o `storageService`) — não para toda mudança de forma. Incrementar a versão para `2` teria o efeito oposto do pedido: qualquer estado gravado pelas Fases 2-1 a 2-5 (todas com `schemaVersion: 1`) deixaria de bater com a nova constante e seria **apagado inteiro** na primeira leitura após esta fase — exatamente o "quebrar quem já tem ingredientes e receitas cadastradas" que a tarefa pedia para evitar. Como a reconstrução campo a campo já cobre "campo novo ausente" (foi desenhada para isso desde o início, ver decisão da Fase 2-1), bastava estender essa mesma lógica para `businessSettings` — sem necessidade real de uma migração versionada.
+
+### Impacto
+Técnico: incrementar `APP_STATE_SCHEMA_VERSION` fica reservado para quando a forma de um campo **existente** mudar de um jeito que a reconstrução automática não resolva sozinha (ex.: renomear um campo, mudar o tipo de algo que já era obrigatório) — nesse caso sim será preciso escrever uma função de migração de verdade (risco já registrado desde a Fase 2-1: hoje o comportamento em schema desconhecido é sempre perda de dado, nunca migração). Adicionar um campo NOVO e opcional-por-padrão, como `businessSettings`, não exige isso. `services/storage-examples.ts` ganhou um teste dedicado (nº 12) que simula exatamente um estado salvo antes da Fase 2-6 e confirma que os dados antigos sobrevivem — é a prova viva desta decisão.

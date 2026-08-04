@@ -23,11 +23,13 @@ import {
   clearAppState,
   isStorageAvailable,
   loadAppState,
+  loadBusinessSettings,
   loadCustomChannels,
   loadFixedCosts,
   loadIngredients,
   loadRecipes,
   saveAppState,
+  saveBusinessSettings,
   saveCustomChannels,
   saveFixedCosts,
   saveIngredients,
@@ -94,7 +96,9 @@ export function runStorageValidations(): StorageCheckResult[] {
       empty.ingredients.length === 0 &&
       empty.recipes.length === 0 &&
       empty.fixedCosts.length === 0 &&
-      empty.customChannels.length === 0,
+      empty.customChannels.length === 0 &&
+      empty.businessSettings.estimatedMonthlyRevenue === null &&
+      empty.businessSettings.estimatedMonthlyUnits === null,
   });
 
   // 2. Round-trip de ingredientes.
@@ -142,6 +146,15 @@ export function runStorageValidations(): StorageCheckResult[] {
     pass: loadCustomChannels().length === 1 && loadCustomChannels()[0]?.id === "loja-propria",
   });
 
+  // 6b. Round-trip de configurações financeiras (Fase 2-6).
+  saveBusinessSettings({ estimatedMonthlyRevenue: 10000, estimatedMonthlyUnits: 770, updatedAt: "" });
+  const loadedSettings = loadBusinessSettings();
+  checks.push({
+    label: "Configurações financeiras — round-trip salva/carrega",
+    pass:
+      loadedSettings.estimatedMonthlyRevenue === 10000 && loadedSettings.estimatedMonthlyUnits === 770,
+  });
+
   // 7. saveAppState grava com sucesso e atualiza updatedAt (ISO válido).
   const saveResult = saveAppState({ ...loadAppState(), ingredients: [] });
   const updatedAtIso = loadAppState().updatedAt;
@@ -159,7 +172,8 @@ export function runStorageValidations(): StorageCheckResult[] {
       afterClear.ingredients.length === 0 &&
       afterClear.recipes.length === 0 &&
       afterClear.fixedCosts.length === 0 &&
-      afterClear.customChannels.length === 0,
+      afterClear.customChannels.length === 0 &&
+      afterClear.businessSettings.estimatedMonthlyRevenue === null,
   });
 
   // 9. JSON inválido — loadAppState não lança, devolve estado vazio.
@@ -192,18 +206,22 @@ export function runStorageValidations(): StorageCheckResult[] {
     pass: futureVersion.ingredients.length === 0,
   });
 
-  // 12. Estado antigo com arrays ausentes (mas schemaVersion correta) — não
-  // descarta tudo, só recompõe os campos faltando como [].
+  // 12. Estado antigo de ANTES da Fase 2-6: tem ingredientes/receitas, mas
+  // nunca teve o campo `businessSettings` (nem existia). Não pode descartar
+  // tudo, só recompor os campos faltando com um padrão seguro — é o teste que
+  // prova a compatibilidade retroativa exigida pela Fase 2-6.
   writeRawState(
     JSON.stringify({
       schemaVersion: 1,
       ingredients: exampleIngredients,
       updatedAt: "2026-01-01T00:00:00.000Z",
+      // recipes, fixedCosts, customChannels e businessSettings propositalmente ausentes.
     }),
   );
   const partial = loadAppState();
   checks.push({
-    label: "Estado antigo sem alguns arrays — ingredientes preservados, resto vira []",
+    label:
+      "Estado antigo pré-Fase 2-6 (sem businessSettings nem outros arrays) — ingredientes preservados, resto vira padrão seguro",
     pass:
       partial.ingredients.length === exampleIngredients.length &&
       Array.isArray(partial.recipes) &&
@@ -211,7 +229,10 @@ export function runStorageValidations(): StorageCheckResult[] {
       Array.isArray(partial.fixedCosts) &&
       partial.fixedCosts.length === 0 &&
       Array.isArray(partial.customChannels) &&
-      partial.customChannels.length === 0,
+      partial.customChannels.length === 0 &&
+      partial.businessSettings.estimatedMonthlyRevenue === null &&
+      partial.businessSettings.estimatedMonthlyUnits === null &&
+      typeof partial.businessSettings.updatedAt === "string",
   });
 
   // 13. Campo com tipo errado (não é array) — vira [] em vez de quebrar.
@@ -228,6 +249,44 @@ export function runStorageValidations(): StorageCheckResult[] {
   checks.push({
     label: "Campo com tipo errado (ingredients como string) — vira [] em vez de quebrar",
     pass: Array.isArray(corruptedField.ingredients) && corruptedField.ingredients.length === 0,
+  });
+
+  // 14. businessSettings com tipo errado (não é objeto, e campos internos com
+  // tipo errado) — vira o padrão seguro, sem quebrar o resto do estado.
+  writeRawState(
+    JSON.stringify({
+      schemaVersion: 1,
+      ingredients: [],
+      recipes: [],
+      fixedCosts: [],
+      customChannels: [],
+      businessSettings: "isso deveria ser um objeto",
+    }),
+  );
+  const corruptedSettings1 = loadAppState();
+  checks.push({
+    label: "businessSettings como string (não objeto) — vira padrão seguro",
+    pass:
+      corruptedSettings1.businessSettings.estimatedMonthlyRevenue === null &&
+      corruptedSettings1.businessSettings.estimatedMonthlyUnits === null,
+  });
+
+  writeRawState(
+    JSON.stringify({
+      schemaVersion: 1,
+      ingredients: [],
+      recipes: [],
+      fixedCosts: [],
+      customChannels: [],
+      businessSettings: { estimatedMonthlyRevenue: "dez mil", estimatedMonthlyUnits: NaN },
+    }),
+  );
+  const corruptedSettings2 = loadAppState();
+  checks.push({
+    label: "businessSettings com campos de tipo/valor errado (string, NaN) — cada campo vira null",
+    pass:
+      corruptedSettings2.businessSettings.estimatedMonthlyRevenue === null &&
+      corruptedSettings2.businessSettings.estimatedMonthlyUnits === null,
   });
 
   // Não deixa rastro na máquina de quem rodou a validação.

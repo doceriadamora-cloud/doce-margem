@@ -12,7 +12,7 @@
  * vez de derrubar a aplicação.
  */
 
-import type { AppState } from "@/types/app-state";
+import type { AppState, BusinessSettings } from "@/types/app-state";
 import type {
   FixedCost,
   Ingredient,
@@ -26,6 +26,15 @@ export const APP_STATE_SCHEMA_VERSION = 1;
 /** Chave única do estado local no localStorage. */
 export const APP_STATE_STORAGE_KEY = "doce-margem:app-state";
 
+/** Configurações financeiras iniciais seguras (nada informado ainda). */
+export function createEmptyBusinessSettings(): BusinessSettings {
+  return {
+    estimatedMonthlyRevenue: null,
+    estimatedMonthlyUnits: null,
+    updatedAt: new Date().toISOString(),
+  };
+}
+
 /** Estado inicial seguro (sem dados) — usado sempre que a leitura falha ou não existe. */
 export function createEmptyAppState(): AppState {
   return {
@@ -34,6 +43,7 @@ export function createEmptyAppState(): AppState {
     recipes: [],
     fixedCosts: [],
     customChannels: [],
+    businessSettings: createEmptyBusinessSettings(),
     updatedAt: new Date().toISOString(),
   };
 }
@@ -89,6 +99,29 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+function isFiniteNumberOrNull(value: unknown): value is number | null {
+  return value === null || (typeof value === "number" && Number.isFinite(value));
+}
+
+/**
+ * Normaliza `businessSettings` bruto. Segue o mesmo princípio das listas em
+ * `normalizeStoredState`: campo ausente, de tipo errado ou com um número
+ * inválido (NaN/Infinity) vira o padrão seguro — nunca quebra a leitura do
+ * resto do `AppState`.
+ */
+function normalizeBusinessSettings(raw: unknown): BusinessSettings {
+  if (!isPlainObject(raw)) return createEmptyBusinessSettings();
+  return {
+    estimatedMonthlyRevenue: isFiniteNumberOrNull(raw.estimatedMonthlyRevenue)
+      ? raw.estimatedMonthlyRevenue
+      : null,
+    estimatedMonthlyUnits: isFiniteNumberOrNull(raw.estimatedMonthlyUnits)
+      ? raw.estimatedMonthlyUnits
+      : null,
+    updatedAt: typeof raw.updatedAt === "string" ? raw.updatedAt : new Date().toISOString(),
+  };
+}
+
 /**
  * Normaliza dados brutos lidos do localStorage para um AppState seguro.
  *
@@ -100,6 +133,12 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
  *  - Com a versão batendo, cada array ausente ou com tipo errado é reposto por
  *    `[]` individualmente — um campo corrompido não descarta o restante do
  *    estado (ex.: dado antigo sem `customChannels`).
+ *  - `businessSettings` segue a mesma lógica (Fase 2-6): dado salvo ANTES desta
+ *    fase não tem esse campo — vira o padrão seguro (`createEmptyBusinessSettings`)
+ *    sem descartar `ingredients`/`recipes`/etc. já cadastrados. Por isso não foi
+ *    necessário incrementar `APP_STATE_SCHEMA_VERSION`: a reconstrução campo a
+ *    campo (decisão da Fase 2-1) já resolve "campo novo ausente em dado antigo"
+ *    sem precisar de uma migração de verdade.
  */
 function normalizeStoredState(raw: unknown): AppState {
   if (!isPlainObject(raw)) return createEmptyAppState();
@@ -114,6 +153,7 @@ function normalizeStoredState(raw: unknown): AppState {
     customChannels: Array.isArray(raw.customChannels)
       ? (raw.customChannels as SalesChannel[])
       : [],
+    businessSettings: normalizeBusinessSettings(raw.businessSettings),
     updatedAt: typeof raw.updatedAt === "string" ? raw.updatedAt : new Date().toISOString(),
   };
 }
@@ -195,4 +235,12 @@ export function saveCustomChannels(customChannels: SalesChannel[]): boolean {
 
 export function loadCustomChannels(): SalesChannel[] {
   return loadAppState().customChannels;
+}
+
+export function saveBusinessSettings(businessSettings: BusinessSettings): boolean {
+  return saveAppState({ ...loadAppState(), businessSettings });
+}
+
+export function loadBusinessSettings(): BusinessSettings {
+  return loadAppState().businessSettings;
 }

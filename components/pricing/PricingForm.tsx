@@ -2,7 +2,12 @@
 
 import { useState, useSyncExternalStore } from "react";
 import Link from "next/link";
-import { calculatePricing, calculateRecipe, defaultSalesChannels } from "@/modules/pricing";
+import {
+  calculateFixedCostSummary,
+  calculatePricing,
+  calculateRecipe,
+  defaultSalesChannels,
+} from "@/modules/pricing";
 import type {
   CalculatedRecipe,
   CalculationResult,
@@ -25,6 +30,16 @@ import {
   getCustomChannelsSnapshot,
   subscribeCustomChannels,
 } from "@/components/channels/channels-store";
+import {
+  getFixedCostsServerSnapshot,
+  getFixedCostsSnapshot,
+  subscribeFixedCosts,
+} from "@/components/fixed-costs/fixed-costs-store";
+import {
+  getBusinessSettingsServerSnapshot,
+  getBusinessSettingsSnapshot,
+  subscribeBusinessSettings,
+} from "@/components/settings/business-settings-store";
 import PricingResult from "./PricingResult";
 
 /** Aceita vírgula OU ponto decimal (o exemplo da tarefa usa vírgula: "23,1"). */
@@ -46,6 +61,12 @@ function parseOptionalNumber(value: string): number | undefined | null {
 function toDecimalOrNull(percentText: string): number | null {
   const parsed = parseRequiredNumber(percentText);
   return parsed === null ? null : parsed / 100;
+}
+
+/** Decimal (ex.: 0.231) → texto de percentual com vírgula (ex.: "23,1"), arredondado para 2 casas. */
+function formatDecimalRateAsPercentInput(rate: number): string {
+  const rounded = Math.round(rate * 100 * 100) / 100;
+  return rounded.toString().replace(".", ",");
 }
 
 function formatCurrency(value: number): string {
@@ -122,12 +143,40 @@ export default function PricingForm() {
     getCustomChannelsSnapshot,
     getCustomChannelsServerSnapshot,
   );
+  const fixedCostsForSettings = useSyncExternalStore(
+    subscribeFixedCosts,
+    getFixedCostsSnapshot,
+    getFixedCostsServerSnapshot,
+  );
+  const businessSettings = useSyncExternalStore(
+    subscribeBusinessSettings,
+    getBusinessSettingsSnapshot,
+    getBusinessSettingsServerSnapshot,
+  );
 
   const [selectedRecipeId, setSelectedRecipeId] = useState("");
-  const [fixedCostRatePercent, setFixedCostRatePercent] = useState("");
+  // `null` = a usuária ainda não editou este campo nesta visita → usa o
+  // percentual calculado nas Configurações (Fase 2-6), se houver.
+  const [fixedCostRateDraft, setFixedCostRateDraft] = useState<string | null>(null);
   const [desiredProfitRatePercent, setDesiredProfitRatePercent] = useState("");
   const [selectedChannelId, setSelectedChannelId] = useState("");
   const [practicedPriceInput, setPracticedPriceInput] = useState("");
+
+  const settingsBasedSummary =
+    businessSettings.estimatedMonthlyRevenue !== null && businessSettings.estimatedMonthlyRevenue > 0
+      ? calculateFixedCostSummary({
+          fixedCosts: fixedCostsForSettings,
+          estimatedMonthlyRevenue: businessSettings.estimatedMonthlyRevenue,
+          ...(businessSettings.estimatedMonthlyUnits
+            ? { estimatedMonthlyUnits: businessSettings.estimatedMonthlyUnits }
+            : {}),
+        })
+      : null;
+  const settingsBasedPercentText = settingsBasedSummary?.ok
+    ? formatDecimalRateAsPercentInput(settingsBasedSummary.value.fixedCostRate)
+    : "";
+  const fixedCostRatePercent = fixedCostRateDraft ?? settingsBasedPercentText;
+  const isFixedCostRateFromSettings = fixedCostRateDraft === null && settingsBasedPercentText !== "";
 
   if (recipes.length === 0) {
     return (
@@ -211,13 +260,17 @@ export default function PricingForm() {
         <div className="flex flex-col gap-4 rounded-2xl border border-stone-200 bg-white p-5 dark:border-stone-800 dark:bg-stone-900">
           <Field
             label="Custo fixo sobre faturamento (%)"
-            hint="Se você ainda não sabe, use 20% como ponto de partida e ajuste depois."
+            hint={
+              isFixedCostRateFromSettings
+                ? "Preenchido automaticamente com base nas suas Configurações — pode ajustar aqui à vontade."
+                : "Se você ainda não sabe, use 20% como ponto de partida e ajuste depois."
+            }
           >
             <input
               type="text"
               inputMode="decimal"
               value={fixedCostRatePercent}
-              onChange={(e) => setFixedCostRatePercent(e.target.value)}
+              onChange={(e) => setFixedCostRateDraft(e.target.value)}
               placeholder="Ex.: 23,1"
               className={inputClass}
             />

@@ -29,6 +29,7 @@ const SERVER_SNAPSHOT: DashboardSnapshot = {
     recipes: [],
     fixedCosts: [],
     customChannels: [],
+    businessSettings: { estimatedMonthlyRevenue: null, estimatedMonthlyUnits: null, updatedAt: "" },
     updatedAt: "",
   },
   // Otimista: assume que o storage funciona até o cliente provar o contrário,
