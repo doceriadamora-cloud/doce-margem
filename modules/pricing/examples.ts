@@ -15,6 +15,7 @@ import { calculateIngredient } from "./ingredients";
 import { calculateRecipe } from "./recipes";
 import { calculateChannelPrice, defaultSalesChannels } from "./channels";
 import { calculateFixedCostSummary } from "./fixed-costs";
+import { calculatePricing } from "./pricing-engine";
 
 /** Ingredientes de exemplo para teste manual e seed futuro. */
 export const exampleIngredients: Ingredient[] = [
@@ -855,4 +856,128 @@ export function runFixedCostValidations(): RecipeCheckResult[] {
 /** Retorna true se todas as checagens de custos fixos baterem com o esperado. */
 export function allFixedCostExamplesPass(): boolean {
   return runFixedCostValidations().every((r) => r.pass);
+}
+
+/* ─────────────────────────── Pricing engine (Fase 1C-3) ─────────────────────────── */
+
+/**
+ * Valida o pricing engine: preço sugerido (com e sem canal), custo fixo rateado,
+ * lucro esperado, margem, markup, comparação com preço praticado e a integração
+ * receita + custos fixos + canal.
+ *
+ *   Ex.1 (sem canal):  custo direto 10, fixedCostRate 0,231, lucro 0,20
+ *       preço      = 10 / (1 − 0,231 − 0,20) = 10 / 0,569 ≈ R$ 17,5747
+ *       custo fixo = preço × 0,231 ≈ R$ 4,05975
+ *       lucro      = preço × 0,20  ≈ R$ 3,5149
+ *   Ex.2 (iFood Básico): + taxa fixa 1, comissão 12% + pagamento 3,2% = 15,2%
+ *       preço = (10 + 1) / (1 − 0,231 − 0,20 − 0,152) = 11 / 0,417 ≈ R$ 26,3789
+ *   Ex.3 (praticado abaixo): sugerido 20 (custo 10, fixedRate 0,30, lucro 0,20),
+ *       praticado 18 → diferença −R$ 2,00 → status below_suggested
+ *   Integração: brigadeiro (unitCost 0,465) + fixedCostRate dos custos fixos
+ *       (0,231) + iFood Básico → preço = (0,465 + 1) / 0,417 ≈ R$ 3,51319
+ */
+export function runPricingEngineValidations(): RecipeCheckResult[] {
+  const checks: RecipeCheckResult[] = [];
+  const near = (a: number, b: number) => Math.abs(a - b) < RECIPE_EPSILON;
+  const nearLoose = (a: number, b: number) => Math.abs(a - b) < 1e-4;
+
+  // ── Exemplo 1: sem canal ──
+  const ex1 = calculatePricing({
+    directUnitCost: 10,
+    fixedCostRate: 0.231,
+    desiredProfitRate: 0.2,
+  });
+  if (!ex1.ok) {
+    checks.push({ label: "Ex.1 sem canal — calcula sem erros", expected: 0, actual: ex1.errors.length, pass: false, detail: ex1.errors.map((e) => e.message).join("; ") });
+  } else {
+    const v = ex1.value;
+    checks.push({ label: "Ex.1 — preço sugerido sem canal", expected: 17.5747, actual: v.suggestedPrice, pass: nearLoose(v.suggestedPrice, 17.5747) });
+    checks.push({ label: "Ex.1 — custo fixo rateado", expected: 4.059754, actual: v.fixedCostAmount, pass: near(v.fixedCostAmount, 4.0597539543058) });
+    checks.push({ label: "Ex.1 — custo total unitário", expected: 14.059754, actual: v.totalUnitCost, pass: near(v.totalUnitCost, 14.0597539543058) });
+    checks.push({ label: "Ex.1 — lucro esperado", expected: 3.5149, actual: v.expectedProfitAmount, pass: nearLoose(v.expectedProfitAmount, 3.5149) });
+    checks.push({ label: "Ex.1 — margem esperada (= lucro desejado)", expected: 0.2, actual: v.expectedMargin, pass: near(v.expectedMargin, 0.2) });
+    checks.push({ label: "Ex.1 — markup esperado", expected: 1.757469, actual: v.expectedMarkup, pass: near(v.expectedMarkup, 1.7574692442882) });
+    const identity = v.directUnitCost + v.fixedCostAmount + v.expectedProfitAmount;
+    checks.push({ label: "Ex.1 — identidade (direto+fixo+lucro = preço)", expected: v.suggestedPrice, actual: identity, pass: near(identity, v.suggestedPrice) });
+  }
+
+  // ── Exemplo 2: com canal (iFood Básico) ──
+  const ifoodBasico = defaultSalesChannels.find((c) => c.id === "ifood-basico");
+  const ex2 = calculatePricing({
+    directUnitCost: 10,
+    fixedCostRate: 0.231,
+    desiredProfitRate: 0.2,
+    channel: ifoodBasico,
+  });
+  if (!ex2.ok) {
+    checks.push({ label: "Ex.2 com canal — calcula sem erros", expected: 0, actual: ex2.errors.length, pass: false, detail: ex2.errors.map((e) => e.message).join("; ") });
+  } else if (!ex2.value.channelPricing) {
+    checks.push({ label: "Ex.2 com canal — channelPricing presente", expected: 1, actual: 0, pass: false });
+  } else {
+    const cp = ex2.value.channelPricing;
+    checks.push({ label: "Ex.2 — preço sugerido com canal (iFood Básico)", expected: 26.3789, actual: cp.suggestedPrice, pass: nearLoose(cp.suggestedPrice, 26.3789) });
+    // Identidade: preço = direto + fixo + lucro + comissão + pagamento + anúncio + taxa fixa.
+    const sumParts =
+      cp.directUnitCost + cp.fixedCostAmount + cp.expectedProfitAmount +
+      cp.commissionAmount + cp.paymentAmount + cp.adAmount + cp.fixedFeeAmount;
+    checks.push({ label: "Ex.2 — identidade do canal (soma das partes = preço)", expected: cp.suggestedPrice, actual: sumParts, pass: near(sumParts, cp.suggestedPrice) });
+    // Líquido final = direto + fixo + lucro.
+    const liquidoAlvo = cp.directUnitCost + cp.fixedCostAmount + cp.expectedProfitAmount;
+    checks.push({ label: "Ex.2 — líquido final = direto+fixo+lucro", expected: liquidoAlvo, actual: cp.netFinal, pass: near(cp.netFinal, liquidoAlvo) });
+  }
+
+  // ── Exemplo 3: preço praticado abaixo do sugerido ──
+  // custo 10, fixedRate 0,30, lucro 0,20 → preço sugerido = 10 / 0,5 = 20.
+  const ex3 = calculatePricing({
+    directUnitCost: 10,
+    fixedCostRate: 0.3,
+    desiredProfitRate: 0.2,
+    practicedPrice: 18,
+  });
+  if (!ex3.ok) {
+    checks.push({ label: "Ex.3 praticado — calcula sem erros", expected: 0, actual: ex3.errors.length, pass: false, detail: ex3.errors.map((e) => e.message).join("; ") });
+  } else if (!ex3.value.practicedComparison) {
+    checks.push({ label: "Ex.3 praticado — comparação presente", expected: 1, actual: 0, pass: false });
+  } else {
+    const pc = ex3.value.practicedComparison;
+    checks.push({ label: "Ex.3 — preço sugerido = 20", expected: 20, actual: ex3.value.suggestedPrice, pass: near(ex3.value.suggestedPrice, 20) });
+    checks.push({ label: "Ex.3 — diferença praticado − sugerido", expected: -2, actual: pc.difference, pass: near(pc.difference, -2) });
+    checks.push({ label: "Ex.3 — status below_suggested", expected: 1, actual: pc.status === "below_suggested" ? 1 : 0, pass: pc.status === "below_suggested", detail: `status=${pc.status}` });
+    // Margem real: lucro líquido = 18 − 10 − (18×0,30) = 2,6 → 2,6/18 ≈ 0,144444.
+    checks.push({ label: "Ex.3 — margem real no praticado", expected: 0.144444, actual: pc.realMargin, pass: near(pc.realMargin, 2.6 / 18) });
+    checks.push({ label: "Ex.3 — markup real no praticado", expected: 1.8, actual: pc.realMarkup, pass: near(pc.realMarkup, 1.8) });
+  }
+
+  // ── Integração: receita (brigadeiro) + custos fixos + canal ──
+  const brigadeiroById = indexById(brigadeiroIngredients);
+  const brigadeiroCalc = calculateRecipe(brigadeiroRecipe, brigadeiroById);
+  const fixedSummary = calculateFixedCostSummary({
+    fixedCosts: exampleFixedCosts,
+    estimatedMonthlyRevenue: 10000,
+  });
+  if (!brigadeiroCalc.ok || !fixedSummary.ok) {
+    checks.push({ label: "Integração — pré-requisitos calculam sem erros", expected: 0, actual: 1, pass: false });
+  } else {
+    const integ = calculatePricing({
+      recipe: brigadeiroCalc.value,
+      fixedCostRate: fixedSummary.value.fixedCostRate, // 0,231
+      desiredProfitRate: 0.2,
+      channel: ifoodBasico,
+    });
+    if (!integ.ok) {
+      checks.push({ label: "Integração — calcula sem erros", expected: 0, actual: integ.errors.length, pass: false, detail: integ.errors.map((e) => e.message).join("; ") });
+    } else {
+      checks.push({ label: "Integração — usa custo unitário da receita (0,465)", expected: 0.465, actual: integ.value.directUnitCost, pass: near(integ.value.directUnitCost, 0.465) });
+      const price = integ.value.channelPricing?.suggestedPrice ?? null;
+      // (0,465 + 1) / 0,417 ≈ 3,5131894.
+      checks.push({ label: "Integração — preço com canal (brigadeiro + iFood)", expected: 3.5131894, actual: price, pass: price !== null && near(price, 1.465 / 0.417) });
+    }
+  }
+
+  return checks;
+}
+
+/** Retorna true se todas as checagens do pricing engine baterem com o esperado. */
+export function allPricingEngineExamplesPass(): boolean {
+  return runPricingEngineValidations().every((r) => r.pass);
 }

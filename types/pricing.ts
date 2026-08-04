@@ -370,3 +370,145 @@ export interface FixedCostSummary {
   /** Custo fixo médio por unidade, se houver volume estimado. */
   fixedCostPerUnit?: number;
 }
+
+/* ──────────────────── Pricing engine (Fase 1C-3) ──────────────────── */
+
+/**
+ * Status comparativo entre o preço praticado e o preço sugerido de referência.
+ *  - below_suggested: praticado abaixo do sugerido (perde margem);
+ *  - at_suggested: praticado dentro da tolerância (no ideal);
+ *  - above_suggested: praticado acima do sugerido (margem extra).
+ */
+export type PriceComparisonStatus =
+  | "below_suggested"
+  | "at_suggested"
+  | "above_suggested";
+
+/**
+ * Entrada do pricing engine.
+ *
+ * `fixedCostRate` e `desiredProfitRate` são DECIMAIS (0 a <1) — diferente dos
+ * percentuais de canal (0–100). O `fixedCostRate` costuma vir de
+ * `FixedCostSummary.fixedCostRate` (Fase 1C-2).
+ *
+ * O custo direto unitário (CMV) é a base do cálculo. Pode ser informado direto
+ * em `directUnitCost` ou derivado de `recipe.unitCost` (receita calculada).
+ */
+export interface PricingEngineInput {
+  /** Receita calculada de origem (opcional). Se `directUnitCost` for omitido, usa `recipe.unitCost`. */
+  recipe?: CalculatedRecipe;
+  /** Custo direto unitário (CMV) em R$. Se omitido, usa `recipe.unitCost`. */
+  directUnitCost?: number;
+  /** Percentual de custo fixo sobre o preço, em decimal (0 ≤ x < 1). Ex.: 0,231. */
+  fixedCostRate: number;
+  /** Lucro desejado, em decimal (0 ≤ x < 1). Ex.: 0,20. */
+  desiredProfitRate: number;
+  /** Canal de venda opcional (para preço sugerido com taxas do canal). */
+  channel?: SalesChannel;
+  /** Preço praticado opcional (para comparação real de margem/markup). */
+  practicedPrice?: number;
+}
+
+/**
+ * Detalhamento do preço sugerido COM canal: além do preço e dos custos, traz
+ * cada taxa do canal em R$ e o líquido final (o que sobra após as taxas do canal).
+ *
+ * Identidade: preço = custo direto + custo fixo + lucro + comissão + pagamento
+ * + anúncio + taxa fixa. E líquido final = custo direto + custo fixo + lucro.
+ */
+export interface ChannelSuggestedPriceBreakdown {
+  /** Canal de origem. */
+  channel: SalesChannel;
+  /** Preço sugerido com canal. */
+  suggestedPrice: number;
+  /** Custo direto unitário (CMV). */
+  directUnitCost: number;
+  /** Custo fixo rateado (preço × fixedCostRate). */
+  fixedCostAmount: number;
+  /** Custo total unitário (custo direto + custo fixo rateado). */
+  totalUnitCost: number;
+  /** Lucro esperado em R$ (preço × desiredProfitRate). */
+  expectedProfitAmount: number;
+  /** Comissão do canal em R$. */
+  commissionAmount: number;
+  /** Taxa de pagamento em R$. */
+  paymentAmount: number;
+  /** Anúncio/destaque em R$. */
+  adAmount: number;
+  /** Taxa fixa por pedido em R$. */
+  fixedFeeAmount: number;
+  /** Total das taxas do canal (comissão + pagamento + anúncio + taxa fixa). */
+  totalChannelFees: number;
+  /** Líquido final = preço − taxas do canal (deve bater com custo direto + custo fixo + lucro). */
+  netFinal: number;
+  /** Margem esperada com canal (lucro esperado / preço). */
+  expectedMargin: number;
+  /** Markup esperado com canal (preço / custo direto). */
+  expectedMarkup: number;
+  /** Markup esperado em % com canal ((preço − custo direto) / custo direto × 100). */
+  expectedMarkupPercent: number;
+}
+
+/**
+ * Comparação entre o preço praticado e o preço sugerido de referência (com canal
+ * se houver canal; senão o preço sem canal). Calcula margem e markup REAIS no
+ * preço praticado.
+ */
+export interface PracticedPriceComparison {
+  /** Preço praticado informado. */
+  practicedPrice: number;
+  /** Preço sugerido usado como referência (com canal se houver; senão sem canal). */
+  referencePrice: number;
+  /** Diferença em R$ (praticado − sugerido). */
+  difference: number;
+  /** Diferença percentual em decimal ((praticado − sugerido) / sugerido). */
+  differencePercent: number;
+  /** Custo fixo real no preço praticado (praticado × fixedCostRate). */
+  realFixedCostAmount: number;
+  /** Taxas do canal no preço praticado em R$ (0 se sem canal). */
+  realChannelFees: number;
+  /** Lucro líquido real (praticado − custo direto − custo fixo real − taxas do canal). */
+  realProfitAmount: number;
+  /** Margem real (lucro líquido real / praticado). */
+  realMargin: number;
+  /** Markup real (praticado / custo direto). */
+  realMarkup: number;
+  /** Markup real em % ((praticado − custo direto) / custo direto × 100). */
+  realMarkupPercent: number;
+  /** Status comparativo (tolerância de 1%). */
+  status: PriceComparisonStatus;
+}
+
+/**
+ * Resultado do pricing engine. Os campos de topo descrevem o cenário SEM canal;
+ * `channelPricing` traz o cenário COM canal e `practicedComparison` traz a
+ * comparação com o preço praticado (ambos opcionais).
+ */
+export interface PricingEngineResult {
+  /** Custo direto unitário (CMV) usado. */
+  directUnitCost: number;
+  /** Percentual de custo fixo (decimal). */
+  fixedCostRate: number;
+  /** Lucro desejado (decimal). */
+  desiredProfitRate: number;
+
+  /** Preço sugerido SEM canal. */
+  suggestedPrice: number;
+  /** Custo fixo rateado no preço sem canal (preço × fixedCostRate). */
+  fixedCostAmount: number;
+  /** Custo total unitário (custo direto + custo fixo rateado). */
+  totalUnitCost: number;
+  /** Lucro esperado em R$ no preço sem canal (preço × desiredProfitRate). */
+  expectedProfitAmount: number;
+  /** Margem esperada sem canal (lucro esperado / preço). */
+  expectedMargin: number;
+  /** Markup esperado sem canal (preço / custo direto). */
+  expectedMarkup: number;
+  /** Markup esperado em % sem canal. */
+  expectedMarkupPercent: number;
+
+  /** Cenário COM canal (presente apenas se houver canal). */
+  channelPricing?: ChannelSuggestedPriceBreakdown;
+  /** Comparação com o preço praticado (presente apenas se informado). */
+  practicedComparison?: PracticedPriceComparison;
+}

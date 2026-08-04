@@ -194,6 +194,38 @@
 - **Riscos:** float nos percentuais — mitigado por `RECIPE_EPSILON`; valores de exemplo são ilustrativos.
 - **Pendências:** pricing engine — CMV, preço sugerido, margem, markup (Fase 1C-3); engenharia de cardápio.
 
+#### Fase 1C-3 — Pricing engine
+- **Status:** ✅ Concluída
+- **O que foi feito:**
+  - `types/pricing.ts`: `PriceComparisonStatus`, `PricingEngineInput`, `ChannelSuggestedPriceBreakdown`, `PracticedPriceComparison`, `PricingEngineResult` — novos. Nenhum código de erro novo (REQUIRED/NEGATIVE/NON_POSITIVE/OUT_OF_RANGE já existiam).
+  - `modules/pricing/pricing-validators.ts` (novo): `validatePricingEngineInput`.
+  - `modules/pricing/pricing-engine.ts` (novo): `calculatePricing` + `PRICE_COMPARISON_TOLERANCE` (1%).
+  - `modules/pricing/examples.ts`: `runPricingEngineValidations`, `allPricingEngineExamplesPass`.
+  - `modules/pricing/index.ts`: exporta `pricing-engine`, `pricing-validators` e os novos tipos.
+  - **`recipes.ts`, `channels.ts` e `fixed-costs.ts` NÃO foram modificados** — o engine apenas consome seus resultados (`CalculatedRecipe.unitCost`, `SalesChannel`, `FixedCostSummary.fixedCostRate`).
+- **Fórmulas:**
+  - Sem canal: `preço = custo direto / (1 − fixedCostRate − desiredProfitRate)`; `custo fixo = preço × fixedCostRate`; `lucro = preço × desiredProfitRate`.
+  - Com canal: `channelRates = (comissão + pagamento + anúncio)/100`; `preço = (custo direto + taxa fixa) / (1 − fixedCostRate − desiredProfitRate − channelRates)`. Taxa fixa fora do percentual.
+  - Margem = lucro líquido / preço de venda. Markup = preço de venda / custo direto. Markup % = (preço − custo)/custo × 100.
+  - Praticado: `diferença = praticado − sugerido`; margem/markup REAIS recalculados no preço praticado (custo fixo e taxas de canal escalam com o praticado). Referência = preço com canal se houver, senão sem canal.
+- **Como comparou praticado × sugerido:** `differencePercent = (praticado − referência)/referência`; status com tolerância de 1% → `at_suggested` se `|diff%| ≤ 1%`, `below_suggested` se negativo, `above_suggested` se positivo.
+- **Validações executadas (todas PASS):**
+  - Ex.1 sem canal: preço R$ 17,5747; custo fixo R$ 4,05975; lucro R$ 3,5149; margem 0,20; markup 1,75747; identidade direto+fixo+lucro = preço ✓
+  - Ex.2 iFood Básico: preço R$ 26,3789; identidade (soma das partes = preço); líquido final = direto+fixo+lucro ✓
+  - Ex.3 praticado R$ 18 vs sugerido R$ 20: diferença −R$ 2,00; status below_suggested; margem real 0,14444; markup real 1,8 ✓
+  - Integração: brigadeiro (unitCost 0,465) + fixedCostRate 0,231 (de `calculateFixedCostSummary`) + iFood Básico → preço R$ 3,51319 ✓
+  - Erros: custo direto ≤ 0 → NON_POSITIVE; lucro < 0 → NEGATIVE; lucro ≥ 100% → OUT_OF_RANGE; fixedCostRate < 0 → NEGATIVE; fixedCostRate ≥ 100% → OUT_OF_RANGE; soma ≥ 100% (com/sem canal) → OUT_OF_RANGE (`rateTotal`); canal inválido → erro `channel.*`; preço praticado ≤ 0 → NON_POSITIVE; receita inválida (unitCost ≤ 0) → NON_POSITIVE; status at_suggested/above_suggested ✓
+  - Todos os testes das fases anteriores (1A → 1C-2) continuam PASS.
+  - `npm run typecheck` → exit 0; `npm run lint` → exit 0.
+- **Decisões de implementação:**
+  - `fixedCostRate` e `desiredProfitRate` são DECIMAIS (0 a <1), diferente dos percentuais de canal (0–100). O engine converte os % do canal internamente. Registrado em DECISIONS.md.
+  - Margem esperada ≡ `desiredProfitRate` por construção (com ou sem canal), pois o lucro entra como fração do preço — usado como sanity check.
+  - "Receita inválida" surge como `directUnitCost ≤ 0` (o engine recebe a receita já calculada; o custo unitário ≤ 0 é o sinal de receita degenerada).
+  - O engine não modifica os módulos anteriores — apenas orquestra (consome `unitCost`, `fixedCostRate`, `SalesChannel`).
+- **Problemas encontrados:** diagnóstico defasado do IDE (`calculatePricing` "não lido") durante a edição incremental de `examples.ts`; desapareceu e `typecheck` confirmou exit 0.
+- **Riscos:** float nos preços/markups — mitigado por `RECIPE_EPSILON` (e tolerância 1e-4 nos headlines "≈" do briefing). O briefing trazia "custo fixo ≈ R$ 4,0608"; o valor matematicamente correto é R$ 4,05975 (= 17,5747 × 0,231) — usei o valor correto.
+- **Pendências:** engenharia de cardápio (fase própria); Fase 2 (interface).
+
 ### Fase 2 — Interface Essencial
 - **Status:** ⏳ Não iniciada
 - O que foi feito:
@@ -205,7 +237,7 @@
 - [x] O projeto está em C:\dev\doce-margem
 - [x] Não há dependência de OneDrive
 - [x] A lógica de cálculo está separada da UI _(módulos puros em `modules/pricing/`, sem UI)_
-- [~] Os cálculos principais foram validados _(ingredientes/unidades validados na Fase 1A; receitas/canais/engine pendentes)_
+- [x] Os cálculos principais foram validados _(ingredientes, receitas, sub-receitas, medidas caseiras, canais, custos fixos e pricing engine validados — 1A → 1C-3)_
 - [ ] A interface simples não assusta iniciantes
 - [ ] O modo avançado preserva recursos profissionais
 - [x] Não existe plano mensal _(nada de mensal documentado)_

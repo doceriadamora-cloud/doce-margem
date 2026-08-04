@@ -4,7 +4,7 @@
 > Marcar `[x]` ao concluir. Adicionar novas tarefas quando surgirem.
 > Antes de iniciar uma nova fase: parar, resumir o que foi feito e aguardar aprovação.
 
-**Fase atual:** Fase 1C-2 (custos fixos e rateio) concluída → aguardando aprovação para a Fase 1C-3 (pricing engine).
+**Fase atual:** Fase 1C-3 (pricing engine) concluída → aguardando aprovação para a próxima fase (engenharia de cardápio ou Fase 2 — Interface).
 
 ## Fase 0 — Setup e documentação ✅
 - [x] Criar projeto em C:\dev\doce-margem
@@ -76,10 +76,22 @@
 - [x] Exemplos manuais + validação (`runFixedCostValidations`)
 - [x] Rodar `typecheck` + `lint`
 
-### Fase 1C-3 — Pricing engine (pendente)
-- [ ] Criar pricing engine (CMV, preço sugerido, margem, markup)
-- [ ] Integrar custo de receita + custos fixos + taxas de canal
-- [ ] Engenharia de cardápio (pode ir para fase própria se crescer)
+### Fase 1C-3 — Pricing engine ✅
+- [x] Tipos do pricing engine (`PricingEngineInput`, `PricingEngineResult`, `ChannelSuggestedPriceBreakdown`, `PracticedPriceComparison`, `PriceComparisonStatus`)
+- [x] Preço sugerido sem canal (`custo direto / (1 − fixedCostRate − desiredProfitRate)`)
+- [x] Custo fixo rateado, custo total unitário e lucro esperado em R$
+- [x] Preço sugerido com canal (percentuais do canal no denominador + taxa fixa)
+- [x] Detalhamento das taxas do canal (comissão, pagamento, anúncio, taxa fixa, líquido final)
+- [x] Margem esperada e markup esperado (+ markup %)
+- [x] Comparação preço praticado × sugerido (diferença R$/%, margem/markup reais, status)
+- [x] Validações (`pricing-validators.ts`)
+- [x] Integração receita + custos fixos + canal validada (brigadeiro + fixedCostRate + iFood)
+- [x] Exemplos manuais + validação (`runPricingEngineValidations`)
+- [x] Rodar `typecheck` + `lint`
+
+### Engenharia de cardápio (pendente — fase própria)
+- [ ] Classificação de itens (estrela, vaca leiteira, quebra-cabeça, abacaxi)
+- [ ] Popularidade × margem; recomendações
 
 ## Fase 2 — Interface Essencial
 - [ ] Criar layout base

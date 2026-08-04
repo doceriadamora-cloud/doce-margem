@@ -14,6 +14,8 @@ export * from "./channel-validators";
 export * from "./channels";
 export * from "./fixed-cost-validators";
 export * from "./fixed-costs";
+export * from "./pricing-validators";
+export * from "./pricing-engine";
 export * from "./examples";
 
 export type {
@@ -43,4 +45,9 @@ export type {
   FixedCost,
   FixedCostCalculationInput,
   FixedCostSummary,
+  PriceComparisonStatus,
+  PricingEngineInput,
+  ChannelSuggestedPriceBreakdown,
+  PracticedPriceComparison,
+  PricingEngineResult,
 } from "@/types/pricing";

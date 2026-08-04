@@ -1,0 +1,123 @@
+/**
+ * Validações do pricing engine — Fase 1C-3. Funções puras, sem UI.
+ *
+ * `fixedCostRate` e `desiredProfitRate` são DECIMAIS (0 a <1); os percentuais do
+ * canal seguem 0–100 (validados por `validateChannel`). Regras:
+ *  - custo direto unitário: obrigatório (direto ou via receita) e > 0;
+ *  - fixedCostRate: ≥ 0 e < 1 (100%);
+ *  - desiredProfitRate: ≥ 0 e < 1 (100%);
+ *  - canal (se houver): válido (reaproveita `validateChannel`);
+ *  - preço praticado (se informado): > 0;
+ *  - soma (custo fixo + lucro + taxas de canal) deve ser < 1, senão o
+ *    denominador do preço fica ≤ 0 (preço infinito/negativo).
+ */
+
+import type { PricingEngineInput, ValidationError } from "@/types/pricing";
+import { validateChannel } from "./channel-validators";
+
+/**
+ * Valida a entrada do pricing engine.
+ * Retorna a lista de erros; lista vazia significa entrada válida.
+ */
+export function validatePricingEngineInput(
+  input: PricingEngineInput,
+): ValidationError[] {
+  const errors: ValidationError[] = [];
+
+  // Custo direto unitário (direto ou derivado da receita calculada).
+  const directUnitCost = input.directUnitCost ?? input.recipe?.unitCost;
+  if (directUnitCost === undefined) {
+    errors.push({
+      field: "directUnitCost",
+      code: "REQUIRED",
+      message:
+        "Informe o custo direto unitário (ou uma receita calculada).",
+    });
+  } else if (directUnitCost <= 0) {
+    errors.push({
+      field: "directUnitCost",
+      code: "NON_POSITIVE",
+      message: "O custo direto unitário precisa ser maior que zero.",
+    });
+  }
+
+  // Percentual de custo fixo (decimal 0 a <1).
+  let fixedValid = true;
+  if (input.fixedCostRate < 0) {
+    fixedValid = false;
+    errors.push({
+      field: "fixedCostRate",
+      code: "NEGATIVE",
+      message: "O percentual de custo fixo não pode ser negativo.",
+    });
+  } else if (input.fixedCostRate >= 1) {
+    fixedValid = false;
+    errors.push({
+      field: "fixedCostRate",
+      code: "OUT_OF_RANGE",
+      message: "O percentual de custo fixo precisa ser menor que 100%.",
+    });
+  }
+
+  // Lucro desejado (decimal 0 a <1).
+  let profitValid = true;
+  if (input.desiredProfitRate < 0) {
+    profitValid = false;
+    errors.push({
+      field: "desiredProfitRate",
+      code: "NEGATIVE",
+      message: "O lucro desejado não pode ser negativo.",
+    });
+  } else if (input.desiredProfitRate >= 1) {
+    profitValid = false;
+    errors.push({
+      field: "desiredProfitRate",
+      code: "OUT_OF_RANGE",
+      message: "O lucro desejado precisa ser menor que 100%.",
+    });
+  }
+
+  // Canal (opcional): reaproveita a validação de canal da Fase 1C-1.
+  let channelValid = true;
+  let channelRates = 0;
+  if (input.channel) {
+    const channelErrors = validateChannel(input.channel);
+    if (channelErrors.length > 0) {
+      channelValid = false;
+      for (const e of channelErrors) {
+        errors.push({ ...e, field: `channel.${e.field}` });
+      }
+    }
+    channelRates =
+      (input.channel.commissionPercent +
+        input.channel.paymentPercent +
+        input.channel.adPercent) /
+      100;
+  }
+
+  // Preço praticado (opcional): > 0.
+  if (input.practicedPrice !== undefined && input.practicedPrice <= 0) {
+    errors.push({
+      field: "practicedPrice",
+      code: "NON_POSITIVE",
+      message: "O preço praticado precisa ser maior que zero.",
+    });
+  }
+
+  // Soma das taxas: o denominador (1 − custo fixo − lucro − taxas de canal) tem
+  // de ser > 0. Só checa quando as taxas individuais são válidas (evita ruído).
+  if (fixedValid && profitValid && channelValid) {
+    const totalRate =
+      input.fixedCostRate + input.desiredProfitRate + channelRates;
+    if (totalRate >= 1) {
+      const pct = Math.round(totalRate * 1000) / 10;
+      errors.push({
+        field: "rateTotal",
+        code: "OUT_OF_RANGE",
+        message: `A soma de custo fixo, lucro desejado e taxas do canal (${pct}%) precisa ser menor que 100%.`,
+      });
+    }
+  }
+
+  return errors;
+}

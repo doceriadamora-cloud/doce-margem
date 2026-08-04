@@ -163,3 +163,19 @@ Usar o total efetivo satisfaz os dois exemplos do briefing (23,1% sem canais; 25
 
 ### Impacto
 Técnico: `FixedCostSummary` expõe `totalFixedCosts`, `channelMonthlyFeesTotal` e `totalConsidered` separadamente (transparência), e `fixedCostRate`/`fixedCostPerUnit` derivam de `totalConsidered`. O pricing engine (Fase 1C-3) consumirá `fixedCostRate` para compor o preço sugerido — sem que esta fase calcule preço, margem ou markup.
+
+---
+
+## 2026-06-30 — Pricing engine: taxas em decimal, preço por divisão (mark-on) e comparação com tolerância
+
+### Decisão
+O pricing engine (`calculatePricing`) usa o método de **mark-on por divisão**: `preço = custo direto / (1 − fixedCostRate − desiredProfitRate)` (sem canal) e `preço = (custo direto + taxa fixa) / (1 − fixedCostRate − desiredProfitRate − channelRates)` (com canal). `fixedCostRate` e `desiredProfitRate` são **decimais (0 a <1)**; os percentuais do canal continuam **0–100** (Fase 1C-1) e são convertidos internamente. A **margem** é `lucro líquido / preço` e o **markup** é `preço / custo direto`. A comparação com o preço praticado usa **tolerância de 1%** (`PRICE_COMPARISON_TOLERANCE`) para o status `at_suggested`. O engine **não modifica** receitas, canais nem custos fixos — apenas consome seus resultados. "Receita inválida" é tratada como `custo direto unitário ≤ 0`.
+
+### Contexto
+Fase 1C-3. Era preciso unir custo de receita (`CalculatedRecipe.unitCost`), custo fixo percentual (`FixedCostSummary.fixedCostRate`) e taxas de canal (`SalesChannel`) num único preço sugerido com margem e markup, e comparar com o preço efetivamente praticado.
+
+### Motivo
+O método de divisão garante que custo fixo e lucro sejam frações do **preço final** (e não do custo), que é como a confeiteira raciocina ("quero 20% de margem sobre a venda"). Por construção, a margem esperada resulta exatamente igual ao `desiredProfitRate` — um sanity check natural. Manter `fixedCostRate`/`desiredProfitRate` em decimal alinha com a saída da Fase 1C-2 (já decimal) e evita ambiguidade; os % de canal ficam em 0–100 porque é como aparecem nos contratos. Exigir denominador `> 0` (soma das taxas `< 100%`) evita preço infinito/negativo. A tolerância de 1% evita marcar como "fora do ideal" diferenças irrelevantes de arredondamento.
+
+### Impacto
+Técnico: `PricingEngineResult` traz o cenário sem canal no topo e aninha `channelPricing` (com detalhamento de cada taxa e `netFinal`) e `practicedComparison` (margem/markup reais + status). O briefing trazia "custo fixo ≈ R$ 4,0608" no Exemplo 1; o valor correto é R$ 4,05975 (= 17,5747 × 0,231) e foi o adotado. A engenharia de cardápio fica para fase própria; o engine já entrega o que a UI (Fase 2) precisa para preço, margem e markup.
