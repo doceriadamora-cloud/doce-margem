@@ -227,11 +227,46 @@
 - **Pendências:** engenharia de cardápio (fase própria); Fase 2 (interface).
 
 ### Fase 2 — Interface Essencial
-- **Status:** ⏳ Não iniciada
-- O que foi feito:
-- Problemas encontrados:
-- Riscos:
-- Pendências:
+
+#### Fase 2-1 — storageService local
+- **Status:** ✅ Concluída
+- **O que foi feito:**
+  - `types/app-state.ts`: `AppState` (tipos puros, sem storage) — `schemaVersion`, `ingredients`, `recipes`, `fixedCosts`, `customChannels`, `updatedAt`. Importa apenas tipos de `types/pricing.ts`.
+  - `services/storage-service.ts` (novo): única camada que fala com `window.localStorage`.
+    - `APP_STATE_SCHEMA_VERSION` (1), `APP_STATE_STORAGE_KEY` (`"doce-margem:app-state"`).
+    - `isStorageAvailable()` — testa `window` + escreve/remove uma chave-sonda; nunca lança.
+    - `createEmptyAppState()` — estado inicial seguro.
+    - `loadAppState()` / `saveAppState()` / `clearAppState()` — nunca lançam; falha vira `false` ou estado vazio.
+    - `normalizeStoredState()` (interna) — valida e recompõe o JSON bruto (ver "Validações" abaixo).
+    - Funções por fatia: `save/loadIngredients`, `save/loadRecipes`, `save/loadFixedCosts`, `save/loadCustomChannels` — leem o `AppState` inteiro, alteram só a fatia pedida e regravam.
+  - `services/storage-examples.ts` (novo): `runStorageValidations()`/`allStorageExamplesPass()` — 13 checagens manuais (mesmo padrão de `modules/pricing/examples.ts`), usando a chave real do app e limpando o estado antes/depois.
+  - `services/index.ts` (novo): barrel — `import { loadAppState, saveIngredients } from "@/services"`.
+- **Como o storage evita quebrar no servidor:** `isStorageAvailable()` primeiro checa `typeof window === "undefined"` (SSR/Node) e só then tenta um `setItem`/`removeItem` de sonda dentro de `try/catch` (cobre private browsing com quota 0 e navegadores que bloqueiam storage). Todas as funções públicas passam por essa checagem antes de tocar em `localStorage`; nenhuma lança — leitura sem storage devolve `createEmptyAppState()`, escrita devolve `false`.
+- **Como lida com JSON inválido/corrompido:** `loadAppState()` faz `JSON.parse` dentro de `try/catch` (parse inválido → estado vazio). O resultado passa por `normalizeStoredState()`: não é objeto → vazio; `schemaVersion` ausente/tipo errado → vazio; `schemaVersion` diferente da atual → vazio (sem migração definida ainda, só existe a v1); com a versão batendo, cada array (`ingredients`/`recipes`/`fixedCosts`/`customChannels`) que estiver ausente ou não for array vira `[]` **individualmente** — um campo corrompido não descarta o restante do estado (ex.: dado antigo sem `customChannels` mantém os ingredientes).
+- **Validações executadas (todas PASS, com polyfill de `localStorage` em memória — mesma técnica de compilação temporária das fases anteriores):**
+  - Primeiro load sem dados → estado vazio (schemaVersion 1, arrays `[]`).
+  - Round-trip de ingredientes, receitas, custos fixos e canais customizados.
+  - Salvar uma fatia não apaga as demais já salvas (read-modify-write sobre o mesmo objeto).
+  - `saveAppState` devolve `true` e grava `updatedAt` em ISO válido.
+  - `clearAppState` — load seguinte volta ao estado vazio.
+  - JSON inválido → não lança, devolve estado vazio.
+  - `schemaVersion` ausente → fallback para estado vazio.
+  - `schemaVersion` desconhecida (999) → fallback para estado vazio.
+  - Estado antigo com arrays ausentes (schema correta) → ingredientes preservados, resto vira `[]`.
+  - Campo com tipo errado (`ingredients` como string) → vira `[]` em vez de quebrar.
+  - **Prova separada de ambiente server** (sem `global.window` definido): `loadAppState`, `saveAppState`, `clearAppState`, `loadIngredients`, `saveIngredients` — nenhuma lançou; leituras devolveram estado vazio, escritas devolveram `false`.
+  - Todos os 50 testes das fases 1A → 1C-3 continuam PASS (prova de que nenhuma fórmula de precificação foi tocada).
+  - `npm run typecheck` → exit 0; `npm run lint` → exit 0.
+- **Decisões de implementação (não estruturais):**
+  - Um único objeto `AppState` sob uma única chave de `localStorage`, em vez de uma chave por fatia — mantém o versionamento (`schemaVersion`) e o `updatedAt` centralizados num só lugar, e as funções por fatia (`saveIngredients` etc.) são só conveniência de leitura/escrita parcial sobre esse objeto único.
+  - `services/storage-examples.ts` foi criado como arquivo próprio em vez de estender `modules/pricing/examples.ts` (sugestão original da tarefa): colocar validações de storage lá forçaria `modules/pricing` a importar de `services/`, invertendo a dependência e violando a regra do CLAUDE.md de que a matemática de precificação não pode depender de armazenamento. `services/storage-examples.ts` importa de `modules/pricing/examples.ts` (dado de exemplo, sentido permitido), nunca o contrário.
+  - Nenhuma abstração/factory "trocável por Supabase" foi criada agora (ex.: interface `AppStateStorage`, seletor Essencial/Pro) — a decoupling pedida hoje é garantida pela UI só poder importar de `@/services` (nunca `localStorage` direto); a troca real por Supabase/cloud fica para a Fase 4, quando existir de fato o que decidir entre local/nuvem.
+- **Problemas encontrados:** nenhum bloqueante.
+- **Riscos:**
+  - Sem migração entre versões de schema ainda — qualquer mudança de forma do `AppState` exige decidir se incrementa `APP_STATE_SCHEMA_VERSION` (o que hoje **apaga** dados antigos em vez de migrar). Aceitável agora (schema v1, sem usuárias reais); revisar antes de ter dados de produção.
+  - Escrita síncrona em `localStorage` bloqueia a thread principal para estados grandes — sem risco perceptível no volume esperado do Essencial, mas vale monitorar se a base de receitas/ingredientes crescer muito.
+  - `isStorageAvailable()` roda uma escrita de sonda a cada chamada (sem cache) — custo desprezível, mas é uma chamada de storage a mais por operação; pode ser revisto se performance virar problema.
+- **Pendências:** telas e camada de UI (Fase 2-2): layout, dashboard, ingredientes, receitas, precificação simples, backup export/import.
 
 ## Checklist técnico
 - [x] O projeto está em C:\dev\doce-margem

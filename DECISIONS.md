@@ -179,3 +179,19 @@ O método de divisão garante que custo fixo e lucro sejam frações do **preço
 
 ### Impacto
 Técnico: `PricingEngineResult` traz o cenário sem canal no topo e aninha `channelPricing` (com detalhamento de cada taxa e `netFinal`) e `practicedComparison` (margem/markup reais + status). O briefing trazia "custo fixo ≈ R$ 4,0608" no Exemplo 1; o valor correto é R$ 4,05975 (= 17,5747 × 0,231) e foi o adotado. A engenharia de cardápio fica para fase própria; o engine já entrega o que a UI (Fase 2) precisa para preço, margem e markup.
+
+---
+
+## 2026-08-04 — storageService: um único AppState versionado, sem migração ainda, e exemplos de storage fora de modules/pricing
+
+### Decisão
+O estado local (Fase 2-1) é um **único objeto `AppState`** salvo sob **uma única chave** de `localStorage` (`doce-margem:app-state`), versionado por `schemaVersion`. Quando a versão lida é diferente da atual, o storageService **não tenta migrar** — devolve o estado inicial vazio (ainda não existe nenhuma função de migração; só a v1 existe). Campos individuais ausentes ou com tipo errado (mas `schemaVersion` correta) são recompostos como `[]` em vez de descartar o estado inteiro. Nenhuma abstração/factory formal (`interface AppStateStorage`, seletor local/nuvem) foi criada para preparar a troca por Supabase — a camada única de acesso é `@/services` (a UI nunca fala com `localStorage` direto). As validações manuais de storage vivem em `services/storage-examples.ts`, **não** em `modules/pricing/examples.ts`.
+
+### Contexto
+Fase 2-1 (storageService local), primeira peça de persistência do projeto. Era preciso decidir a granularidade da chave de storage, o que fazer com dados de schema desconhecido/corrompido, e onde colocar os testes manuais de storage sem violar a separação cálculo × armazenamento.
+
+### Motivo
+Uma chave única mantém `schemaVersion` e `updatedAt` centralizados e as funções por fatia (`saveIngredients`, etc.) como conveniência sobre um só objeto — evita reconciliar versões diferentes entre chaves separadas. Descartar (em vez de tentar adivinhar) um schema desconhecido é a opção mais segura hoje: não há usuárias reais em produção, então perder dados de um schema não reconhecido é preferível a aplicar uma migração especulativa errada; isso **precisa ser revisitado** antes de existirem dados reais de produção. Recompor campos ausentes individualmente (em vez de descartar tudo) trata graciosamente dados antigos parcialmente incompletos sem exigir um bump de versão a cada campo novo opcional. Não criar a abstração de troca por Supabase agora respeita "não implementar funcionalidade nova": a decoupling pedida (UI nunca toca `localStorage`) já está garantida pelo import único via `@/services`; a decisão real entre local/nuvem só existe a partir da Fase 4, quando fizer sentido desenhar o seletor. Colocar `storage-examples.ts` em `services/` (não em `modules/pricing/examples.ts`) evita que `modules/pricing` importe de `services/`, o que inverteria a dependência e violaria a regra do CLAUDE.md de que a matemática de precificação não pode depender de armazenamento.
+
+### Impacto
+Técnico: `services/storage-service.ts` nunca lança (localStorage indisponível, JSON inválido, schema ausente/desconhecido ou campos corrompidos sempre caem em `createEmptyAppState()` ou `false`). Mudar a forma do `AppState` no futuro exige decidir explicitamente entre migrar (escrever uma função de migração antes do bump) ou aceitar perda de dados — hoje o comportamento é sempre perda. A Fase 4 (Supabase) provavelmente introduzirá um seletor Essencial (local) × Pro (nuvem) por cima de `@/services`, sem precisar mudar as assinaturas já usadas pela futura UI (`loadAppState`, `saveIngredients`, etc.).

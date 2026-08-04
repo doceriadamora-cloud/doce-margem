@@ -4,7 +4,7 @@
 > Marcar `[x]` ao concluir. Adicionar novas tarefas quando surgirem.
 > Antes de iniciar uma nova fase: parar, resumir o que foi feito e aguardar aprovação.
 
-**Fase atual:** Fase 1C-3 (pricing engine) concluída → aguardando aprovação para a próxima fase (engenharia de cardápio ou Fase 2 — Interface).
+**Fase atual:** Fase 2-1 (storageService local) concluída → aguardando aprovação para a próxima fase.
 
 ## Fase 0 — Setup e documentação ✅
 - [x] Criar projeto em C:\dev\doce-margem
@@ -93,14 +93,26 @@
 - [ ] Classificação de itens (estrela, vaca leiteira, quebra-cabeça, abacaxi)
 - [ ] Popularidade × margem; recomendações
 
-## Fase 2 — Interface Essencial
+## Fase 2 — Interface Essencial (dividida em subfases)
+
+### Fase 2-1 — storageService local ✅
+- [x] Tipos do estado local (`types/app-state.ts`)
+- [x] storageService desacoplado, só client-side (`services/storage-service.ts`)
+- [x] Funções salvar/carregar ingredientes, receitas, custos fixos e canais customizados
+- [x] Função para limpar dados locais (`clearAppState`)
+- [x] Versionamento simples do schema local (`schemaVersion`)
+- [x] Validações contra JSON inválido, schema ausente/desconhecido e campos ausentes/corrompidos (fallback seguro, nunca lança)
+- [x] Exemplos/validações manuais (`services/storage-examples.ts`)
+- [x] Barrel de exportação (`services/index.ts`)
+- [x] Rodar `typecheck` + `lint`
+
+### Fase 2-2 — Telas e camada de UI (pendente)
 - [ ] Criar layout base
 - [ ] Criar dashboard inicial
 - [ ] Criar tela de ingredientes
 - [ ] Criar tela de receitas
 - [ ] Criar tela de precificação simples (modo simples)
-- [ ] Criar camada `storageService` (localStorage desacoplado)
-- [ ] Criar backup export/import
+- [ ] Criar backup export/import (usando o storageService da Fase 2-1)
 
 ## Fase 3 — Modo avançado
 - [ ] Criar fator de correção
