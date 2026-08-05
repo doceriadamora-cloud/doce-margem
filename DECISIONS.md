@@ -307,3 +307,19 @@ Caches de módulo sobrevivem à navegação client-side do Next (o módulo não 
 
 ### Impacto
 Técnico: `Dashboard.tsx` agora lê os quatro stores de CRUD. Qualquer tela futura de resumo/relatório (ex.: engenharia de cardápio, relatórios do Pro) deve fazer o mesmo, nunca reintroduzir um cache próprio de `loadAppState()`. Processo: ao registrar um risco com condição de reavaliação ("quando a Fase X fizer Y"), adicionar também um item correspondente no `TASKS.md` da fase X — a revisão de fim de fase deve incluir explicitamente o teste do fluxo ENTRE telas, não só de cada tela isolada. Limite conhecido que permanece: os stores não escutam o evento `storage`, então duas abas abertas continuam divergindo até um reload.
+
+---
+
+## 2026-08-04 — Edição reaproveita o formulário via `key`-remount; estado "em edição" é `useState` de UI, não um store
+
+### Decisão
+Toda tela de CRUD que ganhar edição (Fase 2-7: ingredientes, receitas, custos fixos, canais) segue o mesmo padrão: um componente novo `<Feature>Screen.tsx` guarda `editingId` (`useState<string | null>`, estado de UI puro) e renderiza `<XForm key={editingId ?? "new"} editingX={...} onDoneEditing={...} />` ao lado de `<XList editingId={editingId} onEdit={setEditingId} />`. Trocar a `key` do formulário força o React a desmontar/remontar o componente inteiro sempre que `editingId` muda — os `useState` internos do formulário reinicializam a partir das props (item sendo editado, ou vazio para "novo") sem precisar de `useEffect`. O `id` do registro nunca é decidido pelo formulário: em modo criação, `addX` gera um novo; em modo edição, `updateX(id, ...)` sempre sobrescreve o item daquele id, nunca duplica.
+
+### Contexto
+Fase 2-7 pedia edição básica reaproveitando o próprio formulário ("botão Editar → preenche o formulário → Salvar alterações → não duplicar"). O jeito mais direto de fazer um formulário "pré-preencher com dados existentes quando a prop mudar" costuma ser um `useEffect` sincronizando a prop para dentro do `useState` local — exatamente o padrão que a Revisão da Fase 2 já tinha identificado como fonte de bugs nesta base (`react-hooks/set-state-in-effect`, e o próprio bug do `Dashboard` corrigido na mesma revisão).
+
+### Motivo
+O truque de `key` é o padrão que o próprio React recomenda para "resetar o estado de um componente quando ele passa a representar outra coisa" — trocar a `key` é semanticamente "isto agora é um componente diferente", então a reinicialização dos `useState` a partir das props acontece de graça, sem `useEffect`, sem risco de re-render em cascata, e sem o `editingId` do wrapper precisar saber nada sobre os campos internos do formulário. Manter `editingId` como `useState` comum (não um store reativo) é proposital: é estado de UI local a uma sessão de tela (qual linha estou editando agora), não dado que precisa sobreviver entre navegações ou ser lido por outra feature — usar o padrão de store reativo (pensado para dados persistidos) aqui seria uma categoria errada de abstração.
+
+### Impacto
+Técnico: qualquer tela futura com edição (ex.: se a Fase 3 ou além criar edição de ingrediente com sub-receita, ou qualquer outro CRUD) deve seguir o mesmo padrão `Screen` + `key`-remount, não introduzir `useEffect` para sincronizar formulário com item selecionado. Os 4 stores (`ingredients-store.ts`, `recipes-store.ts`, `fixed-costs-store.ts`, `channels-store.ts`) ganharam `updateX(id, dado)` como uma quarta função ao lado de `subscribeX`/`getXSnapshot`/`addX`/`removeX` — o padrão "store reativo por feature" (decisão anterior) agora inclui update como parte do contrato esperado para qualquer fatia com CRUD completo.

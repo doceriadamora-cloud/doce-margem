@@ -3,7 +3,7 @@
 import { useState, type FormEvent } from "react";
 import { calculateIngredient, validateIngredient } from "@/modules/pricing";
 import type { BaseUnit, Ingredient, PurchaseUnit, ValidationError } from "@/types/pricing";
-import { addIngredient } from "./ingredients-store";
+import { addIngredient, updateIngredient } from "./ingredients-store";
 
 const PURCHASE_UNITS: { value: PurchaseUnit; label: string }[] = [
   { value: "g", label: "g (grama)" },
@@ -44,18 +44,46 @@ function formatCost(value: number): string {
   });
 }
 
+interface IngredientFormProps {
+  /** Ingrediente sendo editado, ou `null` para cadastrar um novo. */
+  editingIngredient?: Ingredient | null;
+  /** Chamado ao salvar uma edição ou cancelar — some da lista o "modo edição". */
+  onDoneEditing?: () => void;
+}
+
 /**
- * Formulário de cadastro de ingrediente. Só monta o `Ingredient` e delega
- * validação/cálculo às funções de domínio da Fase 1A (`validateIngredient`,
- * `calculateIngredient`) — não reimplementa nenhuma regra aqui.
+ * Formulário de cadastro/edição de ingrediente. Só monta o `Ingredient` e
+ * delega validação/cálculo às funções de domínio da Fase 1A
+ * (`validateIngredient`, `calculateIngredient`) — não reimplementa nenhuma
+ * regra aqui.
+ *
+ * Edição reaproveita o mesmo formulário (Fase 2-7): o componente pai renderiza
+ * `<IngredientForm key={editingIngredient?.id ?? "new"} .../>` — trocar a
+ * `key` faz o React remontar o componente do zero, o que reinicializa os
+ * `useState` com os valores do ingrediente sendo editado sem precisar de
+ * `useEffect` (evita o mesmo problema de "cascading render" já corrigido nas
+ * fases anteriores).
  */
-export default function IngredientForm() {
-  const [name, setName] = useState("");
-  const [purchaseQuantity, setPurchaseQuantity] = useState("");
-  const [purchaseUnit, setPurchaseUnit] = useState<PurchaseUnit>("g");
-  const [purchasePrice, setPurchasePrice] = useState("");
-  const [baseUnit, setBaseUnit] = useState<BaseUnit>("g");
-  const [correctionFactor, setCorrectionFactor] = useState("1");
+export default function IngredientForm({
+  editingIngredient = null,
+  onDoneEditing = () => {},
+}: IngredientFormProps) {
+  const [name, setName] = useState(editingIngredient?.name ?? "");
+  const [purchaseQuantity, setPurchaseQuantity] = useState(
+    editingIngredient ? String(editingIngredient.purchaseQuantity) : "",
+  );
+  const [purchaseUnit, setPurchaseUnit] = useState<PurchaseUnit>(
+    editingIngredient?.purchaseUnit ?? "g",
+  );
+  const [purchasePrice, setPurchasePrice] = useState(
+    editingIngredient ? String(editingIngredient.purchasePrice) : "",
+  );
+  const [baseUnit, setBaseUnit] = useState<BaseUnit>(editingIngredient?.baseUnit ?? "g");
+  const [correctionFactor, setCorrectionFactor] = useState(
+    editingIngredient?.correctionFactor !== undefined
+      ? String(editingIngredient.correctionFactor)
+      : "1",
+  );
   const [errors, setErrors] = useState<ValidationError[]>([]);
 
   function errorFor(field: string): string | undefined {
@@ -104,9 +132,18 @@ export default function IngredientForm() {
       return;
     }
 
-    addIngredient(candidate);
-    setErrors([]);
-    resetForm();
+    if (editingIngredient?.id) {
+      updateIngredient(editingIngredient.id, candidate);
+      onDoneEditing();
+    } else if (editingIngredient) {
+      // Invariante: um ingrediente em edição sempre veio do store, que sempre
+      // atribui id antes de persistir — este ramo não deveria ser alcançável.
+      onDoneEditing();
+    } else {
+      addIngredient(candidate);
+      setErrors([]);
+      resetForm();
+    }
   }
 
   // Prévia do custo por unidade-base, calculada com a mesma função de domínio
@@ -138,7 +175,7 @@ export default function IngredientForm() {
       className="flex h-fit flex-col gap-4 rounded-2xl border border-stone-200 bg-white p-5 dark:border-stone-800 dark:bg-stone-900"
     >
       <h2 className="text-lg font-semibold text-stone-900 dark:text-stone-50">
-        Cadastrar ingrediente
+        {editingIngredient ? "Editar ingrediente" : "Cadastrar ingrediente"}
       </h2>
 
       {formError && (
@@ -248,12 +285,23 @@ export default function IngredientForm() {
         </p>
       )}
 
-      <button
-        type="submit"
-        className="mt-1 rounded-full bg-rose-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-rose-700"
-      >
-        Cadastrar ingrediente
-      </button>
+      <div className="mt-1 flex gap-2">
+        <button
+          type="submit"
+          className="rounded-full bg-rose-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-rose-700"
+        >
+          {editingIngredient ? "Salvar alterações" : "Cadastrar ingrediente"}
+        </button>
+        {editingIngredient && (
+          <button
+            type="button"
+            onClick={onDoneEditing}
+            className="rounded-full border border-stone-300 px-4 py-2 text-sm font-medium text-stone-600 transition-colors hover:bg-stone-50 dark:border-stone-700 dark:text-stone-300 dark:hover:bg-stone-800"
+          >
+            Cancelar edição
+          </button>
+        )}
+      </div>
     </form>
   );
 }

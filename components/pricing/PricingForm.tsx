@@ -213,6 +213,13 @@ export default function PricingForm() {
   const desiredProfitRateDecimal = toDecimalOrNull(desiredProfitRatePercent);
   const practicedPrice = parseOptionalNumber(practicedPriceInput);
 
+  // Campo "inválido" = a usuária digitou algo que não é vazio, mas não dá pra
+  // interpretar como número. Campo vazio não é erro — só significa "ainda não
+  // preenchido" (a calculadora simplesmente não mostra resultado ainda).
+  const fixedCostRateInvalid = fixedCostRatePercent.trim() !== "" && fixedCostRateDecimal === null;
+  const profitInvalid = desiredProfitRatePercent.trim() !== "" && desiredProfitRateDecimal === null;
+  const practicedPriceInvalid = practicedPriceInput.trim() !== "" && practicedPrice === null;
+
   const pricingResult = computePricingResult({
     recipeCalc,
     fixedCostRateDecimal,
@@ -267,6 +274,11 @@ export default function PricingForm() {
                 ? "Preenchido automaticamente com base nas suas Configurações — pode ajustar aqui à vontade."
                 : "Se você ainda não sabe, use 20% como ponto de partida e ajuste depois."
             }
+            error={
+              fixedCostRateInvalid
+                ? "Confira o custo fixo. Use apenas números (ex.: 23,1) ou deixe o campo vazio."
+                : undefined
+            }
           >
             <input
               type="text"
@@ -278,7 +290,10 @@ export default function PricingForm() {
             />
           </Field>
 
-          <Field label="Lucro desejado (%)">
+          <Field
+            label="Lucro desejado (%)"
+            error={profitInvalid ? "Confira o lucro desejado. Use apenas números (ex.: 20)." : undefined}
+          >
             <input
               type="text"
               inputMode="decimal"
@@ -304,7 +319,14 @@ export default function PricingForm() {
             </select>
           </Field>
 
-          <Field label="Preço que você cobra hoje (opcional)">
+          <Field
+            label="Preço que você cobra hoje (opcional)"
+            error={
+              practicedPriceInvalid
+                ? "Confira o preço praticado. Use apenas números maiores que zero ou deixe o campo vazio."
+                : undefined
+            }
+          >
             <input
               type="text"
               inputMode="decimal"
@@ -339,15 +361,20 @@ const inputClass =
 interface FieldProps {
   label: string;
   hint?: string;
+  error?: string;
   children: React.ReactNode;
 }
 
-function Field({ label, hint, children }: FieldProps) {
+function Field({ label, hint, error, children }: FieldProps) {
   return (
     <label className="flex flex-col gap-1 text-sm">
       <span className="font-medium text-stone-700 dark:text-stone-300">{label}</span>
       {children}
-      {hint && <span className="text-xs text-stone-400 dark:text-stone-500">{hint}</span>}
+      {error ? (
+        <span className="text-xs text-red-600 dark:text-red-400">{error}</span>
+      ) : (
+        hint && <span className="text-xs text-stone-400 dark:text-stone-500">{hint}</span>
+      )}
     </label>
   );
 }

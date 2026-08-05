@@ -17,8 +17,15 @@ function formatCurrency(value: number): string {
   });
 }
 
+interface CustomChannelListProps {
+  /** Id do canal sendo editado agora (destaca a linha), ou `null`. */
+  editingId?: string | null;
+  /** Chamado quando a usuária clica "Editar" numa linha. */
+  onEdit: (id: string) => void;
+}
+
 /** Lista os canais de venda customizados (a biblioteca padrão da Fase 1C-1 não aparece aqui). */
-export default function CustomChannelList() {
+export default function CustomChannelList({ editingId = null, onEdit }: CustomChannelListProps) {
   const customChannels = useSyncExternalStore(
     subscribeCustomChannels,
     getCustomChannelsSnapshot,
@@ -44,7 +51,11 @@ export default function CustomChannelList() {
       {customChannels.map((channel) => (
         <li
           key={channel.id}
-          className="flex items-start justify-between gap-3 rounded-2xl border border-stone-200 bg-white p-4 dark:border-stone-800 dark:bg-stone-900"
+          className={`flex items-start justify-between gap-3 rounded-2xl border bg-white p-4 dark:bg-stone-900 ${
+            channel.id === editingId
+              ? "border-rose-300 ring-2 ring-rose-100 dark:border-rose-700 dark:ring-rose-950"
+              : "border-stone-200 dark:border-stone-800"
+          }`}
         >
           <div>
             <p className="font-medium text-stone-900 dark:text-stone-50">{channel.name}</p>
@@ -58,13 +69,25 @@ export default function CustomChannelList() {
               <p className="mt-0.5 text-xs text-stone-400 dark:text-stone-500">{channel.notes}</p>
             )}
           </div>
-          <button
-            type="button"
-            onClick={() => removeCustomChannel(channel.id)}
-            className="shrink-0 rounded-full border border-stone-200 px-3 py-1.5 text-sm font-medium text-stone-500 transition-colors hover:border-red-300 hover:bg-red-50 hover:text-red-700 dark:border-stone-700 dark:text-stone-400 dark:hover:border-red-800 dark:hover:bg-red-950 dark:hover:text-red-300"
-          >
-            Excluir
-          </button>
+          <div className="flex shrink-0 gap-2">
+            <button
+              type="button"
+              onClick={() => onEdit(channel.id)}
+              className="rounded-full border border-stone-200 px-3 py-1.5 text-sm font-medium text-stone-500 transition-colors hover:border-rose-300 hover:bg-rose-50 hover:text-rose-700 dark:border-stone-700 dark:text-stone-400 dark:hover:border-rose-800 dark:hover:bg-rose-950 dark:hover:text-rose-300"
+            >
+              Editar
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                if (!window.confirm("Tem certeza que deseja excluir este canal?")) return;
+                removeCustomChannel(channel.id);
+              }}
+              className="rounded-full border border-stone-200 px-3 py-1.5 text-sm font-medium text-stone-500 transition-colors hover:border-red-300 hover:bg-red-50 hover:text-red-700 dark:border-stone-700 dark:text-stone-400 dark:hover:border-red-800 dark:hover:bg-red-950 dark:hover:text-red-300"
+            >
+              Excluir
+            </button>
+          </div>
         </li>
       ))}
     </ul>

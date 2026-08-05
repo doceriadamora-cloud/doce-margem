@@ -77,3 +77,12 @@ export function removeCustomChannel(id: string): boolean {
   notify();
   return persisted;
 }
+
+/** Atualiza um canal customizado existente (já validado por quem chama) e persiste. O id original é preservado. */
+export function updateCustomChannel(id: string, updated: SalesChannel): boolean {
+  const next = ensureLoaded().map((item) => (item.id === id ? { ...updated, id } : item));
+  const persisted = saveCustomChannels(next);
+  cachedCustomChannels = next;
+  notify();
+  return persisted;
+}

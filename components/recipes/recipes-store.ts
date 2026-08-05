@@ -79,3 +79,12 @@ export function removeRecipe(id: string): boolean {
   notify();
   return persisted;
 }
+
+/** Atualiza uma receita existente (já validada por quem chama) e persiste. O id original é preservado. */
+export function updateRecipe(id: string, updated: Recipe): boolean {
+  const next = ensureLoaded().map((item) => (item.id === id ? { ...updated, id } : item));
+  const persisted = saveRecipes(next);
+  cachedRecipes = next;
+  notify();
+  return persisted;
+}

@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
-import IngredientForm from "@/components/ingredients/IngredientForm";
-import IngredientList from "@/components/ingredients/IngredientList";
+import IngredientsScreen from "@/components/ingredients/IngredientsScreen";
 
 export const metadata: Metadata = {
   title: "Ingredientes — Doce Margem",
@@ -19,8 +18,7 @@ export default function IngredientesPage() {
         </p>
       </header>
       <div className="grid gap-6 lg:grid-cols-[360px_1fr]">
-        <IngredientForm />
-        <IngredientList />
+        <IngredientsScreen />
       </div>
     </div>
   );

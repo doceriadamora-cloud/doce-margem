@@ -1,9 +1,7 @@
 import type { Metadata } from "next";
-import FixedCostForm from "@/components/fixed-costs/FixedCostForm";
-import FixedCostList from "@/components/fixed-costs/FixedCostList";
+import FixedCostsScreen from "@/components/fixed-costs/FixedCostsScreen";
 import BusinessSettingsForm from "@/components/settings/BusinessSettingsForm";
-import CustomChannelForm from "@/components/channels/CustomChannelForm";
-import CustomChannelList from "@/components/channels/CustomChannelList";
+import CustomChannelsScreen from "@/components/channels/CustomChannelsScreen";
 
 export const metadata: Metadata = {
   title: "Configurações — Doce Margem",
@@ -28,8 +26,7 @@ export default function ConfiguracoesPage() {
             Custos fixos
           </h2>
           <div className="grid gap-6 lg:grid-cols-[360px_1fr]">
-            <FixedCostForm />
-            <FixedCostList />
+            <FixedCostsScreen />
           </div>
         </section>
 
@@ -45,8 +42,7 @@ export default function ConfiguracoesPage() {
             Canais de venda customizados
           </h2>
           <div className="grid gap-6 lg:grid-cols-[360px_1fr]">
-            <CustomChannelForm />
-            <CustomChannelList />
+            <CustomChannelsScreen />
           </div>
         </section>
       </div>

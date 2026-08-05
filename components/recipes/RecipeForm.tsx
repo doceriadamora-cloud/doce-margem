@@ -14,7 +14,7 @@ import {
   getIngredientsSnapshot,
   subscribeIngredients,
 } from "@/components/ingredients/ingredients-store";
-import { addRecipe } from "./recipes-store";
+import { addRecipe, updateRecipe } from "./recipes-store";
 
 const PURCHASE_UNITS: { value: PurchaseUnit; label: string }[] = [
   { value: "g", label: "g" },
@@ -55,13 +55,31 @@ function buildIngredientsById(ingredients: Ingredient[]): Record<string, Ingredi
   return map;
 }
 
+interface RecipeFormProps {
+  /** Receita sendo editada, ou `null` para cadastrar uma nova. */
+  editingRecipe?: Recipe | null;
+  /** Chamado ao salvar uma edição ou cancelar. */
+  onDoneEditing?: () => void;
+}
+
 /**
- * Formulário de cadastro de receita simples. Só ingredientes já cadastrados
- * (sem sub-receita, sem medida caseira nesta fase). Monta o `Recipe` e delega
- * validação/cálculo a `validateRecipe`/`calculateRecipe` (Fase 1B) — não
- * reimplementa nenhuma regra aqui.
+ * Formulário de cadastro/edição de receita simples. Só ingredientes já
+ * cadastrados (sem sub-receita, sem medida caseira nesta fase). Monta o
+ * `Recipe` e delega validação/cálculo a `validateRecipe`/`calculateRecipe`
+ * (Fase 1B) — não reimplementa nenhuma regra aqui.
+ *
+ * Edição usa o mesmo truque de `key`-remount do `IngredientForm` (Fase 2-7):
+ * o pai renderiza `<RecipeForm key={editingRecipe?.id ?? "new"} .../>`.
+ *
+ * Ao editar, `items` é inicializado só com os itens `kind: "ingredient"` da
+ * receita — hoje é sempre o caso (a interface nunca cria itens de sub-receita
+ * ou medida caseira), mas se um dado externo tiver outro `kind`, ele seria
+ * descartado ao salvar a edição.
  */
-export default function RecipeForm() {
+export default function RecipeForm({
+  editingRecipe = null,
+  onDoneEditing = () => {},
+}: RecipeFormProps) {
   const ingredients = useSyncExternalStore(
     subscribeIngredients,
     getIngredientsSnapshot,
@@ -69,11 +87,23 @@ export default function RecipeForm() {
   );
   const ingredientsById = buildIngredientsById(ingredients);
 
-  const [name, setName] = useState("");
-  const [items, setItems] = useState<IngredientRecipeItem[]>([]);
-  const [yieldQuantity, setYieldQuantity] = useState("");
-  const [yieldUnit, setYieldUnit] = useState("un");
-  const [productionLossPercent, setProductionLossPercent] = useState("0");
+  const [name, setName] = useState(editingRecipe?.name ?? "");
+  const [items, setItems] = useState<IngredientRecipeItem[]>(
+    editingRecipe
+      ? editingRecipe.items.filter(
+          (item): item is IngredientRecipeItem => item.kind === "ingredient",
+        )
+      : [],
+  );
+  const [yieldQuantity, setYieldQuantity] = useState(
+    editingRecipe ? String(editingRecipe.yieldQuantity) : "",
+  );
+  const [yieldUnit, setYieldUnit] = useState(editingRecipe?.yieldUnit ?? "un");
+  const [productionLossPercent, setProductionLossPercent] = useState(
+    editingRecipe?.productionLossPercent !== undefined
+      ? String(editingRecipe.productionLossPercent)
+      : "0",
+  );
   const [errors, setErrors] = useState<ValidationError[]>([]);
 
   // Sub-formulário de "adicionar ingrediente à receita".
@@ -165,9 +195,16 @@ export default function RecipeForm() {
       return;
     }
 
-    addRecipe(candidate);
-    setErrors([]);
-    resetForm();
+    if (editingRecipe?.id) {
+      updateRecipe(editingRecipe.id, candidate);
+      onDoneEditing();
+    } else if (editingRecipe) {
+      onDoneEditing();
+    } else {
+      addRecipe(candidate);
+      setErrors([]);
+      resetForm();
+    }
   }
 
   // Prévia do custo, só quando dá pra calcular algo coerente (ao menos 1 item
@@ -199,7 +236,7 @@ export default function RecipeForm() {
       className="flex h-fit flex-col gap-4 rounded-2xl border border-stone-200 bg-white p-5 dark:border-stone-800 dark:bg-stone-900"
     >
       <h2 className="text-lg font-semibold text-stone-900 dark:text-stone-50">
-        Cadastrar receita
+        {editingRecipe ? "Editar receita" : "Cadastrar receita"}
       </h2>
 
       {formError && (
@@ -375,13 +412,24 @@ export default function RecipeForm() {
         </p>
       )}
 
-      <button
-        type="submit"
-        disabled={noIngredientsRegistered}
-        className="mt-1 rounded-full bg-rose-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-50"
-      >
-        Cadastrar receita
-      </button>
+      <div className="mt-1 flex gap-2">
+        <button
+          type="submit"
+          disabled={noIngredientsRegistered}
+          className="rounded-full bg-rose-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {editingRecipe ? "Salvar alterações" : "Cadastrar receita"}
+        </button>
+        {editingRecipe && (
+          <button
+            type="button"
+            onClick={onDoneEditing}
+            className="rounded-full border border-stone-300 px-4 py-2 text-sm font-medium text-stone-600 transition-colors hover:bg-stone-50 dark:border-stone-700 dark:text-stone-300 dark:hover:bg-stone-800"
+          >
+            Cancelar edição
+          </button>
+        )}
+      </div>
     </form>
   );
 }

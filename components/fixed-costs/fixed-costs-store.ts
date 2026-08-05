@@ -72,3 +72,12 @@ export function removeFixedCost(id: string): boolean {
   notify();
   return persisted;
 }
+
+/** Atualiza um custo fixo existente (já validado por quem chama) e persiste. O id original é preservado. */
+export function updateFixedCost(id: string, updated: FixedCost): boolean {
+  const next = ensureLoaded().map((item) => (item.id === id ? { ...updated, id } : item));
+  const persisted = saveFixedCosts(next);
+  cachedFixedCosts = next;
+  notify();
+  return persisted;
+}

@@ -89,3 +89,16 @@ export function removeIngredient(id: string): boolean {
   notify();
   return persisted;
 }
+
+/**
+ * Atualiza um ingrediente existente (já validado por quem chama) e persiste.
+ * O id do registro original é sempre preservado — quem chama não precisa se
+ * preocupar em manter o `id` do candidato coerente.
+ */
+export function updateIngredient(id: string, updated: Ingredient): boolean {
+  const next = ensureLoaded().map((item) => (item.id === id ? { ...updated, id } : item));
+  const persisted = saveIngredients(next);
+  cachedIngredients = next;
+  notify();
+  return persisted;
+}

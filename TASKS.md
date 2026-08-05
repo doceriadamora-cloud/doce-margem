@@ -4,7 +4,7 @@
 > Marcar `[x]` ao concluir. Adicionar novas tarefas quando surgirem.
 > Antes de iniciar uma nova fase: parar, resumir o que foi feito e aguardar aprovação.
 
-**Fase atual:** Fase 2 (Interface Essencial) concluída e revisada → aguardando aprovação para a próxima fase.
+**Fase atual:** Fase 2-7 (ajustes finais de UX) concluída → aguardando aprovação para a próxima fase.
 
 ## Fase 0 — Setup e documentação ✅
 - [x] Criar projeto em C:\dev\doce-margem
@@ -186,11 +186,22 @@
 - [x] Rodar `typecheck` + `lint` + `build`
 - [x] Registrar 8 pendências de UX/futuro no `REVIEW.md` (não implementadas)
 
-### Fase 2-7 — Telas restantes (pendente)
+### Fase 2-7 — Ajustes finais de UX da Interface Essencial ✅
+- [x] Confirmação (`window.confirm`) antes de excluir ingrediente, receita, custo fixo e canal customizado
+- [x] Edição básica de ingredientes, receitas, custos fixos e canais — reaproveita o próprio formulário (botão "Editar" na lista → formulário pré-preenchido → "Salvar alterações"/"Cancelar edição") — sem duplicar o item editado
+- [x] 4 novos componentes `*Screen.tsx` (`IngredientsScreen`, `RecipesScreen`, `FixedCostsScreen`, `CustomChannelsScreen`) — donos do estado "qual item está em edição agora"
+- [x] 4 stores ganharam `updateX(id, dado)` — preserva o id original, não duplica, persiste e notifica (mesmo padrão de `addX`/`removeX`)
+- [x] Precificação: mensagens de erro específicas quando custo fixo, lucro ou preço praticado têm texto inválido (não vazio) — campo vazio continua calculando normalmente quando aplicável (preço praticado)
+- [x] Nenhuma alteração em `modules/pricing/` — só consumo das funções já existentes
+- [x] Validado com 17 checagens isoladas das 4 funções `updateX` (não duplica, preserva id, persiste, notifica, não afeta outros itens da lista)
+- [x] Rodar `typecheck` + `lint` + `build`
+- [x] Testado com o servidor de dev real (5 rotas, sem erro)
+- [x] `REVIEW.md` atualizado — pendências 1/2/3 da revisão anterior resolvidas; pendências 4-8 mantidas para fases futuras
+
+### Fase 2-8 — Telas restantes (pendente)
 - [ ] Criar backup export/import (usando o storageService da Fase 2-1)
-- [ ] **Edição** de ingredientes, receitas, custos fixos e canais (hoje só criar/listar/excluir) — maior lacuna de UX
-- [ ] Confirmação ao excluir + aviso de itens em uso (ex.: ingrediente usado por N receitas)
 - [ ] Padronizar entrada decimal entre todos os formulários (vírgula vs. ponto)
+- [ ] Aviso de itens em uso antes de excluir (ex.: "este ingrediente é usado por 2 receitas")
 - [ ] Teste manual em navegador real antes de seguir para Supabase/Auth
 
 ## Fase 3 — Modo avançado

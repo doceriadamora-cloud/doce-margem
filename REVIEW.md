@@ -439,19 +439,56 @@
 
 #### ⏳ Pendências registradas (NÃO implementadas nesta revisão)
 Melhorias de UX/futuro, deliberadamente deixadas para uma fase própria:
-1. **Nenhuma tela tem edição** — ingredientes, receitas, custos fixos e canais só permitem criar e excluir. Corrigir um valor errado exige excluir e recadastrar. É a lacuna de UX mais relevante para uma usuária real.
-2. **Exclusão sem confirmação nem aviso de uso** — excluir um ingrediente usado por receitas não pede confirmação nem avisa quantas receitas vão quebrar; o erro só aparece depois, ao abrir a receita. Sugestão: confirmar e listar os usos antes de excluir.
-3. **Texto inválido no "preço praticado" some com o resultado inteiro** — em `PricingForm`, digitar algo não numérico nesse campo opcional faz `computePricingResult` devolver `null` e a seção de resultado desaparecer sem explicação. Sugestão: ignorar o campo inválido (tratando como vazio) ou mostrar erro inline, em vez de esconder o resultado.
-4. **Inconsistência de entrada decimal** — `IngredientForm`/`RecipeForm` usam `<input type="number">` (rejeita vírgula na maioria dos navegadores); `PricingForm`/`FixedCostForm`/`CustomChannelForm`/`BusinessSettingsForm` usam `type="text"` com vírgula aceita. Padronizar numa passada de polimento.
-5. **Marca não é link para a home** — "Doce Margem" no Header é um `<span>`; o convencional é levar para `/`. Trivial, mas quebra expectativa.
-6. **Lucro desejado não é persistido** — a usuária redigita a cada visita à Precificação. Candidato natural a entrar em `businessSettings` numa próxima fase.
-7. **`includeChannelMonthlyFees` não é exposto na UI** — o domínio (Fase 1C-2) suporta somar mensalidades de canais ao rateio de custo fixo, mas a tela de Configurações não oferece a opção.
-8. **Sem verificação visual em navegador real** — limitação de todas as fases (sem `chromium-cli`/Playwright disponível, e instalar seria dependência nova). A prova continua sendo SSR + lógica isolada + leitura de código. **Recomendo fortemente um passe manual em navegador antes de seguir para Supabase/Auth.**
+1. ~~**Nenhuma tela tem edição**~~ **→ Resolvido na Fase 2-7** (ver seção própria abaixo).
+2. ~~**Exclusão sem confirmação**~~ **→ Confirmação resolvida na Fase 2-7.** O "aviso de uso" (quantas receitas usam um ingrediente antes de excluir) continua pendente — ver item 9 abaixo.
+3. ~~**Texto inválido no "preço praticado" some com o resultado inteiro**~~ **→ Resolvido na Fase 2-7** (ver seção própria abaixo).
+4. **Inconsistência de entrada decimal** — `IngredientForm`/`RecipeForm` usam `<input type="number">` (rejeita vírgula na maioria dos navegadores); `PricingForm`/`FixedCostForm`/`CustomChannelForm`/`BusinessSettingsForm` usam `type="text"` com vírgula aceita. Padronizar numa passada de polimento. **Ainda pendente.**
+5. **Marca não é link para a home** — "Doce Margem" no Header é um `<span>`; o convencional é levar para `/`. Trivial, mas quebra expectativa. **Ainda pendente.**
+6. **Lucro desejado não é persistido** — a usuária redigita a cada visita à Precificação. Candidato natural a entrar em `businessSettings` numa próxima fase. **Ainda pendente.**
+7. **`includeChannelMonthlyFees` não é exposto na UI** — o domínio (Fase 1C-2) suporta somar mensalidades de canais ao rateio de custo fixo, mas a tela de Configurações não oferece a opção. **Ainda pendente.**
+8. **Sem verificação visual em navegador real** — limitação de todas as fases (sem `chromium-cli`/Playwright disponível, e instalar seria dependência nova). A prova continua sendo SSR + lógica isolada + leitura de código. **Ainda pendente — recomendo fortemente um passe manual em navegador antes de seguir para Supabase/Auth.**
+9. **Sem aviso de itens em uso antes de excluir** (novo, nasceu do item 2 acima) — excluir um ingrediente usado por receitas continua sem avisar quantas receitas vão quebrar; o erro só aparece depois, ao abrir a receita (mostra `NOT_FOUND` do domínio, não quebra, mas não é preventivo). **Pendente.**
 
 #### Riscos restantes
-- As pendências 1–3 acima são as que mais impactam uma usuária real numa primeira versão.
+- As pendências 4–9 acima (decimal inconsistente, persistência de preferências, mensalidade de canal no rateio, sem teste em navegador, sem aviso de uso antes de excluir) continuam relevantes para uma fase de polimento futura.
 - Continua sem migração de schema: mudar a forma de um campo **existente** exigirá escrever uma migração antes de incrementar `APP_STATE_SCHEMA_VERSION` (adicionar campo novo, como na Fase 2-6, não exige — ver `DECISIONS.md`). Precisa ser resolvido antes de existirem dados reais de produção.
 - Stores continuam sendo singletons de módulo, sem sincronização **entre abas** (`storage` event não é escutado). Duas abas abertas divergem até um reload. Não é um problema no uso esperado (uma aba), mas é um limite conhecido.
+
+### Fase 2-7 — Ajustes finais de UX da Interface Essencial
+- **Status:** ✅ Concluída
+- **Escopo:** confirmação antes de excluir, edição básica de registros, e correção do comportamento da precificação com campos inválidos — as 3 lacunas mais relevantes apontadas pela Revisão da Fase 2. Nenhuma funcionalidade nova além do pedido; nenhum arquivo em `modules/pricing/` tocado.
+
+#### 1. Confirmação antes de excluir
+`window.confirm(...)` adicionado antes de cada `removeX(...)` nas 4 listas: `IngredientList.tsx`, `RecipeList.tsx`, `FixedCostList.tsx`, `CustomChannelList.tsx` — mensagens exatamente como pedidas ("Tem certeza que deseja excluir este ingrediente?" etc.). Cancelar o `confirm` não chama `removeX`.
+
+#### 2. Edição básica de registros
+- **4 stores ganharam `updateX(id, dado)`** (`ingredients-store.ts`, `recipes-store.ts`, `fixed-costs-store.ts`, `channels-store.ts`) — mesmo padrão de `addX`/`removeX`: substitui o item pelo id no array, preserva o `id` original (ignora o que vier no candidato), persiste via `saveX` e notifica os assinantes.
+- **4 formulários ganharam modo edição** (`IngredientForm`, `RecipeForm`, `FixedCostForm`, `CustomChannelForm`): prop `editingX?: X | null` + `onDoneEditing?: () => void`. Título e botão principal mudam ("Editar ingrediente"/"Salvar alterações"); botão "Cancelar edição" aparece só em modo edição. No submit, `editingX?.id` decide entre `updateX`/`addX` — a mesma validação de domínio (`validateIngredient`/`validateRecipe`/`validateFixedCost`/`validateChannel`) roda nos dois casos, sem duplicar regra.
+- **4 listas ganharam botão "Editar"** + destaque visual (borda rosa) na linha em edição.
+- **4 componentes novos `*Screen.tsx`** (`IngredientsScreen`, `RecipesScreen`, `FixedCostsScreen`, `CustomChannelsScreen`) — cada um combina o Form + a List da sua feature e guarda `editingId` (`useState`, estado de UI puro, não persistido). As 4 páginas (`app/ingredientes`, `app/receitas`, `app/configuracoes`) passaram a renderizar o `*Screen` no lugar do Form/List diretos.
+- **Como troca de modo sem `useEffect`:** o `Screen` renderiza `<XForm key={editingId ?? "new"} editingX={...} .../>`. Trocar a `key` faz o React desmontar e remontar o componente do zero sempre que `editingId` muda (entrar em edição, trocar de item, cancelar) — os `useState` do formulário reinicializam com os valores do item (ou em branco, se "new") sem precisar de `useEffect` sincronizando props→state. Evita reintroduzir o padrão que já causou o bug do `Dashboard` corrigido na revisão anterior (`react-hooks/set-state-in-effect`).
+- **Como evita duplicar:** o formulário nunca decide o `id` — em modo criação, `addX` gera um novo; em modo edição, `updateX(editingX.id, ...)` sempre sobrescreve o item existente por esse id específico, nunca acrescenta ao array.
+- **Caso de borda tratado:** `Ingredient.id`/`Recipe.id`/etc. podem ser opcionais no tipo (o `id` é "preenchido pela camada de persistência" — Fase 1A), mas todo item que vem do store JÁ tem id. Cada `handleSubmit` trata esse caso com um `if (editingX?.id) {...} else if (editingX) {...} else {...}` — o ramo do meio (editando mas sem id) documenta a invariante e não deveria ser alcançável, mas não deixa a usuária travada se acontecer.
+- **`RecipeForm` — caso especial:** ao editar, `items` é inicializado só com os itens `kind: "ingredient"` da receita (`.filter` com type predicate). Hoje isso é sempre 100% dos itens (a interface nunca cria sub-receita nem medida caseira), mas fica registrado: se um dado externo tivesse outro `kind`, ele seria descartado ao salvar a edição — não implementado porque não há como esse cenário acontecer com o app atual (`CLAUDE.md`: não validar contra o que não pode acontecer).
+
+#### 3. Precificação com campos inválidos
+- Três novas variáveis derivadas em `PricingForm.tsx`: `fixedCostRateInvalid`, `profitInvalid`, `practicedPriceInvalid` — `true` só quando o campo tem texto **não vazio** que não converte para número (`raw.trim() !== "" && decimalOuNumero === null`). Campo vazio nunca é tratado como erro.
+- O componente `Field` local ganhou uma prop `error?: string`, seguindo o mesmo formato visual já usado em `IngredientForm`/`RecipeForm`/`FixedCostForm`/`CustomChannelForm` (texto vermelho abaixo do campo, substitui o `hint` quando presente).
+- Mensagens: "Confira o custo fixo. Use apenas números (ex.: 23,1) ou deixe o campo vazio.", "Confira o lucro desejado. Use apenas números (ex.: 20).", e para preço praticado a frase exata pedida na tarefa ("Confira o preço praticado. Use apenas números maiores que zero ou deixe o campo vazio.").
+- **Preço praticado vazio continua calculando normalmente:** comportamento já correto antes desta fase (`parseOptionalNumber("")` devolve `undefined`, que o `computePricingResult` trata como "omitir do input do engine", não como erro) — confirmado, não alterado.
+- **Preço praticado zero/negativo:** já era tratado corretamente antes (o próprio `calculatePricing` valida e devolve `NON_POSITIVE`, exibido no bloco de erros existente) — não precisou de mudança.
+- **A matemática do pricing engine não foi tocada** — a correção é inteiramente de camada de exibição: quais mensagens aparecem e onde, não como `calculatePricing` calcula.
+
+#### Testado
+- **17 checagens isoladas** (mesma técnica de compilação temporária das fases anteriores) provando as 4 funções `updateX`: não duplica, preserva o id original, atualiza os campos certos, persiste de verdade (`loadX()` direto do storageService), dispara `notify()`, e — crucial — editar um item específico numa lista com múltiplos itens não afeta os outros.
+- Reconfirmados os 50 testes de precificação (1A→1C-3) e as 16 checagens de storage (Fase 2-1 + 2-6) — nada regrediu.
+- `npm run typecheck`, `npm run lint` e `npm run build` limpos após cada sub-etapa (ingredientes, receitas, custos fixos, canais, precificação) e no final.
+- Servidor de dev real: 5 rotas em `200`, sem erro no log nem no HTML.
+- **Limitação:** mesma de todas as fases — sem `chromium-cli`/Playwright disponível. Não cliquei fisicamente em "Editar" num navegador; a prova ficou em três camadas (lógica de store isolada, SSR, leitura de código). Recomendo o teste manual descrito na pendência 8 antes de avançar para Supabase/Auth.
+
+#### Decisões de implementação (não estruturais)
+- Componentes `*Screen.tsx` (não sugeridos pela tarefa) foram necessários para compartilhar o estado `editingId` entre o Form e a List de cada feature, que hoje são renderizados como irmãos pela página. Preferi um novo componente client pequeno (guardando só `useState`) a converter as páginas (hoje Server Components estáticos) em Client Components — mantém o mínimo de JavaScript no cliente por página. Renderiza um Fragment (não uma `<div>`) para não interferir no grid CSS da página.
+- Padrão `key`-remount para resetar o formulário ao trocar de item em edição, em vez de `useEffect` sincronizando props→state — ver decisão registrada no `DECISIONS.md`.
 
 ## Checklist técnico
 - [x] O projeto está em C:\dev\doce-margem

@@ -3,7 +3,7 @@
 import { useState, type FormEvent } from "react";
 import { validateFixedCost } from "@/modules/pricing";
 import type { FixedCost, FixedCostCategory, ValidationError } from "@/types/pricing";
-import { addFixedCost } from "./fixed-costs-store";
+import { addFixedCost, updateFixedCost } from "./fixed-costs-store";
 
 const CATEGORY_LABEL: Record<FixedCostCategory, string> = {
   aluguel: "Aluguel",
@@ -30,16 +30,31 @@ function parseRequiredNumber(value: string): number | null {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+interface FixedCostFormProps {
+  /** Custo fixo sendo editado, ou `null` para cadastrar um novo. */
+  editingFixedCost?: FixedCost | null;
+  /** Chamado ao salvar uma edição ou cancelar. */
+  onDoneEditing?: () => void;
+}
+
 /**
- * Formulário de cadastro de custo fixo. Monta um `FixedCost` e delega a
- * validação a `validateFixedCost` (Fase 1C-2) — nenhuma regra reimplementada.
+ * Formulário de cadastro/edição de custo fixo. Monta um `FixedCost` e delega
+ * a validação a `validateFixedCost` (Fase 1C-2) — nenhuma regra reimplementada.
+ * Edição usa o mesmo truque de `key`-remount do `IngredientForm` (Fase 2-7).
  */
-export default function FixedCostForm() {
-  const [name, setName] = useState("");
-  const [category, setCategory] = useState<FixedCostCategory>("aluguel");
-  const [monthlyValue, setMonthlyValue] = useState("");
-  const [active, setActive] = useState(true);
-  const [notes, setNotes] = useState("");
+export default function FixedCostForm({
+  editingFixedCost = null,
+  onDoneEditing = () => {},
+}: FixedCostFormProps) {
+  const [name, setName] = useState(editingFixedCost?.name ?? "");
+  const [category, setCategory] = useState<FixedCostCategory>(
+    editingFixedCost?.category ?? "aluguel",
+  );
+  const [monthlyValue, setMonthlyValue] = useState(
+    editingFixedCost ? String(editingFixedCost.monthlyValue) : "",
+  );
+  const [active, setActive] = useState(editingFixedCost?.active ?? true);
+  const [notes, setNotes] = useState(editingFixedCost?.notes ?? "");
   const [errors, setErrors] = useState<ValidationError[]>([]);
 
   function errorFor(field: string): string | undefined {
@@ -84,9 +99,16 @@ export default function FixedCostForm() {
       return;
     }
 
-    addFixedCost(candidate);
-    setErrors([]);
-    resetForm();
+    if (editingFixedCost?.id) {
+      updateFixedCost(editingFixedCost.id, candidate);
+      onDoneEditing();
+    } else if (editingFixedCost) {
+      onDoneEditing();
+    } else {
+      addFixedCost(candidate);
+      setErrors([]);
+      resetForm();
+    }
   }
 
   const formError = errorFor("form");
@@ -97,7 +119,7 @@ export default function FixedCostForm() {
       className="flex h-fit flex-col gap-4 rounded-2xl border border-stone-200 bg-white p-5 dark:border-stone-800 dark:bg-stone-900"
     >
       <h3 className="text-base font-semibold text-stone-900 dark:text-stone-50">
-        Cadastrar custo fixo
+        {editingFixedCost ? "Editar custo fixo" : "Cadastrar custo fixo"}
       </h3>
 
       {formError && (
@@ -161,12 +183,23 @@ export default function FixedCostForm() {
         />
       </Field>
 
-      <button
-        type="submit"
-        className="mt-1 rounded-full bg-rose-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-rose-700"
-      >
-        Cadastrar custo fixo
-      </button>
+      <div className="mt-1 flex gap-2">
+        <button
+          type="submit"
+          className="rounded-full bg-rose-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-rose-700"
+        >
+          {editingFixedCost ? "Salvar alterações" : "Cadastrar custo fixo"}
+        </button>
+        {editingFixedCost && (
+          <button
+            type="button"
+            onClick={onDoneEditing}
+            className="rounded-full border border-stone-300 px-4 py-2 text-sm font-medium text-stone-600 transition-colors hover:bg-stone-50 dark:border-stone-700 dark:text-stone-300 dark:hover:bg-stone-800"
+          >
+            Cancelar edição
+          </button>
+        )}
+      </div>
     </form>
   );
 }

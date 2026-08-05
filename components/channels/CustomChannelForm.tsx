@@ -3,7 +3,7 @@
 import { useState, type FormEvent } from "react";
 import { validateChannel } from "@/modules/pricing";
 import type { SalesChannel, ValidationError } from "@/types/pricing";
-import { addCustomChannel } from "./channels-store";
+import { addCustomChannel, updateCustomChannel } from "./channels-store";
 
 /** Aceita vírgula OU ponto decimal; vazio vira 0 (comissão/taxas costumam ter 0 como padrão razoável). */
 function parseNumberOrZero(value: string): number | null {
@@ -13,19 +13,38 @@ function parseNumberOrZero(value: string): number | null {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+interface CustomChannelFormProps {
+  /** Canal sendo editado, ou `null` para cadastrar um novo. */
+  editingChannel?: SalesChannel | null;
+  /** Chamado ao salvar uma edição ou cancelar. */
+  onDoneEditing?: () => void;
+}
+
 /**
- * Formulário de cadastro de canal de venda customizado. Monta um `SalesChannel`
- * e delega a validação a `validateChannel` (Fase 1C-1) — nenhuma regra
- * reimplementada. Sem edição nesta fase (só cadastrar/listar/excluir).
+ * Formulário de cadastro/edição de canal de venda customizado. Monta um
+ * `SalesChannel` e delega a validação a `validateChannel` (Fase 1C-1) —
+ * nenhuma regra reimplementada. Edição usa o mesmo truque de `key`-remount do
+ * `IngredientForm` (Fase 2-7).
  */
-export default function CustomChannelForm() {
-  const [name, setName] = useState("");
-  const [commissionPercent, setCommissionPercent] = useState("0");
-  const [paymentPercent, setPaymentPercent] = useState("0");
-  const [fixedFee, setFixedFee] = useState("0");
-  const [adPercent, setAdPercent] = useState("0");
-  const [monthlyFee, setMonthlyFee] = useState("0");
-  const [notes, setNotes] = useState("");
+export default function CustomChannelForm({
+  editingChannel = null,
+  onDoneEditing = () => {},
+}: CustomChannelFormProps) {
+  const [name, setName] = useState(editingChannel?.name ?? "");
+  const [commissionPercent, setCommissionPercent] = useState(
+    editingChannel ? String(editingChannel.commissionPercent) : "0",
+  );
+  const [paymentPercent, setPaymentPercent] = useState(
+    editingChannel ? String(editingChannel.paymentPercent) : "0",
+  );
+  const [fixedFee, setFixedFee] = useState(editingChannel ? String(editingChannel.fixedFee) : "0");
+  const [adPercent, setAdPercent] = useState(
+    editingChannel ? String(editingChannel.adPercent) : "0",
+  );
+  const [monthlyFee, setMonthlyFee] = useState(
+    editingChannel ? String(editingChannel.monthlyFee) : "0",
+  );
+  const [notes, setNotes] = useState(editingChannel?.notes ?? "");
   const [errors, setErrors] = useState<ValidationError[]>([]);
 
   function errorFor(field: string): string | undefined {
@@ -85,9 +104,16 @@ export default function CustomChannelForm() {
       return;
     }
 
-    addCustomChannel(candidate);
-    setErrors([]);
-    resetForm();
+    if (editingChannel?.id) {
+      updateCustomChannel(editingChannel.id, candidate);
+      onDoneEditing();
+    } else if (editingChannel) {
+      onDoneEditing();
+    } else {
+      addCustomChannel(candidate);
+      setErrors([]);
+      resetForm();
+    }
   }
 
   const formError = errorFor("form");
@@ -98,7 +124,7 @@ export default function CustomChannelForm() {
       className="flex h-fit flex-col gap-4 rounded-2xl border border-stone-200 bg-white p-5 dark:border-stone-800 dark:bg-stone-900"
     >
       <h3 className="text-base font-semibold text-stone-900 dark:text-stone-50">
-        Cadastrar canal customizado
+        {editingChannel ? "Editar canal customizado" : "Cadastrar canal customizado"}
       </h3>
 
       {formError && (
@@ -176,12 +202,23 @@ export default function CustomChannelForm() {
         />
       </Field>
 
-      <button
-        type="submit"
-        className="mt-1 rounded-full bg-rose-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-rose-700"
-      >
-        Cadastrar canal
-      </button>
+      <div className="mt-1 flex gap-2">
+        <button
+          type="submit"
+          className="rounded-full bg-rose-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-rose-700"
+        >
+          {editingChannel ? "Salvar alterações" : "Cadastrar canal"}
+        </button>
+        {editingChannel && (
+          <button
+            type="button"
+            onClick={onDoneEditing}
+            className="rounded-full border border-stone-300 px-4 py-2 text-sm font-medium text-stone-600 transition-colors hover:bg-stone-50 dark:border-stone-700 dark:text-stone-300 dark:hover:bg-stone-800"
+          >
+            Cancelar edição
+          </button>
+        )}
+      </div>
     </form>
   );
 }
