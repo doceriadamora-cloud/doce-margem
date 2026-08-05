@@ -56,11 +56,20 @@ distintos, com responsabilidades separadas:
 
 ## 2. Tabelas propostas
 
+> ✅ **Implementado na Fase 4-1A:** `profiles` + `user_access_flags` em
+> `supabase/migrations/0001_profiles.sql`. `is_blocked` **saiu** de `profiles` e
+> virou tabela própria — ver decisão em `DECISIONS.md` (2026-08-05).
+
 ```sql
 profiles          -- 1:1 com auth.users. Criada por trigger no signup.
   id            uuid PK REFERENCES auth.users(id) ON DELETE CASCADE
-  email         text NOT NULL
-  full_name     text
+  email         text NOT NULL      -- espelho de auth.users.email; imutável p/ cliente
+  full_name     text               -- ÚNICA coluna que o cliente pode atualizar
+  created_at    timestamptz NOT NULL DEFAULT now()
+  updated_at    timestamptz NOT NULL DEFAULT now()
+
+user_access_flags -- flags SENSÍVEIS, isoladas. Zero policy de escrita p/ cliente.
+  user_id       uuid PK REFERENCES profiles(id) ON DELETE CASCADE
   is_blocked    boolean NOT NULL DEFAULT false   -- bloqueio manual: mata tudo
   created_at    timestamptz NOT NULL DEFAULT now()
   updated_at    timestamptz NOT NULL DEFAULT now()
@@ -143,16 +152,18 @@ CREATE POLICY profiles_update_own ON profiles
   FOR UPDATE USING (id = auth.uid()) WITH CHECK (id = auth.uid());
 ```
 
-⚠️ **`is_blocked` não pode ser alterado pela cliente.** A policy de `UPDATE` acima
-permitiria — a usuária se desbloquearia sozinha. Duas saídas, decidir na 4-1:
+✅ **`is_blocked` — resolvido na Fase 4-1A pela opção (b), com reforço.** Três
+mecanismos independentes, porque RLS sozinha não resolve:
 
-- **(a)** trigger `BEFORE UPDATE` que rejeita mudança em `is_blocked` quando o
-  papel não é `service_role`; ou
-- **(b)** mover `is_blocked` para uma tabela separada, sem nenhuma policy de
-  escrita para o cliente (mesmo padrão de `licenses`).
-
-A opção (b) é mais simples de auditar (a regra vira "esta tabela é read-only") e
-mais difícil de furar sem querer; a (a) evita mais uma tabela. Preferência: **(b)**.
+1. **Tabela separada** `user_access_flags`, sem nenhuma policy de escrita — RLS
+   nega por padrão, só `service_role` grava.
+2. **Privilégio por coluna** em `profiles`: `grant update (full_name)` apenas.
+   RLS decide *quais linhas*; GRANT decide *quais colunas* — sem isso, a policy
+   `profiles_update_own` deixaria a usuária alterar `email` e `created_at` da
+   própria linha.
+3. **Trigger de imutabilidade** rejeitando mudança em `profiles.id`/`email` para
+   quem não é `service_role` — rede contra uma migration futura que faça um
+   `grant update on profiles` amplo por engano (falha silenciosa, difícil de notar).
 
 ```sql
 -- license_events: transparência de leitura, zero escrita pelo cliente.
@@ -343,7 +354,8 @@ do Pro, com o `backup export/import` (Fase 2-8) como rede de segurança.
 
 ```
 supabase/migrations/
-  0001_profiles.sql            -- tabela + trigger de signup + RLS
+  0001_profiles.sql            -- ✅ FEITO (4-1A): profiles + user_access_flags,
+                               --    triggers, RLS, grants por coluna
   0002_licenses.sql            -- licenses + license_events + constraints + índices
   0003_access_functions.sql    -- has_essential_access() / has_pro_access()
   0004_rls_policies.sql        -- policies (licenses read-only p/ cliente)
@@ -392,7 +404,8 @@ verificada contra as duas implementações.
 
 | Subfase | Escopo | Entregável verificável |
 |---|---|---|
-| **4-1** | Supabase clients + Auth + `profiles` + trigger + RLS | Cadastrar / entrar / sair funcionando; `profiles` criado no signup |
+| **4-1A** ✅ | Migration `profiles` + `user_access_flags` + triggers + RLS + grants | SQL revisado; zero policy de escrita em `user_access_flags`; só `full_name` atualizável |
+| **4-1B** | Supabase clients + telas de login/cadastro/logout | Cadastrar / entrar / sair funcionando; `profiles` criado no signup |
 | **4-2** | `licenses` + `license_events` + RLS + funções SQL de acesso | Licença inserida via SQL vira acesso; cliente **não** consegue inserir |
 | **4-3** | `types/access.ts` + DAL | `getCurrentUserAccess` correto nas 7 combinações da matriz |
 | **4-4** | `lib/features.ts` + `canAccessFeature` | Matriz features × planos testada isolada; default fechado |

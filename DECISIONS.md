@@ -435,3 +435,23 @@ O wrapper evita importar um JSON qualquer como se fosse dado do app. Validar `sc
 
 ### Impacto
 Técnico: `services/backup-service.ts` é a camada de serialização/validação de backup; a UI continua sem acessar `localStorage` diretamente. Os stores ganharam funções `reload*FromStorage()` para cenários de restauração completa. A Fase 2-8 não cria Supabase, Auth, webhooks ou admin, e não toca em `modules/pricing/`.
+
+---
+
+## 2026-08-05 — Campos que decidem acesso ficam fora de `profiles`; RLS não basta, precisa de privilégio por coluna
+
+### Decisão
+Nenhum campo que decide acesso mora numa tabela que a usuária pode editar. `is_blocked` **não** é coluna de `profiles`: vive em `public.user_access_flags`, tabela com RLS habilitado e **nenhuma policy de escrita** — só `service_role` grava. Em `profiles`, o acesso de escrita do cliente é restrito por **privilégio de coluna** (`revoke all` + `grant update (full_name)`), e um trigger `before update` rejeita alteração de `id`/`email` para quem não é `service_role`. As três funções da migration (`set_updated_at`, `profiles_guard_immutable_columns`, `handle_new_user`) fixam `set search_path = ''` com todo identificador qualificado.
+
+### Contexto
+Fase 4-1A. O `PLAN-FASE-4.md` tinha identificado o furo ao desenhar a RLS: a policy "a usuária edita o próprio perfil" (necessária, porque ela muda o próprio nome) abriria **todas** as colunas daquela linha. Se `is_blocked` estivesse em `profiles`, a usuária bloqueada se desbloquearia com um `update` no próprio registro — exatamente o que o bloqueio manual precisa impedir. O plano deixou duas saídas em aberto (trigger de rejeição × tabela separada) para decidir na implementação.
+
+### Motivo
+A raiz do problema é uma propriedade da RLS que é fácil esquecer: **policies controlam quais LINHAS, não quais COLUNAS**. `USING`/`WITH CHECK` respondem "esta linha é sua?", nunca "você pode mexer nesta coluna?". Então uma policy de update correta ainda deixa a usuária alterar qualquer campo da linha dela.
+
+Escolhida a tabela separada (opção b do plano) porque transforma a regra em algo trivial de auditar e difícil de furar por acidente: "`user_access_flags` não tem policy de escrita, ponto" é verificável de relance, enquanto um trigger que inspeciona colunas exige ler a lógica toda para confiar. Some-se que a mesma forma será reusada em `licenses` na Fase 4-2 (também read-only para o cliente) — vira um padrão só, não dois.
+
+O privilégio por coluna foi adicionado porque a tabela separada resolve `is_blocked`, mas não resolve `email`: sem `grant update (full_name)`, a usuária ainda poderia alterar `profiles.email` e dessincronizar do `auth.users`. E o trigger de imutabilidade entrou como terceira camada por um motivo específico: um `grant update on profiles to authenticated` amplo numa migration futura reabriria o furo **silenciosamente**; o trigger falha alto. Já o `search_path = ''` fecha o vetor clássico de `security definer` (sequestro de resolução de nome por schema malicioso).
+
+### Impacto
+Técnico: qualquer campo futuro que influencie acesso (flags de fraude, limites de uso, marcações de risco) vai para `user_access_flags` ou tabela equivalente sem policy de escrita — **nunca** para `profiles`. Toda tabela nova cuja escrita deva ser exclusiva do backend segue esta forma: RLS ligado + policy de `select` do próprio + ausência deliberada de policies de escrita. Ao adicionar colunas a `profiles`, lembrar que o `grant update` é **por coluna** — uma coluna nova nasce não-atualizável pelo cliente, que é o padrão seguro desejado. Limitação conhecida: trocar o e-mail via Supabase Auth não atualiza `profiles.email` (o trigger só roda no `insert`); se a UI oferecer troca de e-mail, será preciso um trigger de `update` em `auth.users`.

@@ -4,8 +4,8 @@
 > Marcar `[x]` ao concluir. Adicionar novas tarefas quando surgirem.
 > Antes de iniciar uma nova fase: parar, resumir o que foi feito e aguardar aprovação.
 
-**Fase atual:** Fase 2-8 com backup export/import concluído; polimentos restantes pendentes. **Fase 4 planejada** (ver `PLAN-FASE-4.md`), ainda não implementada.
-**Próximo passo recomendado:** teste manual em navegador real → depois Fase 4-1 (Supabase Auth + profiles).
+**Fase atual:** Fase 4-1A concluída (base SQL de `profiles`/`user_access_flags`). Fase 2-8 com backup concluído; polimentos restantes pendentes.
+**Próximo passo recomendado:** criar projeto Supabase e aplicar `0001_profiles.sql` → depois Fase 4-1B (clients + telas de login/cadastro).
 
 ## Fase 0 — Setup e documentação ✅
 - [x] Criar projeto em C:\dev\doce-margem
@@ -229,11 +229,25 @@
 > DAL, feature flags, riscos e as 6 subfases abaixo. Nenhum código escrito ainda.
 > Pré-requisito: Fase 2-8 (backup export/import).
 
-### Fase 4-1 — Supabase Auth + profiles (pendente)
+### Fase 4-1A — Base SQL de profiles ✅
+- [x] Migration `supabase/migrations/0001_profiles.sql`
+- [x] Tabela `public.profiles` (id, email, full_name, created_at, updated_at)
+- [x] Tabela `public.user_access_flags` (user_id, is_blocked, created_at, updated_at) — flags sensíveis isoladas
+- [x] Trigger `on_auth_user_created` → cria perfil **e** flags no signup (`security definer`, `search_path` fixado, `on conflict do nothing`)
+- [x] Trigger `set_updated_at` nas duas tabelas
+- [x] Trigger `profiles_guard_immutable` — rejeita alteração de `id`/`email` por quem não é `service_role`
+- [x] RLS habilitado nas duas tabelas
+- [x] Policies: `profiles` select/update do próprio; `user_access_flags` **só select** do próprio
+- [x] **Zero** policy de escrita em `user_access_flags` (a ausência É a proteção)
+- [x] `grant update (full_name)` — única coluna de `profiles` que o cliente escreve
+- [x] Índice `profiles_email_idx` para a busca do admin (Fase 7)
+- [x] Rodar `typecheck` + `lint` (sem impacto — nenhum TS alterado)
+- [ ] **Pendente de ambiente:** aplicar a migration num projeto Supabase real e verificar as invariantes (ver `REVIEW.md`)
+
+### Fase 4-1B — Supabase clients + telas de Auth (pendente)
 - [ ] `services/supabase/{client,server,admin}.ts` (browser / RSC / service role)
-- [ ] Migration `profiles` + trigger de signup + RLS
 - [ ] Telas de login e cadastro; logout
-- [ ] Decidir proteção de `is_blocked` (tabela separada ou trigger)
+- [ ] Confirmar que `handle_new_user` cria perfil + flags de verdade no signup
 
 ### Fase 4-2 — Licenças no banco (pendente)
 - [ ] Migrations `licenses` + `license_events` (constraints, índices, idempotência)

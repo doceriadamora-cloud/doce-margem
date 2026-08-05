@@ -516,6 +516,57 @@ Melhorias de UX/futuro, deliberadamente deixadas para uma fase própria:
 #### Limitação
 - Teste manual em navegador real não foi concluído neste ambiente. `Start-Process` falhou por conflito de `PATH`, `Start-Job` não persistiu entre comandos, e o runtime Node usado pelo browser falhou antes de executar por erro interno de caminho. Recomendo um clique manual local antes de avançar para Supabase/Auth: exportar, alterar dados, importar e conferir as telas.
 
+### Fase 4-1A — Base SQL de profiles
+- **Status:** ✅ Concluída no que depende do repositório. ⚠️ **Não verificada contra um Postgres real** — ver "Limitação" abaixo.
+- **Escopo:** só SQL e documentação. Nenhum client Supabase, nenhuma tela, nenhuma dependência, nenhuma licença. A interface local não foi tocada.
+
+#### O que foi feito
+- `supabase/migrations/0001_profiles.sql` (novo, único arquivo de código desta etapa):
+  - **`public.profiles`** — `id` (FK para `auth.users` com `on delete cascade`), `email`, `full_name`, `created_at`, `updated_at`.
+  - **`public.user_access_flags`** — `user_id` (PK/FK para `profiles`), `is_blocked`, timestamps.
+  - **`set_updated_at()`** + triggers nas duas tabelas.
+  - **`profiles_guard_immutable_columns()`** + trigger — rejeita alteração de `id`/`email` para quem não é `service_role`/`postgres`.
+  - **`handle_new_user()`** + trigger `on_auth_user_created` em `auth.users` — cria perfil **e** flags no signup.
+  - RLS habilitado nas duas tabelas + 3 policies.
+  - `REVOKE ALL` seguido de grants mínimos, incluindo `grant update (full_name)` por coluna.
+  - Índice `profiles_email_idx` em `lower(email)` para a busca do admin (Fase 7).
+
+#### Como o risco de `is_blocked` foi resolvido — três camadas
+O `PLAN-FASE-4.md` tinha registrado o furo: uma policy de "editar o próprio perfil" abriria **todas** as colunas da linha, inclusive um `is_blocked` que ali estivesse — a usuária se desbloquearia sozinha. RLS controla *quais linhas*, não *quais colunas*.
+
+1. **Isolamento em tabela própria.** `is_blocked` saiu de `profiles` e foi para `user_access_flags`, que **não tem nenhuma policy de escrita**. Com RLS ligado e sem policy, o Postgres nega por padrão — só `service_role` (que ignora RLS) grava. A regra vira trivial de auditar: "esta tabela é read-only para o cliente".
+2. **Privilégio por coluna.** `revoke all` + `grant update (full_name)` em `profiles`. Sem isso, a policy `profiles_update_own` deixaria alterar `email` (quebrando o espelho de `auth.users`) e `created_at`. É a peça que RLS sozinha não cobre.
+3. **Trigger de imutabilidade.** Rede contra erro futuro: se alguma migration fizer `grant update on profiles to authenticated` amplo — engano fácil e silencioso — o trigger falha alto em vez de reabrir o furo sem ninguém notar.
+
+Leitura do próprio `is_blocked` **é permitida** (`select` do próprio registro): o DAL da Fase 4-3 roda com a sessão da usuária e precisa saber se ela está bloqueada para exibir a tela de acesso bloqueado. Não é informação sensível — quem está bloqueado percebe de qualquer forma.
+
+#### Decisões de implementação
+- **`search_path` fixado em todas as 3 funções** (`set search_path = ''`), com todo identificador qualificado. Sem isso, uma função `security definer` pode ser sequestrada por um schema malicioso no `search_path` — é o erro clássico desse tipo de função.
+- **`revoke execute ... from public, anon, authenticated`** em `handle_new_user()`: função `security definer` não deve ser executável por qualquer um.
+- **`on conflict do nothing`** nos dois inserts do signup — evita derrubar o cadastro em reprocessamento/replay.
+- **Falha no trigger derruba o signup inteiro** (é `after insert` na mesma transação). Comportamento desejado: não gera `auth.users` órfão sem perfil.
+- **`coalesce(new.email, '')`** — `auth.users.email` é nullable (signup por telefone). O app usa só e-mail/senha, mas o coalesce evita quebrar o cadastro se isso mudar.
+- **`(select auth.uid())`** em vez de `auth.uid()` puro nas policies: forma recomendada pelo Supabase, avaliada uma vez por statement em vez de uma vez por linha.
+- **`anon` não recebe privilégio nenhum** nas duas tabelas.
+
+#### Validações
+- `npm run typecheck` → exit 0; `npm run lint` → exit 0. Nenhum arquivo TypeScript foi alterado — rodados só para confirmar ausência de impacto.
+- Auditoria estática das invariantes do próprio SQL: **0** policies de escrita em `user_access_flags`; **1** única coluna com `grant update` (`full_name`); **3/3** funções com `search_path` fixado; RLS em **2/2** tabelas.
+
+#### ⚠️ Limitação — o que NÃO foi verificado
+**Nenhuma linha deste SQL foi executada.** Não há projeto Supabase conectado, então a migration não foi aplicada, e a revisão foi por leitura + auditoria estática. Concretamente, ainda **não** está provado que:
+- a sintaxe roda sem erro num Postgres real;
+- o trigger em `auth.users` pode ser criado com as permissões que a migration recebe;
+- as policies e grants se comportam como esperado — em especial, que uma sessão `authenticated` de fato **falha** ao tentar `update user_access_flags` e ao tentar `update profiles set email = ...`.
+
+Essa terceira verificação é a que realmente importa, e é um **teste que precisa ser feito com o banco de pé**, antes da Fase 4-2. Registrado como tarefa pendente em `TASKS.md`.
+
+#### Riscos
+- **Risco principal:** o SQL nunca rodou (acima). Enquanto não rodar, a proteção de `is_blocked` é uma intenção bem fundamentada, não um fato verificado.
+- `current_user in ('service_role','postgres','supabase_admin')` no trigger de imutabilidade assume os nomes de papel do Supabase gerenciado. Se o deploy for num Postgres self-hosted com papéis diferentes, a lista precisa ser revista.
+- Trocar o e-mail via Supabase Auth **não** atualiza `profiles.email` automaticamente — o trigger atual só roda no `insert`. Se a troca de e-mail for oferecida na UI, será preciso um trigger de `update` em `auth.users`. Fora do escopo desta etapa; anotar para a 4-1B.
+- Ainda sem `licenses`: `user_access_flags` sozinha não concede acesso a nada. É só metade do modelo (a metade que revoga).
+
 ## Checklist técnico
 - [x] O projeto está em C:\dev\doce-margem
 - [x] Não há dependência de OneDrive
