@@ -4,7 +4,8 @@
 > Marcar `[x]` ao concluir. Adicionar novas tarefas quando surgirem.
 > Antes de iniciar uma nova fase: parar, resumir o que foi feito e aguardar aprovação.
 
-**Fase atual:** Fase 2-7 (ajustes finais de UX) concluída → aguardando aprovação para a próxima fase.
+**Fase atual:** Fase 2-7 concluída. **Fase 4 planejada** (ver `PLAN-FASE-4.md`), ainda não implementada.
+**Próximo passo decidido:** Fase 2-8 (backup export/import) → depois Fase 4-1 (Supabase Auth + profiles).
 
 ## Fase 0 — Setup e documentação ✅
 - [x] Criar projeto em C:\dev\doce-margem
@@ -198,13 +199,15 @@
 - [x] Testado com o servidor de dev real (5 rotas, sem erro)
 - [x] `REVIEW.md` atualizado — pendências 1/2/3 da revisão anterior resolvidas; pendências 4-8 mantidas para fases futuras
 
-### Fase 2-8 — Telas restantes (pendente)
-- [ ] Criar backup export/import (usando o storageService da Fase 2-1)
+### Fase 2-8 — Backup + polimento (pendente) ⬅️ **próxima**
+- [ ] Criar backup export/import (usando o storageService da Fase 2-1) — **pré-requisito da Fase 4** (rede de segurança dos dados locais antes de mexer em acesso)
 - [ ] Padronizar entrada decimal entre todos os formulários (vírgula vs. ponto)
 - [ ] Aviso de itens em uso antes de excluir (ex.: "este ingrediente é usado por 2 receitas")
 - [ ] Teste manual em navegador real antes de seguir para Supabase/Auth
 
 ## Fase 3 — Modo avançado
+> Fica **depois** da Fase 4 na ordem de execução (decisão de 2026-08-05). O número
+> foi mantido para preservar a rastreabilidade das referências já registradas.
 - [ ] Criar fator de correção
 - [ ] Criar perda de produção
 - [ ] Criar medidas caseiras
@@ -214,14 +217,39 @@
 - [ ] Criar engenharia de cardápio
 
 ## Fase 4 — Acesso e licenças
-- [ ] Preparar Supabase Auth
-- [ ] Criar tabela/profiles
-- [ ] Criar tabela/licenses
-- [ ] Criar feature flags (`lib/features.ts`) + `canAccessFeature`
-- [ ] Criar funções de acesso (getCurrentUserAccess, hasEssentialAccess, hasProAccess, require*)
-- [ ] Criar proteção de acesso (middleware/server checks)
-- [ ] Criar telas de bloqueio
-- [ ] Aplicar RLS no Supabase
+> 📋 **Planejada em `PLAN-FASE-4.md`** (2026-08-05) — arquitetura, tabelas, RLS,
+> DAL, feature flags, riscos e as 6 subfases abaixo. Nenhum código escrito ainda.
+> Pré-requisito: Fase 2-8 (backup export/import).
+
+### Fase 4-1 — Supabase Auth + profiles (pendente)
+- [ ] `services/supabase/{client,server,admin}.ts` (browser / RSC / service role)
+- [ ] Migration `profiles` + trigger de signup + RLS
+- [ ] Telas de login e cadastro; logout
+- [ ] Decidir proteção de `is_blocked` (tabela separada ou trigger)
+
+### Fase 4-2 — Licenças no banco (pendente)
+- [ ] Migrations `licenses` + `license_events` (constraints, índices, idempotência)
+- [ ] Funções SQL `has_essential_access()` / `has_pro_access()` (`SECURITY DEFINER`)
+- [ ] RLS: `licenses` **read-only** para o cliente (sem policy de escrita)
+
+### Fase 4-3 — DAL e tipos de acesso (pendente)
+- [ ] `types/access.ts` (`ProductType`, `LicenseStatus`, `License`, `UserAccess`)
+- [ ] `lib/auth/dal.ts` (`server-only`): `getCurrentUserAccess`, `hasEssentialAccess`, `hasProAccess`, `require*`
+- [ ] Matriz de casos verificando TS × SQL (risco de divergência)
+
+### Fase 4-4 — Feature flags (pendente)
+- [ ] `lib/features.ts` + `canAccessFeature` (default fechado, sem tabela no banco)
+
+### Fase 4-5 — Proteção de rotas (pendente)
+- [ ] `proxy.ts` na raiz (**não** `middleware.ts` — renomeado no Next 16), só checagem otimista
+- [ ] Route Groups `(app)` / `(pro)` / `(admin)` com `require*` no layout
+- [ ] Tela `/acesso-bloqueado`
+- [ ] Confirmar no build que rotas protegidas deixaram de ser estáticas
+
+### Fase 4-6 — Preços e gating do Pro (= Fase 5 abaixo) (pendente)
+- [ ] Página `/precos` separando Essencial e Pro Anual
+- [ ] Recursos Pro bloqueados por `canAccessFeature`
+- [ ] Confirmar zero referência a plano mensal
 
 ## Fase 5 — Produto final + Pro Anual
 - [ ] Criar página de preços (/precos)

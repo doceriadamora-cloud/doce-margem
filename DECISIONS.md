@@ -323,3 +323,99 @@ O truque de `key` é o padrão que o próprio React recomenda para "resetar o es
 
 ### Impacto
 Técnico: qualquer tela futura com edição (ex.: se a Fase 3 ou além criar edição de ingrediente com sub-receita, ou qualquer outro CRUD) deve seguir o mesmo padrão `Screen` + `key`-remount, não introduzir `useEffect` para sincronizar formulário com item selecionado. Os 4 stores (`ingredients-store.ts`, `recipes-store.ts`, `fixed-costs-store.ts`, `channels-store.ts`) ganharam `updateX(id, dado)` como uma quarta função ao lado de `subscribeX`/`getXSnapshot`/`addX`/`removeX` — o padrão "store reativo por feature" (decisão anterior) agora inclui update como parte do contrato esperado para qualquer fatia com CRUD completo.
+
+---
+
+## 2026-08-05 — Acesso e licenças é a Fase 4, precedida pela Fase 2-8 (backup export/import)
+
+### Decisão
+O trabalho de Supabase Auth, acesso e licenças é a **Fase 4 — Acesso e licenças**, conforme a numeração já existente no `TASKS.md` (a Fase 3 continua sendo "Modo avançado": fator de correção, sub-receitas, engenharia de cardápio). Antes de iniciar a Fase 4, será executada a **Fase 2-8 — backup export/import**, usando o `storageService` da Fase 2-1. O planejamento técnico completo da Fase 4 vive em `PLAN-FASE-4.md`.
+
+### Contexto
+A fase de acesso foi solicitada como "Fase 3", mas o `TASKS.md` já reservava esse número para o modo avançado — havia risco de duas coisas diferentes carregarem o mesmo rótulo no histórico do projeto. Separadamente, a Fase 2-8 (backup) seguia pendente, e a Fase 4 é a primeira que mexe na fronteira entre dado local e nuvem.
+
+### Motivo
+Manter a numeração do `TASKS.md` preserva a rastreabilidade de todo o histórico já registrado (commits, `REVIEW.md`, decisões anteriores) — renumerar retroativamente quebraria as referências cruzadas entre os documentos. Fazer o backup export/import antes do Auth dá à usuária uma rede de segurança sobre os próprios dados **antes** de qualquer mexida em acesso ou persistência: se algo der errado na introdução de login/licença, os dados locais são exportáveis e reimportáveis por conta própria, sem depender de suporte.
+
+### Impacto
+Processo: o `TASKS.md` mantém a Fase 3 como "Modo avançado" (agora executada depois da Fase 4, se assim for decidido) e a Fase 4 como "Acesso e licenças", detalhada em `PLAN-FASE-4.md` com 6 subfases (4-1 a 4-6). A Fase 2-8 vira pré-requisito explícito da Fase 4.
+
+---
+
+## 2026-08-05 — Essencial é local-first; nuvem e multidispositivo são exclusivos do Pro
+
+### Decisão
+O **Doce Margem Essencial permanece 100% em `localStorage`**, indefinidamente — a Fase 4 (Auth/licenças) **não migra dado nenhum**. Sincronização em nuvem e multidispositivo ficam reservadas ao **Pro Anual**, em fase própria e posterior. Quando a nuvem do Pro for implementada, o padrão previsto é: `localStorage` vira **cache síncrono** (preservando o `getSnapshot()` que `useSyncExternalStore` exige), com hidratação e write-through assíncronos por cima — nunca uma troca direta da implementação do `storageService`.
+
+### Contexto
+Ao planejar a Fase 4, a suposição de trabalho era que o `storageService` da Fase 2-1 poderia ter sua implementação trocada por Supabase "por baixo", sem tocar na UI. A revisão do plano mostrou que isso é falso: a API atual é **síncrona** (`loadIngredients(): Ingredient[]`) porque `useSyncExternalStore` exige um `getSnapshot()` síncrono, e Supabase é **assíncrono**. Trocar a implementação mudaria a assinatura de `T` para `Promise<T>` e quebraria os 5 stores e todas as telas. Ou seja: a decisão de 2026-08-04 sobre o `storageService` resolveu **acoplamento**, mas não resolve **sincronia** — este registro corrige esse ponto.
+
+### Motivo
+O `README.md` já classificava "Sincronização em nuvem / multi-dispositivo" como recurso **exclusivo do Pro**. Assumir isso explicitamente elimina quase todo o risco da Fase 4: sem migração de dados, login e licença entram *por cima* do app local intacto, e nada do que já funciona pode quebrar. Também é coerente com a decisão comercial de 2026-06-27 (compra única = "acesso vitalício à versão Essencial **atual**"): a nuvem é justamente o tipo de função futura que pertence ao plano anual, não à compra única. O problema sincronia × assincronia fica isolado numa fase futura, com escopo próprio, em vez de contaminar a introdução de Auth.
+
+### Impacto
+Técnico: a Fase 4 não toca em `services/storage-service.ts` nem nos 5 stores. A fase de nuvem do Pro (futura) terá que resolver explicitamente o padrão cache-síncrono + hidratação assíncrona, e terá o `backup export/import` (Fase 2-8) como rede de segurança para migração de dados. Produto: a UI do Essencial continua exibindo "seus dados ficam salvos neste navegador" — sem promessa de nuvem.
+
+---
+
+## 2026-08-05 — Feature flags em código, nunca em tabela
+
+### Decisão
+As feature flags (o que o Essencial inclui vs. o que é exclusivo do Pro) vivem em **código**, em `lib/features.ts`, com um `Record<FeatureKey, {...}>` tipado e uma única função `canAccessFeature(access, key)`. **Não** haverá tabela `feature_flags` no Supabase. O padrão é **fechado por omissão**: uma chave sem entrada no mapa retorna `false`, nunca `true`.
+
+### Contexto
+Uma tabela `feature_flags` foi explicitamente colocada em avaliação no planejamento da Fase 4, ao lado de `profiles`, `licenses` e `license_events`.
+
+### Motivo
+Flags aqui são **definição de produto**, não dado por usuária — o mesmo conjunto vale para todo mundo, e só muda quando o produto muda. Em tabela, custariam uma query extra em cada checagem, ficariam fora do controle de versão (mudança sem review nem histórico), perderiam type-safety (`FeatureKey` viraria `string` solta) e — o mais grave — criariam o risco real de alguém marcar um recurso Pro como aberto direto no banco, violando a regra de "não criar recursos Pro abertos por padrão". Em código, o TypeScript garante exaustividade do mapa e toda mudança passa por review e deploy. É o que o `README.md` já definia desde a Fase 0.
+
+### Impacto
+Técnico: `lib/features.ts` é um módulo puro (sem I/O), testável isoladamente, no mesmo espírito de `modules/pricing/`. Nenhuma condicional de plano (`if (plan === 'pro')`) deve aparecer espalhada pelo app — só `canAccessFeature`. Adicionar um recurso Pro é uma mudança de código revisada, nunca um `UPDATE` no banco.
+
+---
+
+## 2026-08-05 — Autorização real em DAL + RLS; `proxy.ts` é só checagem otimista
+
+### Decisão
+A autorização de verdade acontece em **duas camadas de backend**: um **Data Access Layer** (`lib/auth/dal.ts`, marcado `server-only`) chamado de Server Components / Server Actions / Route Handlers, e **RLS no Postgres** como última linha. O `proxy.ts` (raiz do projeto) faz **apenas checagem otimista** — lê o cookie e redireciona, para UX — e **nunca** é a única defesa. No servidor, usar sempre `supabase.auth.getUser()` (revalida o JWT com o servidor Auth) e **nunca** `getSession()` (só lê o cookie, é forjável).
+
+### Contexto
+Planejamento da Fase 4. Em **Next.js 16, `middleware.ts` foi renomeado para `proxy.ts`** — confirmado em `node_modules/next/dist/docs/01-app/01-getting-started/16-proxy.md`. O mesmo documento afirma explicitamente que Proxy _"should not be used as a full session management or authorization solution"_ e _"should not be your only line of defense in protecting your data. The majority of security checks should be performed as close as possible to your data source"_.
+
+### Motivo
+A documentação oficial do Next confirma, por conta própria, a regra que o `CLAUDE.md` já exigia desde a Fase 0 ("permissões validadas no backend, não só no frontend"). Proxy roda em toda rota, inclusive em rotas pré-carregadas (prefetch), então consultar banco ali degradaria a performance — daí ele ser otimista por natureza. O DAL com `cache()` do React memoiza a verificação dentro de um mesmo render (várias chamadas viram uma query só) e fica próximo do dado. A RLS cobre o caso em que ambas as camadas de aplicação falhem. Distinguir `getUser()` de `getSession()` é o que separa ter e não ter autenticação: `getSession()` confia num cookie que o cliente controla.
+
+### Impacto
+Técnico: o arquivo se chama `proxy.ts`, **não** `middleware.ts` — usar o nome antigo resultaria num arquivo simplesmente ignorado pelo framework, sem erro visível. Rotas protegidas precisam ser **dinâmicas**: hoje as 6 rotas do app são estáticas (`○ Static` no build), e conteúdo estático é gerado no build e compartilhado entre todas as usuárias. Toda revisão de fase deve incluir um grep por `getSession(` no código de servidor.
+
+---
+
+## 2026-08-05 — `licenses` sem policy de escrita para o cliente; revogação por status no backend
+
+### Decisão
+A tabela `licenses` **não terá nenhuma policy de INSERT/UPDATE/DELETE para o cliente** — nem para a própria dona da licença. O cliente só faz `SELECT` das próprias linhas. Toda escrita passa por `service_role` (webhooks da Fase 6, admin da Fase 7), que ignora RLS. Reembolso, chargeback e cancelamento revogam acesso alterando `licenses.status` no backend; o efeito é imediato porque o acesso é sempre **calculado na hora** a partir do status, sem cache com TTL. São três gatilhos independentes de revogação: `status ≠ 'active'`, `expires_at` no passado (só `annual_pro`), e `profiles.is_blocked = true` (bloqueio manual, mata tudo).
+
+### Contexto
+Planejamento da Fase 4, definição do modelo de licenças e das políticas de RLS.
+
+### Motivo
+Se a usuária pudesse dar `INSERT` em `licenses`, ela se concederia Pro vitalício com uma linha de SQL — esta política sustenta o modelo comercial inteiro. Calcular o acesso a cada verificação (em vez de persistir um campo tipo `has_pro`) garante que um reembolso tenha efeito imediato, sem precisar invalidar sessão nem esperar cache expirar; é o mesmo princípio de "nunca persistir valor derivado" já adotado para `fixedCostRate` e custo de receita (decisões de 2026-08-04). Ter três gatilhos separados evita misturar as regras de compra única e assinatura: `expires_at` só se aplica ao Pro, enquanto `status` e `is_blocked` valem para os dois.
+
+### Impacto
+Técnico: `has_essential_access(uid)` e `has_pro_access(uid)` existirão como funções `SECURITY DEFINER` em SQL (com `SET search_path = public`), para que as tabelas de dados do Pro na nuvem possam referenciá-las direto na policy. A mesma regra passa a existir em dois lugares — TypeScript (DAL) e SQL — com risco de divergirem; mitigação obrigatória é uma matriz de casos verificada contra as duas implementações. `profiles.is_blocked` também não pode ser editável pelo cliente (a policy de UPDATE do próprio perfil permitiria a usuária se desbloquear) — resolver com tabela separada só-service_role ou trigger de rejeição, decidir na Fase 4-1.
+
+---
+
+## 2026-08-05 — Compra única e Pro Anual coexistem; Pro é superset do Essencial; sem plano mensal
+
+### Decisão
+Uma mesma usuária pode ter as **duas licenças ativas ao mesmo tempo** (`one_time` + `annual_pro`). Portanto o acesso é **agregado sobre todas as licenças** da usuária, nunca derivado de "a licença". **Pro é superset do Essencial**: `hasPro ⟹ hasEssential`. Quando um Pro Anual vence, o Essencial permanece se houver uma `one_time` ativa. Reafirmado: **não existirá plano mensal** em código, copy ou banco.
+
+### Contexto
+Planejamento da Fase 4, modelagem de `UserAccess` e das funções de acesso. O `README.md` já descrevia as regras de licença, mas não deixava explícito o caso de as duas coexistirem.
+
+### Motivo
+É um cenário comercial real e desejável: quem comprou o Essencial pode assinar o Pro depois, sem perder a compra única (que é vitalícia por definição — decisão de 2026-06-27). Modelar acesso como agregação evita a armadilha de escolher "a licença principal" e ter que decidir desempate. Pro ser superset do Essencial é o que a tabela de recursos do `README.md` já indica (todos os itens do Essencial aparecem marcados também no Pro), e evita o absurdo de uma assinante Pro perder acesso a ingredientes por não ter comprado o Essencial separadamente. A proibição de plano mensal segue a decisão comercial de 2026-06-27.
+
+### Impacto
+Técnico: `UserAccess` expõe `hasEssential` e `hasPro` como booleanos independentes mais um `plan` (maior plano ativo), calculados varrendo todas as licenças. As funções SQL seguem a mesma lógica: `has_essential_access` retorna verdadeiro para `one_time` ativa **OU** `annual_pro` ativa. A matriz de teste do risco de divergência TS×SQL precisa incluir explicitamente o caso "one_time + annual_pro simultâneas" e o caso "pro vencido com one_time ativa".
