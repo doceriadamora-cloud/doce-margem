@@ -50,6 +50,12 @@ export function getBusinessSettingsServerSnapshot(): BusinessSettings {
   return EMPTY_SETTINGS;
 }
 
+/** Recarrega o cache a partir do storage após uma importação completa de backup. */
+export function reloadBusinessSettingsFromStorage(): void {
+  cachedSettings = loadBusinessSettings();
+  notify();
+}
+
 /** Atualiza faturamento/volume mensal estimado e persiste. */
 export function updateBusinessSettings(
   values: Pick<BusinessSettings, "estimatedMonthlyRevenue" | "estimatedMonthlyUnits">,

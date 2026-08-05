@@ -4,8 +4,8 @@
 > Marcar `[x]` ao concluir. Adicionar novas tarefas quando surgirem.
 > Antes de iniciar uma nova fase: parar, resumir o que foi feito e aguardar aprovação.
 
-**Fase atual:** Fase 2-7 concluída. **Fase 4 planejada** (ver `PLAN-FASE-4.md`), ainda não implementada.
-**Próximo passo decidido:** Fase 2-8 (backup export/import) → depois Fase 4-1 (Supabase Auth + profiles).
+**Fase atual:** Fase 2-8 com backup export/import concluído; polimentos restantes pendentes. **Fase 4 planejada** (ver `PLAN-FASE-4.md`), ainda não implementada.
+**Próximo passo recomendado:** teste manual em navegador real → depois Fase 4-1 (Supabase Auth + profiles).
 
 ## Fase 0 — Setup e documentação ✅
 - [x] Criar projeto em C:\dev\doce-margem
@@ -199,11 +199,19 @@
 - [x] Testado com o servidor de dev real (5 rotas, sem erro)
 - [x] `REVIEW.md` atualizado — pendências 1/2/3 da revisão anterior resolvidas; pendências 4-8 mantidas para fases futuras
 
-### Fase 2-8 — Backup + polimento (pendente) ⬅️ **próxima**
-- [ ] Criar backup export/import (usando o storageService da Fase 2-1) — **pré-requisito da Fase 4** (rede de segurança dos dados locais antes de mexer em acesso)
+### Fase 2-8 — Backup + polimento (em andamento)
+- [x] Criar backup export/import (usando o storageService da Fase 2-1) — **pré-requisito da Fase 4** (rede de segurança dos dados locais antes de mexer em acesso)
+  - [x] Criar `services/backup-service.ts` com exportação, parse/validação e importação segura
+  - [x] Criar seção "Backup dos dados" em `/configuracoes`
+  - [x] Exportar JSON com `appName`, `backupVersion`, `schemaVersion`, `updatedAt`, `exportedAt` e `data`
+  - [x] Validar JSON inválido, app incorreto, data de exportação, formato e `schemaVersion`
+  - [x] Normalizar dados antigos/parciais com `normalizeAppState`
+  - [x] Pedir confirmação antes de sobrescrever os dados locais
+  - [x] Recarregar stores reativos após importação
+  - [x] Rodar `typecheck`, `lint` e `build`
 - [ ] Padronizar entrada decimal entre todos os formulários (vírgula vs. ponto)
 - [ ] Aviso de itens em uso antes de excluir (ex.: "este ingrediente é usado por 2 receitas")
-- [ ] Teste manual em navegador real antes de seguir para Supabase/Auth
+- [ ] Teste manual em navegador real antes de seguir para Supabase/Auth — pendente no ambiente atual
 
 ## Fase 3 — Modo avançado
 > Fica **depois** da Fase 4 na ordem de execução (decisão de 2026-08-05). O número

@@ -140,7 +140,7 @@ function normalizeBusinessSettings(raw: unknown): BusinessSettings {
  *    campo (decisão da Fase 2-1) já resolve "campo novo ausente em dado antigo"
  *    sem precisar de uma migração de verdade.
  */
-function normalizeStoredState(raw: unknown): AppState {
+export function normalizeAppState(raw: unknown): AppState {
   if (!isPlainObject(raw)) return createEmptyAppState();
   if (typeof raw.schemaVersion !== "number") return createEmptyAppState();
   if (raw.schemaVersion !== APP_STATE_SCHEMA_VERSION) return createEmptyAppState();
@@ -173,7 +173,7 @@ export function loadAppState(): AppState {
     return createEmptyAppState();
   }
 
-  return normalizeStoredState(parsed);
+  return normalizeAppState(parsed);
 }
 
 /**

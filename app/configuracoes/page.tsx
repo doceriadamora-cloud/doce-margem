@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import FixedCostsScreen from "@/components/fixed-costs/FixedCostsScreen";
 import BusinessSettingsForm from "@/components/settings/BusinessSettingsForm";
 import CustomChannelsScreen from "@/components/channels/CustomChannelsScreen";
+import BackupPanel from "@/components/backup/BackupPanel";
 
 export const metadata: Metadata = {
   title: "Configurações — Doce Margem",
@@ -44,6 +45,13 @@ export default function ConfiguracoesPage() {
           <div className="grid gap-6 lg:grid-cols-[360px_1fr]">
             <CustomChannelsScreen />
           </div>
+        </section>
+
+        <section>
+          <h2 className="mb-3 text-lg font-semibold text-stone-900 dark:text-stone-50">
+            Backup dos dados
+          </h2>
+          <BackupPanel />
         </section>
       </div>
     </div>

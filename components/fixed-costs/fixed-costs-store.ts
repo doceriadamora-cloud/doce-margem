@@ -54,6 +54,12 @@ export function getFixedCostsServerSnapshot(): FixedCost[] {
   return EMPTY_FIXED_COSTS;
 }
 
+/** Recarrega o cache a partir do storage após uma importação completa de backup. */
+export function reloadFixedCostsFromStorage(): void {
+  cachedFixedCosts = loadFixedCosts();
+  notify();
+}
+
 /** Adiciona um custo fixo (já validado por quem chama) e persiste. O id sempre é gerado aqui. */
 export function addFixedCost(cost: FixedCost): boolean {
   const withId: FixedCost = { ...cost, id: generateId() };

@@ -65,6 +65,12 @@ export function getIngredientsServerSnapshot(): Ingredient[] {
   return EMPTY_INGREDIENTS;
 }
 
+/** Recarrega o cache a partir do storage após uma importação completa de backup. */
+export function reloadIngredientsFromStorage(): void {
+  cachedIngredients = loadIngredients();
+  notify();
+}
+
 /**
  * Adiciona um ingrediente (já validado por quem chama) e persiste.
  * Atualiza o cache/notifica mesmo se a gravação falhar (ex.: storage

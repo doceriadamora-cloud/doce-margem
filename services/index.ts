@@ -9,5 +9,6 @@
 
 export * from "./storage-service";
 export * from "./storage-examples";
+export * from "./backup-service";
 
 export type { AppState, BusinessSettings } from "@/types/app-state";

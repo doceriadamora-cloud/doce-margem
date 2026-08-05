@@ -490,6 +490,32 @@ Melhorias de UX/futuro, deliberadamente deixadas para uma fase própria:
 - Componentes `*Screen.tsx` (não sugeridos pela tarefa) foram necessários para compartilhar o estado `editingId` entre o Form e a List de cada feature, que hoje são renderizados como irmãos pela página. Preferi um novo componente client pequeno (guardando só `useState`) a converter as páginas (hoje Server Components estáticos) em Client Components — mantém o mínimo de JavaScript no cliente por página. Renderiza um Fragment (não uma `<div>`) para não interferir no grid CSS da página.
 - Padrão `key`-remount para resetar o formulário ao trocar de item em edição, em vez de `useEffect` sincronizando props→state — ver decisão registrada no `DECISIONS.md`.
 
+### Fase 2-8 — Backup export/import dos dados locais
+- **Status:** ✅ Fatia de backup export/import concluída. Os demais polimentos da Fase 2-8 (decimal consistente, aviso de uso antes de excluir e teste manual em navegador real) continuam pendentes.
+- **Escopo:** rede de segurança local antes de Supabase/Auth. Nenhum Supabase, Auth, webhook, admin ou fórmula de `modules/pricing/` foi criado/alterado.
+
+#### O que foi feito
+- `services/backup-service.ts`: novo serviço de backup. Exporta JSON com `appName: "Doce Margem"`, `backupVersion`, `schemaVersion`, `updatedAt`, `exportedAt` e o `AppState` completo em `data`.
+- `components/backup/BackupPanel.tsx`: novo painel client em `/configuracoes`, com botão "Exportar backup", seletor de arquivo `.json`, ação "Importar backup", mensagens de sucesso/erro e confirmação antes de sobrescrever.
+- `app/configuracoes/page.tsx`: nova seção "Backup dos dados" ao final da tela.
+- `services/storage-service.ts`: `normalizeAppState` passou a ser exportada para o backup reutilizar a normalização segura já existente, sem duplicar regra.
+- Stores reativos ganharam `reload*FromStorage()` para refletir uma importação completa imediatamente: ingredientes, receitas, custos fixos, canais customizados e configurações financeiras.
+
+#### Importação segura
+- JSON inválido cai no `catch` de `JSON.parse` e retorna mensagem amigável, sem lançar exceção para a UI.
+- Arquivo sem `appName: "Doce Margem"` é rejeitado.
+- `exportedAt`, `backupVersion` e `schemaVersion` são validados antes de salvar.
+- Dados parciais antigos continuam compatíveis: se arrays ou `businessSettings` estiverem ausentes, `normalizeAppState` recompõe padrões seguros.
+- A importação salva o `AppState` inteiro uma única vez via `saveAppState`, pede confirmação antes e depois recarrega todos os stores.
+
+#### Validações
+- `npm.cmd run typecheck` → exit 0.
+- `npm.cmd run lint` → exit 0.
+- `npm.cmd run build` → exit 0. A primeira tentativa no sandbox falhou porque `next/font` não conseguiu buscar Geist/Geist Mono no Google Fonts; repetido com rede liberada e passou. Rotas seguem estáticas: `/`, `/configuracoes`, `/ingredientes`, `/precificacao`, `/receitas`.
+
+#### Limitação
+- Teste manual em navegador real não foi concluído neste ambiente. `Start-Process` falhou por conflito de `PATH`, `Start-Job` não persistiu entre comandos, e o runtime Node usado pelo browser falhou antes de executar por erro interno de caminho. Recomendo um clique manual local antes de avançar para Supabase/Auth: exportar, alterar dados, importar e conferir as telas.
+
 ## Checklist técnico
 - [x] O projeto está em C:\dev\doce-margem
 - [x] Não há dependência de OneDrive
@@ -504,7 +530,7 @@ Melhorias de UX/futuro, deliberadamente deixadas para uma fase própria:
 - [ ] Permissões não dependem apenas do frontend
 - [ ] Webhooks estão protegidos
 - [ ] Admin está protegido
-- [ ] Build passa _(validar na Fase 8; ambiente já roda)_
+- [x] Build passa _(Fase 2-8 validada; revalidar antes de deploy na Fase 8)_
 
 ## Checklist de produto
 - [x] Promessa principal está clara _(documentada no README)_
@@ -512,7 +538,7 @@ Melhorias de UX/futuro, deliberadamente deixadas para uma fase própria:
 - [ ] Pro Anual tem valor recorrente real
 - [ ] Usuária iniciante entende o primeiro passo
 - [ ] Recursos avançados não aparecem cedo demais
-- [ ] Backup está claro
+- [x] Backup está claro
 - [ ] Bloqueio de acesso tem copy clara
 
 ## Riscos conhecidos

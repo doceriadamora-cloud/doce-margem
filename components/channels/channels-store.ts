@@ -59,6 +59,12 @@ export function getCustomChannelsServerSnapshot(): SalesChannel[] {
   return EMPTY_CUSTOM_CHANNELS;
 }
 
+/** Recarrega o cache a partir do storage após uma importação completa de backup. */
+export function reloadCustomChannelsFromStorage(): void {
+  cachedCustomChannels = loadCustomChannels();
+  notify();
+}
+
 /** Adiciona um canal customizado (já validado por quem chama) e persiste. O id sempre é gerado aqui. */
 export function addCustomChannel(channel: SalesChannel): boolean {
   const withId: SalesChannel = { ...channel, id: generateId() };

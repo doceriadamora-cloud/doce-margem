@@ -419,3 +419,19 @@ Planejamento da Fase 4, modelagem de `UserAccess` e das funções de acesso. O `
 
 ### Impacto
 Técnico: `UserAccess` expõe `hasEssential` e `hasPro` como booleanos independentes mais um `plan` (maior plano ativo), calculados varrendo todas as licenças. As funções SQL seguem a mesma lógica: `has_essential_access` retorna verdadeiro para `one_time` ativa **OU** `annual_pro` ativa. A matriz de teste do risco de divergência TS×SQL precisa incluir explicitamente o caso "one_time + annual_pro simultâneas" e o caso "pro vencido com one_time ativa".
+
+---
+
+## 2026-08-05 — Backup manual usa wrapper com metadados e restaura o AppState completo
+
+### Decisão
+A Fase 2-8 exporta um JSON com metadados (`appName: "Doce Margem"`, `backupVersion`, `exportedAt`, `schemaVersion`, `updatedAt`) e o `AppState` completo em `data`. A importação aceita apenas backups identificados como Doce Margem, valida formato e versão, normaliza o estado com a mesma função segura do `storageService` (`normalizeAppState`) e salva o `AppState` inteiro uma única vez. Depois do save, os stores reativos das cinco fatias (`ingredients`, `recipes`, `fixedCosts`, `customChannels`, `businessSettings`) são recarregados a partir do storage para atualizar a interface imediatamente.
+
+### Contexto
+Antes de iniciar Supabase/Auth, a usuária precisa de uma rede de segurança para dados locais. O app já tinha stores com cache de módulo; salvar diretamente no `storageService` sem avisar esses stores deixaria a tela aberta mostrando dados antigos até recarregar a página.
+
+### Motivo
+O wrapper evita importar um JSON qualquer como se fosse dado do app. Validar `schemaVersion` antes de normalizar impede que um backup de versão incompatível seja silenciosamente convertido para estado vazio. Usar `normalizeAppState` preserva a compatibilidade já existente com dados parciais ou antigos (arrays ausentes e `businessSettings` ausente viram padrões seguros) sem duplicar regra. Salvar o estado completo uma vez evita writes parciais por fatia e mantém a importação como operação de substituição explícita.
+
+### Impacto
+Técnico: `services/backup-service.ts` é a camada de serialização/validação de backup; a UI continua sem acessar `localStorage` diretamente. Os stores ganharam funções `reload*FromStorage()` para cenários de restauração completa. A Fase 2-8 não cria Supabase, Auth, webhooks ou admin, e não toca em `modules/pricing/`.

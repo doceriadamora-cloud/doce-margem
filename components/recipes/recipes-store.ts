@@ -58,6 +58,12 @@ export function getRecipesServerSnapshot(): Recipe[] {
   return EMPTY_RECIPES;
 }
 
+/** Recarrega o cache a partir do storage após uma importação completa de backup. */
+export function reloadRecipesFromStorage(): void {
+  cachedRecipes = loadRecipes();
+  notify();
+}
+
 /**
  * Adiciona uma receita (já validada por quem chama) e persiste. O id sempre é
  * gerado aqui — quem chama não precisa se preocupar em inventar um id único.
