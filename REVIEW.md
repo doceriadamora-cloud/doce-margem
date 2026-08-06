@@ -954,6 +954,56 @@ O plano foi escrito lendo `0001_profiles.sql` e `0002_licenses.sql`, não a part
 - **Compra antes do cadastro** continua sem decisão — convite via Admin API (recomendado), fila, ou manual. Muda o que a migration precisa ter.
 - **E-mail diferente no checkout:** compra com um e-mail, cadastro com outro. Nenhuma automação resolve; depende de concessão manual (Fase 7). Mitigação parcial: normalizar `lower(trim(email))` e criar `unique index on profiles (lower(email))` — hoje a coluna não tem índice nem UNIQUE, então a busca é varredura **e** sensível a maiúsculas.
 
+### Fase 4-7B — Migration de suporte ao webhook
+- **Status:** ✅ Arquivo escrito. ⚠️ **Não aplicado e não validado por parser SQL** — não há Postgres nem `psql` neste ambiente.
+- **Escopo:** só `supabase/migrations/0003_webhook_support.sql` + documentação. Nenhum código, nenhum route handler, nenhuma edição em 0001/0002.
+
+#### Estrutura criada
+`public.webhook_events`, 13 colunas. FKs para `profiles` e `licenses` com `on delete set null` — mesmo critério da 0002: apagar a conta não destrói a evidência de que a requisição chegou.
+
+**5 CHECKs.** Três vieram da especificação (`provider`, `event_type`, `status`); dois eu acrescentei porque o schema sem eles admitia estados incoerentes:
+- **`status ↔ processed_at`**: sem isso, cabia uma linha `processed` sem carimbo de quando, ou uma `received` já carimbada — e aí a coluna deixa de responder à única pergunta que existe para responder.
+- **`error_message` só em `failed`**: mensagem de erro em linha bem-sucedida é ruído que confunde quem for depurar às 3 da manhã.
+
+**6 índices.** O único parcial de idempotência, o de busca por pedido (não único, porque o mesmo pedido gera aprovada e depois reembolso), três operacionais (fila de retrabalho, listagem do admin, histórico por usuária) e o de e-mail em `profiles`.
+
+**RLS habilitada com zero policies e zero grants.** O cliente não lê nem os próprios eventos: `payload` é o corpo bruto do provedor e pode conter campos que nunca passaram por uma decisão de "isto pode aparecer na tela". A transparência da usuária já existe pelo caminho certo — `license_events`, com vocabulário nosso. `webhook_events` é log de infraestrutura.
+
+#### Uma diferença que precisa ficar clara para a 4-7C
+`webhook_events` **não é** `license_events`, e não recebeu o trigger de imutabilidade da 0002. `license_events` é auditoria append-only; esta aqui é log de processamento e **muda de estado** (`received → processed | ignored | failed`). Copiar aquele trigger para cá quebraria o processamento no primeiro webhook. Está escrito no cabeçalho da migration para não se perder.
+
+#### Descoberta que mudou o índice de e-mail
+A especificação sugeria `create unique index on public.profiles (lower(email))`. Investiguei o risco de falha, como pedido, e encontrei um problema anterior ao das duplicatas:
+
+**`handle_new_user` (0001) grava `coalesce(new.email, '')`.** Cadastro sem e-mail — telefone, OAuth sem e-mail — produz string vazia. **Duas linhas assim colidem num índice único total, e o `CREATE INDEX` falha.** O app é só e-mail/senha hoje, mas a própria 0001 comenta que isso pode mudar; um índice que quebra o cadastro futuro é pior que índice nenhum.
+
+Solução: índice **parcial**, `where email <> ''`. Não enfraquece nada — string vazia não é e-mail de compra nenhuma, e o handler nunca vai procurar por ela.
+
+#### ⚠️ Checagem obrigatória antes de aplicar
+Duplicatas reais de e-mail continuam podendo derrubar o índice. Rodar **antes** do `db push`:
+
+```sql
+select lower(email) as email_normalizado, count(*)
+from public.profiles
+where email <> ''
+group by 1 having count(*) > 1;
+```
+
+Se retornar linhas, resolver as duplicatas primeiro. **Nunca remover o `unique` para "fazer passar"** — duas contas com o mesmo e-mail tornam a identificação por e-mail ambígua, que é exatamente o que o webhook não pode ter.
+
+Lembrete: existem **duas contas de teste** criadas na Fase 4-1B que nunca puderam ser apagadas (exigiria service role). Elas entram nessa contagem.
+
+#### Riscos antes de aplicar
+- **Nada foi executado.** Sem Postgres local e sem `psql`, a verificação foi estrutural (delimitadores `$$` pareados, 5 constraints, 6 índices, 0 policies, 0 grants, nenhum `alter table` em 0001/0002). **Erro de sintaxe só aparece no `db push`.**
+- **`provider` aceita só `'kiwify'`.** Hotmart — já citada no `README.md` e no `.env.example` — exigirá migration. É coerente e não descuido: o `CHECK` de `event_type` usa o vocabulário **português** da Kiwify (`compra_aprovada`), que a Hotmart não usa; um provedor novo estenderia os dois de qualquer forma. Note a assimetria deliberada com `licenses.provider`, que **não** tem CHECK — lá o valor é só procedência, aqui ele determina como o payload é lido.
+- **`provider_event_id` NULL desliga a idempotência.** Mesmo buraco de NULL do `PLAN-FASE-4.md` 13.1(C): NULLs não conflitam entre si, então o índice único parcial não protege. **A 4-7C precisa rejeitar payload sem identificador de evento**, nunca gravar NULL e seguir. Está anotado no `TASKS.md` e no comentário da coluna.
+- **O CHECK de coerência restringe o handler.** Inserir direto como `processed` obriga a preencher `processed_at` no mesmo statement. É intencional, mas quem escrever a 4-7C precisa saber antes de descobrir por erro de constraint.
+- **`payload` guarda dado pessoal.** Diferente de `license_events`, aqui `DELETE` não tem trigger impedindo — pedido de apagamento (LGPD) se atende por service_role.
+
+#### Validações
+- `npm run typecheck` → exit 0; `npm run lint` → exit 0.
+- `build` não rodado: nenhum arquivo TS/TSX foi tocado.
+
 ## Checklist técnico
 - [x] O projeto está em C:\dev\doce-margem
 - [x] Não há dependência de OneDrive

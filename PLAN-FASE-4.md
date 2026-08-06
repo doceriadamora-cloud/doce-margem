@@ -678,6 +678,15 @@ perda silenciosa de venda:
 
 ## 13.9 `webhook_events`: ainda faz sentido?
 
+> ✅ **Decidido e implementado na Fase 4-7B:** sim. `supabase/migrations/0003_webhook_support.sql`
+> cria a tabela, com uma diferença importante em relação ao rascunho abaixo — ela
+> **não é append-only**. `license_events` é auditoria imutável; `webhook_events` é
+> log de processamento e muda de estado (`received → processed | ignored | failed`).
+> O índice de pedido **não** é único, porque o mesmo pedido gera aprovada e depois
+> reembolso. O cliente não lê a tabela: RLS sem policy nenhuma e zero grants.
+> `pending_purchases` **não** foi criada — a decisão de 13.4 (convite via Admin
+> API) segue pendente e só ela dirá se a fila é necessária.
+
 O `README.md` (linha 87) e o `TASKS.md` (Fase 6) prometem uma tabela
 `webhook_events` que **não existe** — a 0002 resolveu idempotência com a UNIQUE
 de `licenses`. Divergência a resolver.

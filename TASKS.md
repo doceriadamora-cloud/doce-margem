@@ -4,8 +4,8 @@
 > Marcar `[x]` ao concluir. Adicionar novas tarefas quando surgirem.
 > Antes de iniciar uma nova fase: parar, resumir o que foi feito e aguardar aprovação.
 
-**Fase atual:** Fase 4-7A concluída — plano técnico do webhook Kiwify em `PLAN-FASE-4.md` (capítulo 13). **Nenhum código escrito.**
-**Próximo passo recomendado:** decidir "compra antes do cadastro" (convite × fila) e capturar um payload real da Kiwify → depois Fase 4-7B (implementação).
+**Fase atual:** Fase 4-7B concluída — `0003_webhook_support.sql` escrita. **SQL não aplicado.** Nenhum route handler.
+**Próximo passo recomendado:** rodar a checagem de e-mails duplicados e aplicar a migration → decidir "compra antes do cadastro" e capturar um payload real → Fase 4-7C.
 
 ## Fase 0 — Setup e documentação ✅
 - [x] Criar projeto em C:\dev\doce-margem
@@ -411,12 +411,28 @@
 - [ ] **Decidir antes da 4-7B:** criar `webhook_events` junto de `pending_purchases` ou não criar nenhuma das duas
 - [ ] Corrigir divergência: `README.md` linha 87 e a Fase 6 acima citam `webhook_events`, que não existe
 
-### Fase 4-7B — Implementação do webhook (pendente)
+### Fase 4-7B — Migration de suporte ao webhook ✅
+- [x] `supabase/migrations/0003_webhook_support.sql` — **não edita 0001 nem 0002**
+- [x] Tabela `public.webhook_events` (13 colunas) com FKs `on delete set null` para `profiles` e `licenses`
+- [x] 5 CHECKs: `provider`, `event_type`, `status`, coerência `status ↔ processed_at`, `error_message` só em `failed`
+- [x] Índice **único parcial** `(provider, provider_event_id) where provider_event_id is not null` — idempotência
+- [x] Índice de busca `(provider, provider_order_id)` **não único** — o mesmo pedido gera aprovada e depois reembolso
+- [x] 3 índices operacionais: fila de retrabalho (`status in ('received','failed')`), listagem do admin, histórico por usuária
+- [x] `profiles_email_lower_unique` **parcial** (`where email <> ''`) — `handle_new_user` grava `''` para cadastro sem e-mail, e duas linhas assim quebrariam um índice único total
+- [x] RLS habilitada, **zero policies** (nem de leitura) + `revoke all` e **zero grants** — duas barreiras independentes
+- [x] **Sem trigger de imutabilidade**, ao contrário de `license_events`: esta tabela precisa de UPDATE (`received → processed`)
+- [x] Rodar `typecheck` + `lint`
+- [ ] ⚠️ **ANTES DE APLICAR:** rodar a checagem de e-mails duplicados da seção 4 da migration — se retornar linhas, o `CREATE INDEX` falha
+- [ ] **Pendente de ambiente:** aplicar no Supabase real e validar (a migration não foi executada nem checada por parser SQL — não há Postgres local)
+- [ ] **Decisão registrada, custo conhecido:** `provider` aceita só `'kiwify'`; Hotmart exigirá migration (junto com o `event_type`, que usa vocabulário português da Kiwify)
+
+### Fase 4-7C — Implementação do webhook (pendente)
 - [ ] **Capturar payload real da Kiwify** (webhook.site) antes de escrever código — sem isso os nomes de campo são chute
 - [ ] Confirmar o mecanismo de validação observado (token simples × HMAC em query string)
-- [ ] Migration conforme a decisão de 13.4 + `create unique index on public.profiles (lower(email))`
+- [ ] **Decidir:** compra antes do cadastro — convite via Admin API (recomendado no plano) × concessão manual
 - [ ] `services/supabase/admin.ts` com `server-only`, service role isolada do client de sessão
 - [ ] Route Handler + teste com replay e token inválido
+- [ ] Handler deve **rejeitar** payload sem `provider_event_id` — gravar NULL desliga a idempotência sem sinal nenhum
 - [ ] Excluir `/api/webhooks/*` do `matcher` do `proxy.ts` quando a Fase 4-5C o criar
 - [ ] **Pendente de deploy:** URL pública e teste de ponta a ponta com compra real
 

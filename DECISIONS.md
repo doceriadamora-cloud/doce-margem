@@ -747,3 +747,44 @@ Revogação não exige nada além do `UPDATE`: as funções de acesso filtram `s
 **3. `profiles.email` não tem índice nem UNIQUE.** A unicidade real mora em `auth.users`. Busca por e-mail hoje é varredura e é sensível a maiúsculas. A migration da 4-7B deve criar `unique index on public.profiles (lower(email))`, e todo e-mail deve ser normalizado com `lower(trim(...))`.
 
 **4. Nada foi confirmado contra a Kiwify real.** Os nomes de campo do payload e o mecanismo de validação (token simples × HMAC em query string) são hipótese até uma requisição real ser capturada. É a primeira tarefa da 4-7B, antes de qualquer código. E a URL pública só existe depois do deploy — o teste de ponta a ponta com compra real é o único que prova a integração, e ele é pós-deploy.
+
+---
+
+## 2026-08-06 — `webhook_events` é log de processamento, não auditoria; e o cliente não o enxerga
+
+### Decisão
+`supabase/migrations/0003_webhook_support.sql` cria `public.webhook_events` com:
+
+- **RLS habilitada e nenhuma policy — nem de leitura** — mais `revoke all` e **zero grants**. O cliente não vê a tabela de forma alguma.
+- **Nenhum trigger de imutabilidade**, ao contrário de `license_events`. Esta tabela muda de estado (`received → processed | ignored | failed`).
+- **Idempotência por índice único parcial** `(provider, provider_event_id) where provider_event_id is not null` — e o índice de pedido `(provider, provider_order_id)` **não** é único.
+- **`provider` restrito a `'kiwify'`** por CHECK.
+- **`profiles_email_lower_unique` parcial**, `where email <> ''`.
+
+Duas constraints além das especificadas: coerência `status ↔ processed_at`, e `error_message` permitido só quando `status = 'failed'`.
+
+### Contexto
+Fase 4-7B, preparação de banco para o webhook da Kiwify. O plano da 4-7A (capítulo 13 do `PLAN-FASE-4.md`) apontou que guardar estado de webhook exigiria migration de qualquer forma, porque `license_events` tem vocabulário fechado por CHECK e é append-only por trigger.
+
+### Motivo
+
+**Por que o cliente não lê nada.** `payload` é o corpo bruto do provedor: contém campos que não controlamos e que nunca passaram por uma decisão de "isto pode aparecer na tela" — documento, endereço, dados de cobrança, o que a Kiwify resolver mandar. A usuária já tem transparência pelo caminho certo, `license_events`, com vocabulário nosso e sem payload de terceiro. `webhook_events` é log de infraestrutura; se a Fase 7 quiser expor algo, que seja pela área admin via service_role, não por policy de `authenticated`. Zero policy **e** zero grant são duas barreiras independentes: um `create policy` distraído no futuro não abre a tabela sozinho.
+
+**Por que não é append-only.** `license_events` responde "por que esta pessoa perdeu acesso" e precisa ser inalterável até para o próprio sistema — é evidência em disputa de chargeback. `webhook_events` responde "esta requisição já foi tratada?", e essa resposta muda com o tempo. São propósitos diferentes na mesma família. Copiar o trigger da 0002 para cá quebraria o processamento no primeiro webhook, e por isso a diferença está escrita no cabeçalho da migration em vez de ficar implícita.
+
+**Por que o índice de pedido não é único.** Um pedido produz `compra_aprovada` e, semanas depois, possivelmente `compra_reembolsada` ou `chargeback`. Unicidade ali impediria registrar o reembolso — o evento que mais importa auditar.
+
+**Por que `provider` só aceita `'kiwify'`.** O CHECK de `event_type` usa o vocabulário **português** da Kiwify (`compra_aprovada`); a Hotmart usa outro. Um provedor novo teria que estender os dois CHECKs de qualquer forma, então travar `provider` não cria trabalho que já não existiria. É assimétrico em relação a `licenses.provider`, que deliberadamente **não** tem CHECK — e a assimetria é justificada: lá o valor é só procedência (inclui `'manual'`), aqui ele determina como o payload é lido.
+
+**Por que o índice de e-mail é parcial.** `handle_new_user` (0001) grava `coalesce(new.email, '')`, então cadastro sem e-mail produz string vazia. **Duas linhas assim colidiriam num índice único total e a criação do índice falharia.** O app é só e-mail/senha hoje, mas a própria 0001 comenta que isso pode mudar; um índice que quebra o cadastro futuro é pior que índice nenhum. Excluir `''` não enfraquece nada — string vazia não é e-mail de compra nenhuma.
+
+**Por que as duas constraints extras.** Sem a coerência `status ↔ processed_at`, cabia uma linha `processed` sem carimbo de quando, e a coluna deixaria de responder à única pergunta que existe para responder. Sem a restrição de `error_message`, mensagem de erro apareceria em linha bem-sucedida — ruído para quem for depurar sob pressão.
+
+### Impacto
+Técnico: a Fase 4-7C escreve na tabela só por `service_role`. O handler **precisa rejeitar payload sem `provider_event_id`** — NULL ali desliga a idempotência sem emitir sinal, o mesmo buraco de NULL já registrado para `licenses.provider_order_id`. O CHECK de coerência obriga a preencher `processed_at` quando a linha nasce já concluída.
+
+Operacional: **a migration não foi aplicada nem validada por parser SQL** — não há Postgres nem `psql` no ambiente. A verificação foi estrutural. Erro de sintaxe só aparecerá no `db push`.
+
+⚠️ **Checagem obrigatória antes de aplicar:** duplicatas de e-mail derrubam o `CREATE UNIQUE INDEX`. A consulta está na seção 4 da migration e no `REVIEW.md`. Se retornar linhas, resolver as duplicatas — **nunca remover o `unique` para fazer passar**, porque duas contas com o mesmo e-mail tornam a identificação ambígua, que é exatamente o que o webhook não pode ter. As duas contas de teste da Fase 4-1B, que nunca puderam ser apagadas, entram nessa contagem.
+
+LGPD: `payload` guarda dado pessoal e, diferente de `license_events`, `DELETE` aqui não tem trigger impedindo — pedido de apagamento se atende por service_role.
