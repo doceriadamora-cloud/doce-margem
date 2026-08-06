@@ -467,3 +467,236 @@ Registradas no `REVIEW.md`, item por item:
   de corrigir depois que houver Auth na frente das telas.
 - Padronizar entrada decimal (vírgula × ponto) entre formulários.
 - Aviso de itens em uso antes de excluir.
+
+---
+
+# 13. Fase 4-7 — Webhook Kiwify (plano técnico)
+
+> Escrito na **Fase 4-7A**. Nenhum código, nenhuma rota, nenhuma migration foi
+> criada. Este capítulo é o que a 4-7B vai implementar.
+
+Checkout do Essencial já existente: `https://pay.kiwify.com.br/i5YqT17`, apontado
+pela `/precos` através de `NEXT_PUBLIC_BUY_ESSENTIAL_URL`.
+
+Objetivo: **compra aprovada libera `one_time` sozinha; reembolso e chargeback
+revogam sozinhos.**
+
+## 13.1 Três achados do schema que mudam o plano
+
+Levantados lendo `0001_profiles.sql` e `0002_licenses.sql`. Os três contrariam
+suposições naturais sobre a fase, e por isso vêm primeiro.
+
+### (A) "Compra antes do cadastro" é bloqueio físico, não caso de borda
+
+```
+licenses.user_id -> profiles.id -> auth.users.id
+```
+
+`profiles.id` é **PK e FK** para `auth.users`. Não existe `INSERT` em `licenses`
+para um e-mail sem conta — nem com `service_role`, porque FK não é RLS. E
+`profiles` só nasce pelo trigger `on_auth_user_created`, que dispara em
+`auth.users`.
+
+Consequência: o webhook **não tem como "criar ou localizar o profile"** a partir
+de um e-mail solto. Ou existe `auth.users`, ou não existe licença.
+
+### (B) `license_events` também não serve de fila de pendências
+
+A ideia de "registrar pendência no histórico" esbarra em duas paredes:
+
+- `event_type` tem `CHECK` de vocabulário fechado — `granted`, `renewed`,
+  `refunded`, `chargeback`, `cancelled`, `expired`, `manual_block`,
+  `manual_unblock`. Não há valor para "compra recebida, sem dono".
+- `license_events.user_id` é nullable, então a linha órfã cabe fisicamente — mas
+  seria usar a tabela de auditoria como fila de trabalho, e ela é **append-only
+  por trigger** (nem `service_role` faz `UPDATE`). Uma pendência que não pode ser
+  marcada como resolvida não é uma fila.
+
+**Portanto: guardar pendência exige migration de qualquer forma.** A fase não tem
+opção "sem tocar no banco" — só a escolha de *qual* mudança fazer (13.4).
+
+### (C) A UNIQUE de idempotência tem um buraco em NULL
+
+```sql
+constraint licenses_provider_order_unique unique (provider, provider_order_id)
+```
+
+`provider_order_id` é nullable, e em Postgres **NULLs não conflitam entre si**.
+O próprio comentário da migration registra isso como desejado — para licenças
+manuais conviverem. O efeito colateral: se o payload da Kiwify vier sem o
+identificador do pedido, ou se o parse falhar, **cada reenvio cria uma licença
+nova** e a idempotência simplesmente não existe.
+
+Regra que sai daí: **payload sem `provider_order_id` legível é rejeitado**, nunca
+gravado com `NULL`. Ver 13.6.
+
+## 13.2 Rota e forma
+
+`POST /api/webhooks/kiwify` — Route Handler (`app/api/webhooks/kiwify/route.ts`).
+
+- **Só `POST`.** Sem `GET`: uma rota de webhook que responde a `GET` vira alvo de
+  varredura e, se algum dia logar, vira canal de ruído.
+- **`export const runtime = "nodejs"`** — a verificação de assinatura usa `crypto`.
+- **Nunca gateada.** Não passa por `requireEssentialAccess()` (é Route Handler,
+  não página) e precisa ficar de fora do `matcher` do `proxy.ts` quando a Fase
+  4-5C o criar. Um proxy que redirecione esta rota para `/login` quebra o
+  faturamento em silêncio — a Kiwify recebe 307 e desiste.
+- **Corpo lido como texto cru primeiro:** `const raw = await request.text()`, e só
+  depois `JSON.parse(raw)`. Se a validação for HMAC, ela é sobre os bytes
+  originais; `await request.json()` destrói o corpo e torna a verificação
+  impossível. Esta ordem não é estilo, é requisito.
+
+## 13.3 Variáveis de ambiente
+
+| Variável | Situação | Uso |
+|---|---|---|
+| `KIWIFY_WEBHOOK_SECRET` | **já existe** no `.env.example` | validar a requisição |
+| `SUPABASE_SERVICE_ROLE_KEY` | já existe, **ainda sem nenhum leitor** | única forma de gravar em `licenses` |
+| `NEXT_PUBLIC_SUPABASE_URL` | já existe | endpoint do cliente admin |
+
+**Sobre o nome:** o projeto já documenta `KIWIFY_WEBHOOK_SECRET`, com
+`HOTMART_WEBHOOK_SECRET` no mesmo padrão. A Kiwify chama isso de "token" no
+painel dela. **Recomendação: manter `KIWIFY_WEBHOOK_SECRET`** e registrar no
+`.env.example` que é o token do painel — renomear para `_TOKEN` quebraria a
+simetria com Hotmart e não compra nada. Aceitar os dois nomes está descartado:
+duas fontes de verdade para um segredo é como um deles fica desatualizado sem
+ninguém notar.
+
+**Cliente admin isolado:** `services/supabase/admin.ts`, novo, com
+`import "server-only"` e sem `persistSession`. A service role **não entra** em
+`services/supabase/server.ts` — o arquivo que o app inteiro importa não pode ter
+uma chave que ignora RLS ao alcance de um import errado.
+
+## 13.4 Identificar a usuária — três caminhos, uma recomendação
+
+O e-mail da compra é o único elo. Por (A), o caminho feliz é: e-mail existe em
+`auth.users` -> pega `profiles.id` -> grava a licença. O problema é o outro caso.
+
+| Caminho | O que faz | Custo | Risco |
+|---|---|---|---|
+| **1. Convidar** | webhook cria o usuário via Admin API (`inviteUserByEmail`), FK passa a existir, licença é gravada na hora | nenhuma migration | webhook passa a criar contas; e-mail de convite depende de SMTP configurado |
+| **2. Fila** | migration `0003_pending_purchases` com `(provider, order_id, email, payload, resolved_at)`; `handle_new_user` reconcilia no cadastro | migration + alterar trigger | compra fica invisível para a compradora até ela se cadastrar |
+| **3. Manual** | webhook só audita; admin concede (Fase 7) | nenhuma | não é automação — é o que a fase existe para eliminar |
+
+**Recomendado: 1, com 2 como rede.** O convite resolve o caso comum com a melhor
+experiência possível — paga, recebe e-mail, define senha, **já entra com a
+licença ativa**. A fila cobre o que o convite não cobre: SMTP fora do ar, e-mail
+recusado, ou a compradora que se cadastra depois com **outro** e-mail (13.8).
+
+Decisão a tomar antes da 4-7B, porque muda o que a migration precisa ter.
+
+**Normalização obrigatória em qualquer caminho:** e-mail sempre `trim` +
+`lower`. `profiles.email` **não tem índice nem UNIQUE** (a unicidade real mora em
+`auth.users`), então a busca por e-mail hoje é varredura e é sensível a
+maiúsculas. A migration da 4-7B deve criar
+`create unique index on public.profiles (lower(email))`.
+
+## 13.5 Eventos tratados
+
+| Evento Kiwify | Ação em `licenses` | `license_events.event_type` |
+|---|---|---|
+| `compra_aprovada` | `INSERT` `product_type='one_time'`, `status='active'`, `provider='kiwify'`, **`expires_at = NULL`** | `granted` |
+| `compra_reembolsada` | `UPDATE status='refunded'` na licença do pedido | `refunded` |
+| `chargeback` | `UPDATE status='chargeback'` na licença do pedido | `chargeback` |
+| qualquer outro | nada | nada — responder **200** |
+
+`expires_at = NULL` não é opcional: o `CHECK licenses_one_time_is_lifetime`
+rejeita `one_time` com validade.
+
+Revogação não precisa de nada além do `UPDATE`. As funções de acesso filtram
+`status = 'active'` a cada chamada, e o DAL não persiste acesso — **o reembolso
+vale na requisição seguinte, sem cache para invalidar.** Foi para isso que a
+decisão de 2026-08-05 existiu.
+
+## 13.6 Idempotência
+
+Provedor de pagamento reenvia. Sempre. O plano tem duas camadas:
+
+1. **Concessão:** `INSERT ... ON CONFLICT ON CONSTRAINT licenses_provider_order_unique DO NOTHING`.
+   Reenvio de `compra_aprovada` não duplica licença.
+2. **Pré-requisito, por causa de (C):** se `provider_order_id` não for extraído
+   como string não-vazia, **rejeitar com 400 e não gravar nada**. Gravar `NULL`
+   ali desliga a camada 1 sem nenhum sinal.
+
+Revogação é `UPDATE` — **a UNIQUE não protege**. Reprocessar um `refunded` é
+inofensivo (idempotente por natureza: mesmo status, mesmo resultado), mas gera um
+`license_events` duplicado a cada reenvio. Aceitável para auditoria; se incomodar,
+é argumento para `webhook_events` (13.9).
+
+## 13.7 Auditoria
+
+Um `INSERT` em `license_events` por webhook **válido e processado**:
+
+- `source = 'webhook:kiwify'` — vocabulário já previsto na migration
+- `payload` = corpo bruto recebido
+- `license_id` / `user_id` quando conhecidos
+
+**Requisição com token inválido não gera evento.** Se gerasse, qualquer um na
+internet encheria a tabela de auditoria — e uma auditoria que o atacante escreve
+não serve para o que ela existe (disputa de chargeback).
+
+⚠️ `payload` guarda dados pessoais da compradora. A migration 0002 já previu isso:
+`DELETE` em `license_events` é permitido a papéis administrativos justamente para
+atender pedido de apagamento (LGPD).
+
+## 13.8 Segurança
+
+1. **Validar antes de qualquer parse de negócio.** Token/assinatura primeiro;
+   payload não autenticado não chega a tocar no banco.
+2. **Falhar fechado.** `KIWIFY_WEBHOOK_SECRET` ausente ou vazio -> **500 e nada
+   processado**. Nunca "sem segredo configurado, aceita" — seria a versão webhook
+   do bypass por env ausente que a decisão de 2026-08-06 já recusou.
+3. **Comparação em tempo constante** (`crypto.timingSafeEqual`), com checagem de
+   comprimento antes. `===` em segredo vaza informação por tempo de resposta.
+4. **Service role só aqui.** Arquivo próprio, `server-only`, nunca importado por
+   Client Component, nunca com prefixo `NEXT_PUBLIC_`.
+5. **Resposta muda; não conta.** Nunca revelar se o e-mail existe — um webhook é
+   um endpoint público, e responder "usuária não encontrada" o transforma em
+   oráculo de enumeração de clientes.
+6. **Sem log do payload cru** em produção (dado pessoal + possivelmente o
+   segredo, se ele viajar na query string).
+
+⚠️ **O mecanismo exato precisa ser confirmado contra uma requisição real antes de
+implementar.** As duas formas conhecidas da Kiwify são token simples e HMAC do
+corpo cru enviado em query string (`?signature=`). O código deve ser escrito para
+a que for observada — não para a que for suposta. Por isso 13.10 vem antes da
+implementação.
+
+### Códigos de resposta (mais importante do que parece)
+
+O código define se o provedor reenvia. Errar aqui produz reenvio infinito ou
+perda silenciosa de venda:
+
+| Situação | Código | Por quê |
+|---|:--:|---|
+| processado | 200 | fim |
+| já processado (replay) | **200** | 4xx faria a Kiwify reenviar para sempre |
+| evento não tratado | **200** | idem — não é erro |
+| token inválido/ausente | 401 | recusa explícita, sem reenvio útil |
+| corpo ilegível / sem `order_id` | 400 | reenviar não conserta |
+| falha transitória (banco fora) | **500** | aqui o reenvio **é** a recuperação |
+
+## 13.9 `webhook_events`: ainda faz sentido?
+
+O `README.md` (linha 87) e o `TASKS.md` (Fase 6) prometem uma tabela
+`webhook_events` que **não existe** — a 0002 resolveu idempotência com a UNIQUE
+de `licenses`. Divergência a resolver.
+
+A UNIQUE cobre replay de concessão. **Não cobre** replay de revogação (13.6), nem
+falha no meio do processamento, nem "recebi mas ainda não processei". Se a 4-7B
+adotar o caminho 2 de 13.4, `pending_purchases` e `webhook_events` são quase a
+mesma tabela — vale desenhar as duas juntas em vez de criar duas migrations.
+
+## 13.10 Ordem sugerida da 4-7B
+
+1. **Capturar um payload real** (webhook.site apontado no painel da Kiwify) —
+   antes de qualquer código. Sem isso, os nomes de campo são chute.
+2. Confirmar o mecanismo de validação observando o cabeçalho/query da requisição.
+3. Decidir 13.4 (convite × fila) e escrever a migration correspondente.
+4. `services/supabase/admin.ts`.
+5. O Route Handler.
+6. Testar com o payload capturado, incluindo replay e token errado.
+
+⚠️ **A URL pública só existe depois do deploy.** Localhost não recebe webhook. O
+teste de ponta a ponta com compra real só é possível pós-deploy — e é o único
+que prova a integração. Até lá, o payload capturado é o substituto.

@@ -4,8 +4,8 @@
 > Marcar `[x]` ao concluir. Adicionar novas tarefas quando surgirem.
 > Antes de iniciar uma nova fase: parar, resumir o que foi feito e aguardar aprovação.
 
-**Fase atual:** Fase 4-6A concluída. `/precos` é a vitrine pública; `/` e as outras quatro telas locais continuam protegidas por licença Essencial.
-**Próximo passo recomendado:** definir preços e URLs reais de compra antes do lançamento; aguardar aprovação para a próxima subfase.
+**Fase atual:** Fase 4-7A concluída — plano técnico do webhook Kiwify em `PLAN-FASE-4.md` (capítulo 13). **Nenhum código escrito.**
+**Próximo passo recomendado:** decidir "compra antes do cadastro" (convite × fila) e capturar um payload real da Kiwify → depois Fase 4-7B (implementação).
 
 ## Fase 0 — Setup e documentação ✅
 - [x] Criar projeto em C:\dev\doce-margem
@@ -390,11 +390,35 @@
 - [ ] Preparar recursos Pro bloqueados (rotas Pro)
 
 ## Fase 6 — Webhooks
+> Renumerada como **Fase 4-7** no plano (`PLAN-FASE-4.md`, capítulo 13). Itens abaixo mantidos como escopo original.
 - [ ] Criar webhook Kiwify (POST /api/webhooks/kiwify)
 - [ ] Criar webhook Hotmart (POST /api/webhooks/hotmart)
-- [ ] Criar tabela webhook_events
+- [ ] Criar tabela webhook_events — **rever:** a 0002 já resolveu idempotência de concessão pela UNIQUE `(provider, provider_order_id)`; a tabela cobriria replay de revogação e falha no meio do processamento (`PLAN-FASE-4.md` 13.9)
 - [ ] Criar idempotência
 - [ ] Criar lógica de venda aprovada, reembolso, chargeback, cancelamento e expiração
+
+### Fase 4-7A — Planejamento do webhook Kiwify ✅
+- [x] Plano técnico completo em `PLAN-FASE-4.md`, capítulo 13 — rota, envs, eventos, identificação, idempotência, auditoria, segurança, códigos de resposta e ordem de execução
+- [x] Rota definida: `POST /api/webhooks/kiwify`, Route Handler, `runtime = "nodejs"`, corpo lido como texto cru **antes** do parse
+- [x] Envs: manter `KIWIFY_WEBHOOK_SECRET` (já no `.env.example`, simétrico com Hotmart) + `SUPABASE_SERVICE_ROLE_KEY` só nesta rota, via `services/supabase/admin.ts` isolado
+- [x] Eventos mapeados: `compra_aprovada` → `granted`; `compra_reembolsada` → `refunded`; `chargeback` → `chargeback`; demais → 200 sem ação
+- [x] **Achado (A):** `licenses.user_id → profiles.id → auth.users.id` — licença para e-mail sem conta é impossível por FK, não por regra
+- [x] **Achado (B):** `license_events` não serve de fila (vocabulário fechado por CHECK + append-only por trigger) → pendência exige migration
+- [x] **Achado (C):** `provider_order_id` nullable + NULLs não conflitam em UNIQUE → payload sem order id precisa ser **rejeitado**, nunca gravado com NULL
+- [x] Códigos de resposta definidos (replay e evento não tratado = 200, senão a Kiwify reenvia para sempre)
+- [x] Rodar `typecheck` + `lint`
+- [ ] **Decidir antes da 4-7B:** compra antes do cadastro — convidar via Admin API (recomendado) × fila `pending_purchases` × concessão manual
+- [ ] **Decidir antes da 4-7B:** criar `webhook_events` junto de `pending_purchases` ou não criar nenhuma das duas
+- [ ] Corrigir divergência: `README.md` linha 87 e a Fase 6 acima citam `webhook_events`, que não existe
+
+### Fase 4-7B — Implementação do webhook (pendente)
+- [ ] **Capturar payload real da Kiwify** (webhook.site) antes de escrever código — sem isso os nomes de campo são chute
+- [ ] Confirmar o mecanismo de validação observado (token simples × HMAC em query string)
+- [ ] Migration conforme a decisão de 13.4 + `create unique index on public.profiles (lower(email))`
+- [ ] `services/supabase/admin.ts` com `server-only`, service role isolada do client de sessão
+- [ ] Route Handler + teste com replay e token inválido
+- [ ] Excluir `/api/webhooks/*` do `matcher` do `proxy.ts` quando a Fase 4-5C o criar
+- [ ] **Pendente de deploy:** URL pública e teste de ponta a ponta com compra real
 
 ## Fase 7 — Admin
 - [ ] Criar área admin (protegida por ADMIN_EMAILS)

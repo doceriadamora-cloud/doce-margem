@@ -920,6 +920,40 @@ Enviei um cookie `sb-<ref>-auth-token` fabricado, com um `user.id` inventado, pa
 #### Risco conhecido
 As variáveis `NEXT_PUBLIC_*` são incorporadas pelo Next.js no build. Alterar as URLs de compra no ambiente exige novo deploy; não são configuração dinâmica em tempo de execução.
 
+### Fase 4-7A — Planejamento do webhook Kiwify
+- **Status:** ✅ Concluída. **Nenhum código.** Plano técnico em `PLAN-FASE-4.md`, capítulo 13.
+- **Escopo:** só documentação. Nenhuma rota, nenhuma migration, nenhum uso de service role.
+
+#### Três achados do schema que mudaram o plano
+O plano foi escrito lendo `0001_profiles.sql` e `0002_licenses.sql`, não a partir de suposições. Três coisas apareceram, e as três contrariam o desenho natural da fase:
+
+**(A) "Compra antes do cadastro" é impossibilidade física, não caso de borda.** `licenses.user_id → profiles.id → auth.users.id`. Não existe INSERT de licença para um e-mail sem conta — **nem com `service_role`**, porque FK não é RLS. O item "criar ou localizar profile" do escopo não é implementável como descrito: `profiles` só nasce pelo trigger em `auth.users`.
+
+**(B) `license_events` não serve de fila de pendências.** O `event_type` tem CHECK de vocabulário fechado, sem valor para "compra sem dono", e a tabela é append-only por trigger — nem `service_role` faz UPDATE. Uma pendência que não pode ser marcada como resolvida não é uma fila. **Consequência: guardar pendência exige migration de qualquer jeito.** A fase não tem opção "sem tocar no banco"; tem só a escolha de qual mudança fazer.
+
+**(C) A UNIQUE de idempotência tem buraco em NULL.** `unique (provider, provider_order_id)` com coluna nullable: em Postgres NULLs não conflitam entre si. Se o payload vier sem o identificador do pedido, **cada reenvio cria uma licença nova** — a idempotência prometida simplesmente não existe, e sem nenhum erro visível. Regra que saiu daí: payload sem order id é **rejeitado com 400**, nunca gravado com NULL.
+
+#### Decisões técnicas registradas
+- **Nome da env:** manter `KIWIFY_WEBHOOK_SECRET`, que já está no `.env.example` e é simétrico a `HOTMART_WEBHOOK_SECRET`. A Kiwify chama de "token" no painel; a diferença vira comentário, não renomeação. Aceitar os dois nomes foi descartado — duas fontes de verdade para um segredo é como um fica desatualizado sem ninguém notar.
+- **Service role isolada** em `services/supabase/admin.ts` novo, nunca em `services/supabase/server.ts`. O arquivo que o app inteiro importa não pode ter ao alcance de um import errado uma chave que ignora RLS.
+- **Corpo cru antes do parse** (`request.text()`, não `request.json()`): se a validação for HMAC, ela é sobre os bytes originais. É requisito, não estilo.
+- **Falha fechada:** segredo ausente → 500, nada processado. Seria a versão webhook do bypass por env ausente que a decisão de 2026-08-06 já recusou.
+- **Códigos de resposta** foram tratados como decisão de projeto, não detalhe: replay e evento não tratado devolvem **200**, porque 4xx faria a Kiwify reenviar para sempre; falha transitória devolve **500**, porque ali o reenvio é a recuperação.
+
+#### Divergência de documentação encontrada
+`README.md` (linha 87) e a Fase 6 do `TASKS.md` prometem uma tabela `webhook_events` que **não existe** — a 0002 resolveu idempotência pela UNIQUE de `licenses`. A UNIQUE cobre replay de concessão, mas não cobre replay de revogação (que é UPDATE), nem falha no meio do processamento. A tabela ainda faz sentido; a decisão de criá-la ou não fica para a 4-7B, junto com `pending_purchases`, já que seriam quase a mesma tabela.
+
+#### Validações
+- `npm run typecheck` → exit 0; `npm run lint` → exit 0.
+- Não rodei `build`: nenhum arquivo de código foi tocado.
+
+#### Riscos pendentes
+- **O payload real da Kiwify não foi capturado.** Todos os nomes de campo do plano são hipótese até uma requisição real chegar. Primeira tarefa da 4-7B, antes de qualquer código.
+- **O mecanismo de validação não está confirmado.** As duas formas conhecidas são token simples e HMAC do corpo cru em query string. O código deve ser escrito para a observada, não para a suposta.
+- **A URL pública só existe depois do deploy.** Localhost não recebe webhook; o teste de ponta a ponta com compra real é pós-deploy, e é o único que prova a integração.
+- **Compra antes do cadastro** continua sem decisão — convite via Admin API (recomendado), fila, ou manual. Muda o que a migration precisa ter.
+- **E-mail diferente no checkout:** compra com um e-mail, cadastro com outro. Nenhuma automação resolve; depende de concessão manual (Fase 7). Mitigação parcial: normalizar `lower(trim(email))` e criar `unique index on profiles (lower(email))` — hoje a coluna não tem índice nem UNIQUE, então a busca é varredura **e** sensível a maiúsculas.
+
 ## Checklist técnico
 - [x] O projeto está em C:\dev\doce-margem
 - [x] Não há dependência de OneDrive

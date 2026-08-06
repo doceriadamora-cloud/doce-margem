@@ -699,3 +699,51 @@ Uma rota pública dedicada resolve o funil mínimo com escopo pequeno: explica o
 
 ### Impacto
 Produto: `/precos` passa a ser o destino público de apresentação do Doce Margem. Não existe plano mensal, e os recursos planejados são identificados como tal. Técnico: a página consome `ALL_FEATURES` para não divergir da matriz de planos, não consulta Supabase, não importa DAL e não altera o gating existente. Como as envs têm prefixo `NEXT_PUBLIC_`, trocar as URLs exige novo build/deploy.
+
+---
+
+## 2026-08-06 — Webhook Kiwify: o segredo nomeia, o pedido identifica, e o schema decide o resto
+
+### Decisão
+O webhook da Kiwify será `POST /api/webhooks/kiwify`, Route Handler em runtime Node, com:
+
+- **`KIWIFY_WEBHOOK_SECRET`** como nome da variável — não `KIWIFY_WEBHOOK_TOKEN`. Já existe no `.env.example` e é simétrico a `HOTMART_WEBHOOK_SECRET`. A Kiwify chama isso de "token" no painel dela; a diferença vira comentário no `.env.example`, não renomeação. **Aceitar os dois nomes está descartado.**
+- **Service role isolada** em `services/supabase/admin.ts` (novo, `server-only`), nunca em `services/supabase/server.ts`.
+- **Corpo lido como texto cru antes do parse** (`request.text()`, nunca `request.json()` primeiro).
+- **Falha fechada:** segredo ausente ou vazio → 500, nada processado.
+- **Payload sem `provider_order_id` legível → 400, nada gravado.**
+- Códigos de resposta fixados: replay e evento não tratado → **200**; token inválido → 401; corpo ilegível → 400; falha transitória → **500**.
+
+Eventos: `compra_aprovada` → licença `one_time` `active` com `expires_at = NULL` + evento `granted`; `compra_reembolsada` → `status = 'refunded'` + evento `refunded`; `chargeback` → `status = 'chargeback'` + evento `chargeback`. Qualquer outro evento: 200 sem ação.
+
+### Contexto
+Fase 4-7A, planejamento. O checkout do Essencial já existe e a `/precos` já aponta para ele; falta a liberação automática. O plano foi escrito lendo `0001_profiles.sql` e `0002_licenses.sql`, e três achados do schema mudaram o desenho.
+
+### Motivo
+
+**O nome da env.** Segredo com dois nomes aceitos é segredo com duas fontes de verdade — e é assim que um deles fica desatualizado em produção sem ninguém notar. Manter o nome já documentado custa um comentário; renomear custa uma edição em toda a documentação e quebra a simetria com Hotmart.
+
+**O corpo cru antes do parse.** Se a validação for HMAC, ela é sobre os bytes originais da requisição. `await request.json()` consome o stream e destrói a única evidência que permite verificar a assinatura. Não é preferência de estilo: é a diferença entre conseguir e não conseguir validar.
+
+**A falha fechada.** "Sem segredo configurado, aceita" seria a versão webhook do bypass por env ausente que a decisão de 2026-08-06 (gating) já recusou — e aqui é pior, porque um endpoint público que aceita qualquer payload concede licenças a quem pedir.
+
+**A rejeição de payload sem order id.** `licenses_provider_order_unique` é `(provider, provider_order_id)` com a segunda coluna nullable, e em Postgres NULLs não conflitam entre si — comportamento desejado para licenças manuais coexistirem. O efeito colateral é que gravar `NULL` ali **desliga a idempotência sem emitir nenhum sinal**: cada reenvio da Kiwify viraria uma licença nova. Rejeitar com 400 transforma uma falha silenciosa numa falha visível.
+
+**Os códigos de resposta.** É o provedor, não o app, que decide reenviar — e ele decide pelo código. Responder 4xx a um replay legítimo produz reenvio infinito; responder 200 a uma falha transitória de banco **perde a venda em silêncio**. Fixar a tabela agora evita que isso seja improvisado durante a implementação.
+
+### Impacto
+Técnico: a 4-7B precisa de `services/supabase/admin.ts` e de uma migration (ver pendências). `/api/webhooks/*` tem que ficar de fora do `matcher` do `proxy.ts` quando a Fase 4-5C o criar — um proxy que redirecione essa rota para `/login` quebra o faturamento em silêncio, porque a Kiwify recebe 307 e desiste.
+
+Auditoria: um `license_events` por webhook **válido e processado**, com `source = 'webhook:kiwify'` e o corpo bruto em `payload`. Requisição com token inválido **não** gera evento — senão qualquer um na internet escreveria na tabela de auditoria, e uma auditoria que o atacante alimenta não serve para o que ela existe (disputa de chargeback).
+
+Revogação não exige nada além do `UPDATE`: as funções de acesso filtram `status = 'active'` a cada chamada e o DAL não persiste acesso, então o reembolso vale na requisição seguinte. É o retorno concreto da decisão de 2026-08-05 de nunca persistir acesso calculado.
+
+### Pendências que este plano expõe
+
+**1. Compra antes do cadastro é bloqueio físico, não caso de borda.** `licenses.user_id → profiles.id → auth.users.id`: não existe licença para e-mail sem conta, nem com `service_role`, porque FK não é RLS. E `license_events` não pode servir de fila — vocabulário fechado por CHECK e append-only por trigger. **Guardar pendência exige migration de qualquer forma.** Três caminhos, com recomendação de convidar via Admin API (a compradora paga, recebe o e-mail, define a senha e já entra com licença ativa) e fila como rede. **Decisão pendente** — muda o conteúdo da migration.
+
+**2. `webhook_events` foi prometida e não existe.** `README.md` linha 87 e a Fase 6 do `TASKS.md` citam a tabela; a 0002 resolveu idempotência pela UNIQUE de `licenses`. A UNIQUE cobre replay de concessão, mas não cobre replay de revogação (que é UPDATE, sem constraint) nem falha no meio do processamento. Decidir junto com a pendência 1, já que seriam quase a mesma tabela.
+
+**3. `profiles.email` não tem índice nem UNIQUE.** A unicidade real mora em `auth.users`. Busca por e-mail hoje é varredura e é sensível a maiúsculas. A migration da 4-7B deve criar `unique index on public.profiles (lower(email))`, e todo e-mail deve ser normalizado com `lower(trim(...))`.
+
+**4. Nada foi confirmado contra a Kiwify real.** Os nomes de campo do payload e o mecanismo de validação (token simples × HMAC em query string) são hipótese até uma requisição real ser capturada. É a primeira tarefa da 4-7B, antes de qualquer código. E a URL pública só existe depois do deploy — o teste de ponta a ponta com compra real é o único que prova a integração, e ele é pós-deploy.
