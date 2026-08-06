@@ -4,8 +4,8 @@
 > Marcar `[x]` ao concluir. Adicionar novas tarefas quando surgirem.
 > Antes de iniciar uma nova fase: parar, resumir o que foi feito e aguardar aprovação.
 
-**Fase atual:** Fase 4-5B concluída. **O app agora exige licença Essencial** em `/`, `/ingredientes`, `/receitas`, `/configuracoes` e `/precificacao`. Sem licença, sem entrada — inclusive quando o Supabase está fora do ar.
-**Próximo passo recomendado:** decidir o destino de `/` e do `Header` (ver `REVIEW.md` da 4-5B) → depois Fase 4-6 (`/precos`) ou 4-5C (`proxy.ts` + Route Groups).
+**Fase atual:** Fase 4-6A concluída. `/precos` é a vitrine pública; `/` e as outras quatro telas locais continuam protegidas por licença Essencial.
+**Próximo passo recomendado:** definir preços e URLs reais de compra antes do lançamento; aguardar aprovação para a próxima subfase.
 
 ## Fase 0 — Setup e documentação ✅
 - [x] Criar projeto em C:\dev\doce-margem
@@ -360,8 +360,8 @@
 - [x] Toda cadeia de redirecionamento termina em ≤ 1 salto — provado com `curl -L --max-redirs 10`
 - [x] **Cookie de sessão forjado é rejeitado** (307 para `/login`) — prova que `getUser()` revalida em vez de confiar no cookie (risco #1 do `PLAN-FASE-4.md`)
 - [ ] **Pendente de ambiente:** abrir as 5 telas logada com licença Essencial — bloqueado pela confirmação de e-mail (mesma pendência das Fases 4-1C / 4-3B)
-- [ ] **Decidir:** o `Header` ainda mostra os 5 links protegidos para visitante, e todos devolvem para `/login` (ver `REVIEW.md`)
-- [ ] **Decidir:** `/` deixou de ser página pública — o app não tem mais nenhuma vitrine. Afeta o desenho da `/precos` na Fase 4-6
+- [x] `Header` de visitante mostra somente `Preços`, `Entrar` e `Criar conta`; links protegidos ficam ocultos
+- [x] `/` permanece protegida; `/precos` assume o papel de vitrine pública nesta etapa
 
 ### Fase 4-5C — Camada otimista e organização (pendente)
 - [ ] `proxy.ts` na raiz (**não** `middleware.ts` — renomeado no Next 16), só checagem otimista + renovação de token
@@ -370,15 +370,23 @@
 - [ ] Considerar `requireFeatureAccess(feature)` ligando os guardas a `canAccessFeature`
 - [ ] Considerar `?next=` no redirecionamento para `/login` (validando caminho interno, senão vira open redirect)
 
-### Fase 4-6 — Preços e gating do Pro (= Fase 5 abaixo) (pendente)
-- [ ] Página `/precos` separando Essencial e Pro Anual
+### Fase 4-6A — Página pública de preços ✅
+- [x] Criar `/precos` pública, sem guarda de acesso e sem redirect para login
+- [x] Separar Doce Margem Essencial (compra única) e Doce Margem Pro Anual
+- [x] Gerar listas de recursos a partir de `ALL_FEATURES`, incluindo status planejado
+- [x] Usar `NEXT_PUBLIC_BUY_ESSENTIAL_URL` e `NEXT_PUBLIC_BUY_PRO_ANNUAL_URL`; fallback visual `Em breve`
+- [x] Não inventar preço: exibir `Preço de lançamento em breve`
+- [x] Confirmar zero oferta mensal
+- [x] Adicionar `Preços` ao Header somente para visitante
+- [x] Rodar `typecheck` + `lint` + `build` — 12 rotas, `/precos` incluída
+
+### Fase 4-6B — Gating do Pro (pendente)
 - [ ] Recursos Pro bloqueados por `canAccessFeature`
-- [ ] Confirmar zero referência a plano mensal
 
 ## Fase 5 — Produto final + Pro Anual
-- [ ] Criar página de preços (/precos)
-- [ ] Separar Essencial e Pro Anual
-- [ ] Garantir que não há nenhuma referência a plano mensal
+- [x] Criar página de preços (`/precos`)
+- [x] Separar Essencial e Pro Anual
+- [x] Garantir que não há nenhuma oferta de plano mensal
 - [ ] Preparar recursos Pro bloqueados (rotas Pro)
 
 ## Fase 6 — Webhooks

@@ -896,6 +896,30 @@ Enviei um cookie `sb-<ref>-auth-token` fabricado, com um `user.id` inventado, pa
 - **`signOutAction` redireciona para `/`**, que agora rebate para `/login`. Funciona, com um salto a mais. Apontar direto para `/login` seria mais limpo, mas é mudança de UX fora do escopo desta fase.
 - **Sem `?next=`:** quem tentou abrir `/receitas` e foi para o login cai em `/conta` depois de entrar, não na tela que queria. Se for implementado, o destino tem que ser validado como caminho interno.
 
+### Fase 4-6A — Página pública de preços
+- **Status:** ✅ Concluída.
+- **Escopo:** nova vitrine pública em `/precos` e link no Header de visitante. Sem alterar `/`, guardas, telas protegidas, `/acesso-bloqueado`, migrations ou cálculo.
+
+#### O que foi feito
+- **`app/precos/page.tsx`** — Server Component pública, sem `requireEssentialAccess()`, sem redirect e sem consulta ao Supabase. Apresenta Doce Margem Essencial (compra única) e Doce Margem Pro Anual (anual, sem mensal).
+- As listas vêm de `ALL_FEATURES`: 6 recursos Essenciais disponíveis, 3 do avançado básico marcados como planejados e 5 recursos Pro planejados. A página não mantém uma segunda classificação comercial manual.
+- Sem valores definidos, os dois planos mostram **“Preço de lançamento em breve”**. Nenhum valor numérico foi inventado.
+- Os CTAs leem `NEXT_PUBLIC_BUY_ESSENTIAL_URL` e `NEXT_PUBLIC_BUY_PRO_ANNUAL_URL`. Quando a env está vazia, renderizam **“Em breve”** como botão desabilitado; nenhum checkout foi criado.
+- O Header sem sessão mostra `Preços`, `Entrar` e `Criar conta`. Logada, a usuária continua vendo apenas a navegação do app e `Conta`.
+
+#### Decisão de rota pública
+`/` permanece protegida e não virou landing. A vitrine desta etapa é `/precos`, que não recebe guarda de licença. Isso resolve a ausência de apresentação pública apontada na 4-5B sem mover o painel, criar route groups ou alterar o gating existente.
+
+#### Validações
+- `npm run typecheck` → exit 0.
+- `npm run lint` → exit 0.
+- `npm run build` → exit 0, **12 rotas**, incluindo `/precos`.
+- Dev server: `GET /precos` → **200**, com os dois planos, aviso de ausência de plano mensal e preço em breve; `GET /` continua → **307 para `/login`**.
+- Auditoria de escopo: zero imports de guardas, zero `redirect()` e zero referência a `SUPABASE_SERVICE_ROLE_KEY` em `/precos`; nenhum diff nas cinco telas protegidas, migrations ou `modules/pricing/`.
+
+#### Risco conhecido
+As variáveis `NEXT_PUBLIC_*` são incorporadas pelo Next.js no build. Alterar as URLs de compra no ambiente exige novo deploy; não são configuração dinâmica em tempo de execução.
+
 ## Checklist técnico
 - [x] O projeto está em C:\dev\doce-margem
 - [x] Não há dependência de OneDrive

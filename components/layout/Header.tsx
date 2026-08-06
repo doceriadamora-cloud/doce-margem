@@ -88,6 +88,9 @@ export default function Header({ isAuthenticated, authEnabled }: HeaderProps) {
               </Link>
             ) : (
               <>
+                <Link href="/precos" className={linkClass("/precos")}>
+                  Preços
+                </Link>
                 <Link href="/login" className={linkClass("/login")}>
                   Entrar
                 </Link>

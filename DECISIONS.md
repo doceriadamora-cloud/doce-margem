@@ -679,3 +679,23 @@ Técnico: cinco páginas viraram `async` e chamam o guarda como primeira instru�
 Produto: **`/` deixou de ser pública**, e com isso o app perdeu qualquer vitrine — quem abre o domínio cai em `/login`. Isso precisa ser endereçado no desenho da Fase 4-6: a `/precos` tem que nascer pública, e provavelmente `/` deveria voltar a ser landing com o painel movido para outra rota. O `Header` também passou a exibir para visitante cinco links que rebatem para `/login`; corrigir exige passar o acesso do layout para o componente, o que ficou fora do escopo desta fase.
 
 Ambiente de desenvolvimento: rodar o app sem `.env.local` deixa de ser possível para as telas do Essencial. É consequência aceita — o custo recai sobre quem desenvolve, não sobre a proteção do produto.
+
+---
+
+## 2026-08-06 — `/precos` é a vitrine pública; `/` permanece protegida
+
+### Decisão
+`/precos` é pública e não usa nenhum guarda de licença. `/` continua sendo o painel protegido por `requireEssentialAccess()`; não será transformada em landing nem movida nesta etapa.
+
+Visitantes veem no Header somente `Preços`, `Entrar` e `Criar conta`. Usuárias logadas mantêm a navegação do app e `Conta`, sem necessidade de exibir `Preços`.
+
+Os CTAs de compra são configurados exclusivamente por `NEXT_PUBLIC_BUY_ESSENTIAL_URL` e `NEXT_PUBLIC_BUY_PRO_ANNUAL_URL`. Enquanto uma URL estiver vazia, o CTA correspondente fica desabilitado com o texto **“Em breve”**. Sem preço comercial definido, a página usa **“Preço de lançamento em breve”** e nunca inventa valor numérico.
+
+### Contexto
+A Fase 4-5B protegeu `/` e as demais telas locais, deixando o domínio sem vitrine pública. A Fase 4-6A precisava apresentar Essencial e Pro Anual sem reabrir as telas protegidas, criar uma landing completa ou antecipar checkout, webhooks e admin.
+
+### Motivo
+Uma rota pública dedicada resolve o funil mínimo com escopo pequeno: explica os dois produtos e oferece os destinos de compra quando existirem. Manter `/` protegida evita mover o painel e alterar cinco fluxos já validados. Usar envs para os CTAs separa conteúdo comercial de deploy sem criar integração de pagamento antes da Fase 6.
+
+### Impacto
+Produto: `/precos` passa a ser o destino público de apresentação do Doce Margem. Não existe plano mensal, e os recursos planejados são identificados como tal. Técnico: a página consome `ALL_FEATURES` para não divergir da matriz de planos, não consulta Supabase, não importa DAL e não altera o gating existente. Como as envs têm prefixo `NEXT_PUBLIC_`, trocar as URLs exige novo build/deploy.
