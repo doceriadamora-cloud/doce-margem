@@ -567,6 +567,53 @@ Essa terceira verificação é a que realmente importa, e é um **teste que prec
 - Trocar o e-mail via Supabase Auth **não** atualiza `profiles.email` automaticamente — o trigger atual só roda no `insert`. Se a troca de e-mail for oferecida na UI, será preciso um trigger de `update` em `auth.users`. Fora do escopo desta etapa; anotar para a 4-1B.
 - Ainda sem `licenses`: `user_access_flags` sozinha não concede acesso a nada. É só metade do modelo (a metade que revoga).
 
+### Fase 4-1B — Supabase client + Auth básico
+- **Status:** ✅ Concluída no que depende do repositório. ⚠️ Falta um passe humano com acesso a caixa de e-mail (ver "Limitação").
+- **Escopo:** cadastro, login, logout e tela de conta. Sem licenças, sem gating de plano, sem webhooks, sem admin, sem migração de dados locais.
+
+#### O que foi feito
+- **Dependências (as duas únicas):** `@supabase/supabase-js` e `@supabase/ssr`.
+- **`services/supabase/server.ts`** — client de servidor com chave anônima + cookies (`getAll`/`setAll`, interface atual; `get`/`set`/`remove` está deprecada). `getAuthUser()` usa **`getUser()`**, que revalida o JWT com o servidor Auth, nunca `getSession()`. `import "server-only"` faz o build falhar se um Client Component importar. Nada aqui lança: sem config ou com Supabase fora do ar, devolve `null`.
+- **`app/auth/actions.ts`** — `signUpAction`, `signInAction`, `signOutAction`. Senha viaja em `FormData` direto para o servidor.
+- **`components/auth/form-state.ts`** — tipo `AuthFormState` + `initialAuthFormState`, fora do módulo `"use server"` (motivo abaixo).
+- **`components/auth/{AuthFormShell,LoginForm,SignupForm}.tsx`** — `useActionState` (React 19), com `pending` desabilitando o botão e `aria-live` na mensagem.
+- **Páginas** `/login`, `/cadastro` (redirecionam para `/conta` se já logada), `/conta` (redireciona para `/login` se não logada).
+- **`app/auth/callback/route.ts`** — troca o `code` por sessão. O parâmetro `next` só é aceito como caminho relativo: `next=https://site-malicioso` viraria open redirect.
+- **Header + layout** — o layout (Server Component) resolve a sessão e passa **só um booleano** ao Header. O cliente nunca recebe token nem objeto de usuária, e nunca decide sozinho se está autenticado.
+
+#### Erro real encontrado pelo build (typecheck e lint não pegaram)
+`A "use server" file can only export async functions, found object` — um módulo `"use server"` só pode exportar funções async, e eu exportava `initialAuthFormState` (um objeto) de `app/auth/actions.ts`. Corrigido movendo tipo e estado inicial para `components/auth/form-state.ts`, um módulo neutro que os dois lados importam. Vale registrar que **só o `build` pegou** — é o motivo de ele estar no gate de toda fase.
+
+#### Dois defeitos de UX encontrados testando contra o Supabase real
+Criei uma conta de teste de verdade e exercitei os caminhos de erro. Dois achados que a leitura de código não daria:
+
+1. **Confirmação de e-mail está LIGADA no projeto.** O signup devolve usuária sem `access_token` e com `confirmation_sent_at`. O código já tratava esse caminho (mensagem "Confira seu e-mail"), mas isso torna `app/auth/callback/route.ts` **essencial**, não opcional — sem ele, ninguém consegue concluir o cadastro. Também exige `NEXT_PUBLIC_APP_URL` correto em produção, senão o link do e-mail aponta para o lugar errado.
+2. **`email_not_confirmed` é um código distinto de `invalid_credentials`.** Minha primeira versão mapeava *todo* erro de login para "E-mail ou senha inválidos" — em nome de não permitir enumeração de e-mail. Só que quem se cadastrou, não confirmou e tenta entrar receberia "senha inválida" e iria caçar um problema que não existe. Passei a distinguir **esse único caso**, com mensagem orientando a procurar o e-mail de confirmação. O vazamento é pequeno (revela cadastro pendente para aquele endereço) e o ganho é grande: sem isso, vira chamado de suporte com uma usuária não-técnica. Todos os demais erros seguem com a mensagem genérica.
+3. Terceiro achado menor: signup repetido no mesmo e-mail devolve **429** (limite de reenvio). Caía na mensagem genérica "Confira os dados", que não ajuda; agora diz para esperar alguns segundos.
+
+#### Decisões de implementação
+- **Não criei `services/supabase/browser.ts`**, embora estivesse na lista sugerida. Todo o auth desta fase roda em Server Actions — que é o caminho mais seguro, com os cookies gravados server-side — então um client de browser seria código morto. Entra quando houver leitura client-side de dados (fase de nuvem do Pro) ou `onAuthStateChange`.
+- **Não criei `app/auth/proxy.ts`/`proxy.ts`.** Pertence à Fase 4-5 no plano, e a tarefa pedia para não tratar proxy como autorização. Consequência conhecida registrada abaixo.
+- **`AuthFormShell` compartilhado** entre login e cadastro para os dois não divergirem em estilo e em como exibem erro.
+- **Layout virou `async`** e lê a sessão — por isso as rotas passaram de estáticas (`○`) para dinâmicas (`ƒ`). É o preço esperado de ter estado de conta no cabeçalho, e está correto para um app com auth.
+
+#### Validações
+- `npm run typecheck` → exit 0. `npm run lint` → exit 0. `npm run build` → exit 0, 10 rotas, todas `ƒ (Dynamic)`.
+- **Auditoria de segurança por grep:** 0 leituras de `SUPABASE_SERVICE_ROLE_KEY` (as 2 ocorrências no código são comentários explicando que ela não é usada); 0 usos de `getSession(` (a 1 ocorrência é comentário); nenhum Client Component importa `services/supabase/server`.
+- **Teste contra o Supabase real do projeto:** cadastro criou usuária de verdade (`id` retornado); login sem confirmação devolve `email_not_confirmed`; senha errada devolve `invalid_credentials`; signup repetido devolve 429.
+- **Servidor de dev:** 7 rotas em `200`, `/conta` sem sessão em `307 → /login`, Header mostrando "Entrar/Criar conta", Painel local intacto, 0 erros no log.
+
+#### ⚠️ Limitação — o que NÃO foi verificado
+- **O fluxo completo não foi fechado.** Como a confirmação de e-mail está ligada e a conta de teste usa um endereço ao qual não tenho acesso, **não** percorri: clicar no link de confirmação → `/auth/callback` trocar o code por sessão → login → `/conta` exibindo nome e status. Falta um passe humano com uma caixa de e-mail real.
+- **Não reverifiquei o trigger `handle_new_user`.** Confirmar que `profiles` e `user_access_flags` ganharam linha exigiria ou uma sessão autenticada (bloqueada pela confirmação pendente) ou a `SUPABASE_SERVICE_ROLE_KEY` — que esta fase proíbe usar. Estou me apoiando na validação já feita e registrada no contexto da tarefa.
+- **Uma conta de teste foi criada** no projeto Supabase (`doce.margem.teste.<timestamp>@gmail.com`) e **não foi removida** — remover exigiria service role. Registrado como tarefa na Fase 4-1C.
+
+#### Riscos
+- **Sessão expirada não se renova sozinha.** Sem `proxy.ts`, o token de acesso (1h por padrão) não é renovado durante a navegação em Server Components, que não podem gravar cookies. Na prática a usuária pode parecer deslogada até uma ação que escreva cookies. **Resolver na Fase 4-5** — é o principal débito desta fase.
+- **Nenhuma rota está protegida além de `/conta`.** As telas locais (`/ingredientes`, `/receitas`, `/precificacao`, `/configuracoes`) continuam abertas, de propósito: o Essencial é local-first e o gating de licença é a Fase 4-5/4-6.
+- Todas as rotas viraram dinâmicas. Correto para um app com auth, mas significa render por requisição — reavaliar se algum conteúdo público (ex.: `/precos`, Fase 4-6) puder voltar a ser estático.
+- Copy do cadastro assume confirmação de e-mail ligada. Se ela for desligada no painel, a mensagem "Confira seu e-mail" fica errada — a decisão precisa ser tomada e refletida na copy (Fase 4-1C).
+
 ## Checklist técnico
 - [x] O projeto está em C:\dev\doce-margem
 - [x] Não há dependência de OneDrive

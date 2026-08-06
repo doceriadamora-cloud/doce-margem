@@ -22,12 +22,30 @@ const activeClass =
 const inactiveClass =
   "rounded-full px-3 py-1 font-medium text-stone-500 transition-colors hover:bg-stone-100 hover:text-stone-900 dark:text-stone-400 dark:hover:bg-stone-900 dark:hover:text-stone-50";
 
+interface HeaderProps {
+  /**
+   * `true` quando há sessão válida. Vem do layout (Server Component), que a
+   * verifica com `getUser()` — o Header não consulta o Supabase por conta
+   * própria, e o cliente nunca decide sozinho se está autenticado.
+   *
+   * Isto é só **exibição** (mostrar "Conta" ou "Entrar"); a autorização de
+   * verdade fica no servidor, em cada rota protegida.
+   */
+  isAuthenticated: boolean;
+  /** `false` quando o app roda sem Supabase configurado — esconde a área de conta. */
+  authEnabled: boolean;
+}
+
 /**
- * Cabeçalho fixo do app: marca + navegação principal. Client Component só por
- * causa de `usePathname()` (precisa saber qual link destacar como ativo).
+ * Cabeçalho fixo do app: marca + navegação principal + área de conta.
+ * Client Component por causa de `usePathname()` (destaque do link ativo).
  */
-export default function Header() {
+export default function Header({ isAuthenticated, authEnabled }: HeaderProps) {
   const pathname = usePathname();
+
+  function linkClass(href: string): string {
+    return pathname === href ? activeClass : inactiveClass;
+  }
 
   return (
     <header className="border-b border-stone-200 bg-white dark:border-stone-800 dark:bg-stone-950">
@@ -35,21 +53,49 @@ export default function Header() {
         <span className="text-lg font-semibold tracking-tight text-rose-600 dark:text-rose-400">
           Doce Margem
         </span>
-        <nav aria-label="Navegação principal" className="flex flex-wrap items-center gap-1 text-sm">
-          {availableSections.map((item) => {
-            const isActive = pathname === item.href;
-            return (
+
+        <div className="flex flex-wrap items-center gap-3">
+          <nav
+            aria-label="Navegação principal"
+            className="flex flex-wrap items-center gap-1 text-sm"
+          >
+            {availableSections.map((item) => (
               <Link
                 key={item.href}
                 href={item.href}
-                aria-current={isActive ? "page" : undefined}
-                className={isActive ? activeClass : inactiveClass}
+                aria-current={pathname === item.href ? "page" : undefined}
+                className={linkClass(item.href)}
               >
                 {item.label}
               </Link>
-            );
-          })}
-        </nav>
+            ))}
+          </nav>
+
+          {authEnabled && (
+            <nav
+              aria-label="Conta"
+              className="flex flex-wrap items-center gap-1 border-l border-stone-200 pl-3 text-sm dark:border-stone-800"
+            >
+              {isAuthenticated ? (
+                <Link href="/conta" className={linkClass("/conta")}>
+                  Conta
+                </Link>
+              ) : (
+                <>
+                  <Link href="/login" className={linkClass("/login")}>
+                    Entrar
+                  </Link>
+                  <Link
+                    href="/cadastro"
+                    className="rounded-full bg-rose-600 px-3 py-1 font-medium text-white transition-colors hover:bg-rose-700"
+                  >
+                    Criar conta
+                  </Link>
+                </>
+              )}
+            </nav>
+          )}
+        </div>
       </div>
     </header>
   );

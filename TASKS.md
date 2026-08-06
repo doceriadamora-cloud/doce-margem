@@ -4,8 +4,8 @@
 > Marcar `[x]` ao concluir. Adicionar novas tarefas quando surgirem.
 > Antes de iniciar uma nova fase: parar, resumir o que foi feito e aguardar aprovação.
 
-**Fase atual:** Fase 4-1A concluída (base SQL de `profiles`/`user_access_flags`). Fase 2-8 com backup concluído; polimentos restantes pendentes.
-**Próximo passo recomendado:** criar projeto Supabase e aplicar `0001_profiles.sql` → depois Fase 4-1B (clients + telas de login/cadastro).
+**Fase atual:** Fase 4-1B concluída (Supabase client de servidor + cadastro/login/logout/conta). Fase 2-8 com backup concluído; polimentos restantes pendentes.
+**Próximo passo recomendado:** confirmar um e-mail de teste ponta a ponta no navegador → depois Fase 4-2 (licenças no banco).
 
 ## Fase 0 — Setup e documentação ✅
 - [x] Criar projeto em C:\dev\doce-margem
@@ -244,10 +244,29 @@
 - [x] Rodar `typecheck` + `lint` (sem impacto — nenhum TS alterado)
 - [ ] **Pendente de ambiente:** aplicar a migration num projeto Supabase real e verificar as invariantes (ver `REVIEW.md`)
 
-### Fase 4-1B — Supabase clients + telas de Auth (pendente)
-- [ ] `services/supabase/{client,server,admin}.ts` (browser / RSC / service role)
-- [ ] Telas de login e cadastro; logout
-- [ ] Confirmar que `handle_new_user` cria perfil + flags de verdade no signup
+### Fase 4-1B — Supabase client + Auth básico ✅
+- [x] `@supabase/supabase-js` + `@supabase/ssr` instalados (únicas dependências novas)
+- [x] `services/supabase/server.ts` — client de servidor (chave anônima + cookies), `getAuthUser()` com `getUser()`, `isSupabaseConfigured()`; `import "server-only"`
+- [x] `app/auth/actions.ts` — Server Actions `signUpAction` / `signInAction` / `signOutAction`
+- [x] `components/auth/form-state.ts` — tipo + estado inicial do formulário (fora do `"use server"`)
+- [x] `components/auth/{AuthFormShell,LoginForm,SignupForm}.tsx`
+- [x] `app/login/page.tsx`, `app/cadastro/page.tsx`, `app/conta/page.tsx`
+- [x] `app/auth/callback/route.ts` — troca o `code` de confirmação por sessão; protegido contra open redirect
+- [x] Header com área de conta (Entrar/Criar conta × Conta), estado vindo do layout server-side
+- [x] `/conta` lê `profiles` e `user_access_flags` pela RLS da sessão; mostra e-mail, nome, status e aviso de que licença ainda não existe
+- [x] `/conta` redireciona para `/login` sem sessão (verificado: 307)
+- [x] App local continua funcionando sem Supabase configurado (`authEnabled = false` esconde a área de conta)
+- [x] **Nenhum uso de `SUPABASE_SERVICE_ROLE_KEY`** (auditado: 0 leituras)
+- [x] **Nenhum `getSession()`** — só `getUser()` (auditado: 0 usos)
+- [x] Rodar `typecheck` + `lint` + `build`
+- [x] Cadastro real testado contra o Supabase do projeto (usuária criada)
+- [ ] **Pendente de ambiente:** confirmar o e-mail de uma conta de teste e percorrer login → `/conta` no navegador (ver `REVIEW.md`)
+- [ ] **Pendente (Fase 4-5):** `proxy.ts` para renovar o token de sessão expirado
+
+### Fase 4-1C — Limpeza pós-Auth (pendente)
+- [ ] Remover a conta de teste criada durante a validação da 4-1B
+- [ ] Decidir se a confirmação de e-mail fica ligada (hoje está) e ajustar a copy do cadastro
+- [ ] Trigger de `update` em `auth.users` para espelhar troca de e-mail em `profiles.email`, se a UI oferecer isso
 
 ### Fase 4-2 — Licenças no banco (pendente)
 - [ ] Migrations `licenses` + `license_events` (constraints, índices, idempotência)

@@ -455,3 +455,41 @@ O privilégio por coluna foi adicionado porque a tabela separada resolve `is_blo
 
 ### Impacto
 Técnico: qualquer campo futuro que influencie acesso (flags de fraude, limites de uso, marcações de risco) vai para `user_access_flags` ou tabela equivalente sem policy de escrita — **nunca** para `profiles`. Toda tabela nova cuja escrita deva ser exclusiva do backend segue esta forma: RLS ligado + policy de `select` do próprio + ausência deliberada de policies de escrita. Ao adicionar colunas a `profiles`, lembrar que o `grant update` é **por coluna** — uma coluna nova nasce não-atualizável pelo cliente, que é o padrão seguro desejado. Limitação conhecida: trocar o e-mail via Supabase Auth não atualiza `profiles.email` (o trigger só roda no `insert`); se a UI oferecer troca de e-mail, será preciso um trigger de `update` em `auth.users`.
+
+---
+
+## 2026-08-05 — Auth roda inteiro em Server Actions; o cliente recebe só um booleano de sessão
+
+### Decisão
+Cadastro, login e logout são **Server Actions** (`app/auth/actions.ts`), não chamadas a partir do browser. A Fase 4-1B **não cria um client Supabase de browser** — só `services/supabase/server.ts`, marcado com `import "server-only"`. Quem resolve a sessão é o layout (Server Component), via `getUser()`, e ele passa ao `Header` **apenas um booleano** (`isAuthenticated`) — nunca o token, nunca o objeto de usuária. O tipo e o estado inicial do formulário moram em `components/auth/form-state.ts`, fora do módulo `"use server"`.
+
+### Contexto
+Fase 4-1B. A lista de arquivos sugerida incluía um `services/supabase/browser.ts`, e havia a opção de fazer login pelo browser client (`supabase.auth.signInWithPassword` no cliente), que é o caminho mais divulgado em tutoriais.
+
+### Motivo
+Com Server Actions, a senha viaja em `FormData` direto para o servidor e os cookies de sessão são gravados server-side pelo `@supabase/ssr` — nenhum código nosso de cliente toca credencial, e o token não fica exposto a JavaScript da página. Criar o browser client agora seria código morto: nenhum caminho desta fase o usaria. Ele entra quando houver leitura client-side de dados (fase de nuvem do Pro) ou necessidade de `onAuthStateChange`.
+
+Passar só um booleano ao `Header` fecha uma porta silenciosa: se o componente de cliente recebesse o objeto de usuária, esse objeto iria inteiro para o payload de hidratação, no HTML. Um booleano não vaza nada, e a distinção fica explícita — o Header decide **o que exibir**, nunca **o que autorizar**; autorização continua no servidor, em cada rota.
+
+O `form-state.ts` separado não é preferência de organização, é obrigação do framework: um arquivo `"use server"` **só pode exportar funções async**, e exportar o objeto `initialAuthFormState` de lá quebra o build com "A 'use server' file can only export async functions, found object". Erro que nem `typecheck` nem `lint` pegam — só o `build`.
+
+### Impacto
+Técnico: fases futuras que precisarem de dados de sessão em Client Components devem receber props derivadas do servidor, não o objeto de sessão. Ao criar o browser client (fase de nuvem do Pro), ele fica em arquivo próprio e **sem** `server-only`, e não substitui as Server Actions de auth. Todo módulo `"use server"` do projeto deve exportar exclusivamente funções async — constantes e tipos compartilhados vão para um módulo neutro ao lado. `npm run build` permanece obrigatório no gate de cada fase: foi o único dos três comandos que detectou esse erro.
+
+---
+
+## 2026-08-05 — Mensagem genérica no login, com uma exceção: e-mail não confirmado
+
+### Decisão
+Falha de login mostra a mensagem genérica **"E-mail ou senha inválidos."**, para não permitir enumeração de e-mail. **Uma única exceção:** quando o Supabase devolve `email_not_confirmed`, a tela diz explicitamente que falta confirmar o e-mail e orienta a procurar a mensagem enviada. Erro de limite de tentativas (429) também ganha mensagem própria ("espere alguns segundos"), em vez de cair no genérico.
+
+### Contexto
+Fase 4-1B. Testando contra o Supabase real do projeto, descobri que **a confirmação de e-mail está ligada** e que a API distingue `email_not_confirmed` de `invalid_credentials`. A primeira versão do código mapeava todos os erros de login para a mensagem genérica.
+
+### Motivo
+A regra "nunca revele se o e-mail existe" é boa por padrão, mas aplicada sem exceção produz um resultado ruim aqui: quem se cadastrou, não confirmou e tenta entrar recebe "senha inválida" e vai caçar um problema que não existe — provavelmente redefinindo a senha, o que também não resolve. Para um público de confeiteiras não-técnicas, isso vira chamado de suporte e possivelmente conta abandonada.
+
+O vazamento dessa exceção é pequeno e delimitado: revela que existe um cadastro **pendente de confirmação** para aquele endereço — não confirma conta ativa, e só aparece para quem já digitou a senha certa daquele cadastro. É um trade-off consciente entre segurança e clareza, resolvido caso a caso em vez de por regra cega.
+
+### Impacto
+Produto: a copy do cadastro assume confirmação de e-mail **ligada**. Se essa configuração for desligada no painel do Supabase, a mensagem "Confira seu e-mail" fica errada e precisa ser revista junto — a decisão de manter ou não a confirmação está registrada como pendência na Fase 4-1C. Técnico: `isEmailNotConfirmedError` checa `error.code` **e**, como reserva, o texto da mensagem — o campo `code` foi adicionado ao `AuthError` do supabase-js depois, e depender só dele quebraria em versões mais antigas. Fluxos futuros de erro de auth (recuperação de senha, troca de e-mail) devem seguir o mesmo critério: genérico por padrão, específico só quando o silêncio prejudicar mais do que protege.
