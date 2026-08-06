@@ -713,6 +713,57 @@ Essas verificações complementares permanecem registradas na **Fase 4-2B**.
 - **`license_events` não é preenchida automaticamente.** Nenhum trigger em `licenses` gera evento; quem registra é o webhook (Fase 6). Se ele esquecer, a mudança de status acontece sem auditoria. Vale decidir na Fase 6 se um trigger de log automático entra — é uma escolha de contrato, não deste arquivo.
 - **`current_user in ('service_role','postgres','supabase_admin')`** no trigger assume os papéis do Supabase gerenciado, como em 0001. Self-hosted com papéis diferentes exigiria revisão.
 
+### Fase 4-3A — types/access.ts + DAL de acesso
+- **Status:** ✅ Concluída no que depende do repositório. ⚠️ Caminho autenticado não exercitado (ver "Limitação").
+- **Escopo:** camada de leitura de acesso + refatoração de `/conta`. **Nenhum gating** — nenhuma tela ficou bloqueada.
+
+#### O que foi feito
+- **`types/access.ts`** — `ProductType`, `LicenseStatus` (espelhos exatos dos `CHECK` da migration 0002), `ActivePlan`, `UserAccess`, mais `ANONYMOUS_ACCESS` (congelado com `Object.freeze`) e `resolveActivePlan()`, pura e exportada para poder ser verificada isoladamente.
+- **`lib/auth/dal.ts`** — `getCurrentUserAccess()`, `hasEssentialAccess()`, `hasProAccess()`.
+- **`app/conta/page.tsx`** — refatorada: 5 consultas espalhadas viraram **uma** chamada ao DAL.
+
+#### Como o acesso de terceiros ficou impossível — quatro barreiras estruturais
+Não é convenção de uso; é ausência de caminho:
+1. **Nenhuma função do DAL recebe `userId`.** A identidade vem sempre de `getAuthUser()` → `supabase.auth.getUser()`, que revalida o JWT com o servidor Auth. Não existe assinatura por onde a UI consiga pedir o acesso de outra pessoa.
+2. **Só chama as RPCs sem parâmetro.** `current_user_has_essential_access()` / `current_user_has_pro_access()` resolvem `auth.uid()` por dentro. As parametrizadas com `uid` tiveram o `EXECUTE` revogado do cliente na 4-2A.
+3. **Consultas a tabela sem filtro de `user_id`.** Quem restringe é a RLS. Um filtro redundante no código daria a impressão de que a proteção mora na aplicação, quando ela mora no banco — e mascararia uma RLS quebrada.
+4. **`import "server-only"`** — o build falha se um Client Component importar o DAL.
+
+Auditado: 0 usos de `getSession`, 0 leituras de `SUPABASE_SERVICE_ROLE_KEY`, 0 funções recebendo `userId`, 0 chamadas a RPC parametrizada, 0 Client Components importando o DAL.
+
+#### Duas decisões de robustez
+- **Bloqueio reaplicado em TypeScript.** As funções SQL já descontam `is_blocked`; o DAL faz `hasX && !isBlocked` de novo. É redundância **deliberada**: se alguém mexer na regra do lado do banco e esquecer do bloqueio, o TypeScript ainda nega. As duas camadas erram para o mesmo lado.
+- **Falha fechada por comparação estrita.** `resultado.data === true`, nunca truthiness. Erro na RPC devolve `data: null`, e `null === true` é `false` — sem precisar de tratamento de erro separado. Testado com `null`, `undefined`, `0`, `""`, `"true"` e `1`: todos resultam em sem-acesso.
+
+#### Como `/conta` passou a usar o DAL
+Antes: `getAuthUser()` + duas consultas manuais a `profiles` e `user_access_flags`, com interfaces de linha declaradas na própria página e nenhuma noção de licença ("Plano e licença — ainda não implementado").
+
+Agora: uma chamada a `getCurrentUserAccess()`. A página não sabe mais que existem tabelas — só consome `UserAccess`. Mostra o nome comercial do plano ("Sem licença ativa" / "Doce Margem Essencial" / "Doce Margem Pro Anual"), uma descrição do que ele dá, e o vencimento do Pro quando existe. Mantém o aviso de que nenhuma tela está bloqueada por plano ainda.
+
+`redirect("/login")` agora usa `access.isAuthenticated` em vez de checar o usuário direto — mesma garantia, uma abstração acima.
+
+#### Validações
+- `npm run typecheck` → exit 0; `npm run lint` → exit 0; `npm run build` → exit 0 (10 rotas, todas `ƒ`).
+- **27 checagens isoladas** (compilação temporária, técnica das fases anteriores): as 8 combinações de `resolveActivePlan`; a regra de bloqueio do DAL; falha fechada da RPC com 6 valores diferentes; `ANONYMOUS_ACCESS` negativo e congelado; e **os 9 cenários da matriz da 4-2A** reproduzidos no lado TypeScript — incluindo "one_time + annual_pro vencido → essential" e "annual_pro vigente + bloqueada → none".
+- **Contra o Supabase real:** `anon` recebe `permission denied for function` (42501) tanto em `current_user_has_pro_access` quanto em `has_pro_access`. As duas existem (erro é de permissão, não de função inexistente), o que confirma a migration 0002 aplicada e os grants da 4-2A corretos.
+- **Servidor de dev:** 7 rotas em `200`, `/conta` sem sessão em `307 → /login`, app local intacto.
+
+#### ⚠️ Limitação — o caminho autenticado não foi exercitado
+A confirmação de e-mail continua **ligada** no projeto e não tenho acesso à caixa da conta de teste. Portanto **não** verifiquei com sessão real:
+- `/conta` exibindo plano e vencimento de uma licença manual;
+- a mudança de plano ao alterar `status`/`expires_at` no Supabase;
+- que `authenticated` **consegue** chamar `current_user_has_pro_access()`.
+
+O que está provado é a metade negativa (anon não consegue) e a lógica TypeScript inteira. A metade positiva depende de um passe humano — registrado como **Fase 4-3B** no `TASKS.md`, com o roteiro exato.
+
+Criei mais uma conta de teste (`doce.margem.dal.<timestamp>@gmail.com`) ao tentar essa verificação, e **não consegui removê-la** — apagar exige service role, proibida nesta fase. Somam-se duas contas de teste a limpar (a outra é da 4-1B).
+
+#### Riscos
+- **`ProductType`/`LicenseStatus` duplicam o vocabulário dos `CHECK` da migration.** Adicionar um valor no SQL sem adicionar aqui (ou o inverso) é a divergência TS × SQL do risco #6 do plano. Hoje nenhum código depende exaustivamente desses tipos, então a divergência seria silenciosa — a Fase 6 (webhooks), que vai escrever `status`, é o momento de fixar isso.
+- **`proExpiresAt` vem de uma consulta separada**, não da função SQL. Se houver mais de uma licença Pro ativa, mostra a de vencimento mais distante. É informativo apenas — quem decide acesso é a função SQL.
+- **Sessão expirada continua sem renovação automática** (débito da 4-1B, resolver na 4-5 com `proxy.ts`). Com o DAL agora fazendo 5 consultas por render, uma sessão expirada custa mais round-trips inúteis do que antes.
+- **Ambiente:** o disco `C:` está com **15 MB livres (100% cheio)**. Não afetou este trabalho (todas as rotas responderam 200), mas o cache do Turbopack já falhou ao compactar durante o teste, e isso vai atrapalhar builds e `npm install`. Vale liberar espaço antes da próxima fase.
+
 ## Checklist técnico
 - [x] O projeto está em C:\dev\doce-margem
 - [x] Não há dependência de OneDrive

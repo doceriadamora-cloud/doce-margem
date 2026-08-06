@@ -1,52 +1,39 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { signOutAction } from "@/app/auth/actions";
-import { createSupabaseServerClient, getAuthUser } from "@/services/supabase/server";
+import { getCurrentUserAccess } from "@/lib/auth/dal";
+import type { ActivePlan } from "@/types/access";
 
 export const metadata: Metadata = {
   title: "Minha conta — Doce Margem",
 };
 
-/**
- * Forma esperada das linhas lidas. Sem tipos gerados do banco ainda
- * (`supabase gen types`), então declaramos o mínimo que a tela usa e tratamos
- * qualquer coisa fora disso como ausente.
- */
-interface ProfileRow {
-  email: string | null;
-  full_name: string | null;
-  created_at: string | null;
-}
+/** Nome comercial de cada plano, do jeito que a usuária reconhece. */
+const PLAN_LABEL: Record<ActivePlan, string> = {
+  none: "Sem licença ativa",
+  essential: "Doce Margem Essencial",
+  pro_annual: "Doce Margem Pro Anual",
+};
 
-interface AccessFlagsRow {
-  is_blocked: boolean | null;
+const PLAN_DESCRIPTION: Record<ActivePlan, string> = {
+  none:
+    "Você ainda não tem uma licença ativa. O Doce Margem continua funcionando no seu navegador — seus ingredientes, receitas e cálculos estão todos aqui.",
+  essential:
+    "Acesso vitalício à versão Essencial atual: ingredientes, receitas, custos fixos, canais e precificação.",
+  pro_annual:
+    "Assinatura anual ativa, com tudo do Essencial mais os recursos avançados do Pro.",
+};
+
+function formatDate(iso: string): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return iso;
+  return date.toLocaleDateString("pt-BR", { day: "2-digit", month: "long", year: "numeric" });
 }
 
 export default async function ContaPage() {
-  const user = await getAuthUser();
-  if (user === null) redirect("/login");
-
-  const supabase = await createSupabaseServerClient();
-
-  // As duas consultas passam pela RLS da migration 0001: cada usuária só
-  // enxerga a própria linha. Erro de rede/permissão vira `null` — a tela
-  // degrada em vez de quebrar.
-  let profile: ProfileRow | null = null;
-  let flags: AccessFlagsRow | null = null;
-
-  if (supabase !== null) {
-    const [profileResult, flagsResult] = await Promise.all([
-      supabase.from("profiles").select("email, full_name, created_at").eq("id", user.id).maybeSingle(),
-      supabase.from("user_access_flags").select("is_blocked").eq("user_id", user.id).maybeSingle(),
-    ]);
-    profile = (profileResult.data as ProfileRow | null) ?? null;
-    flags = (flagsResult.data as AccessFlagsRow | null) ?? null;
-  }
-
-  const displayEmail = profile?.email ?? user.email ?? "—";
-  const displayName = profile?.full_name ?? null;
-  const isBlocked = flags?.is_blocked === true;
-  const profileMissing = profile === null;
+  // Uma chamada só: o DAL resolve identidade, perfil, bloqueio e licenças.
+  const access = await getCurrentUserAccess();
+  if (!access.isAuthenticated) redirect("/login");
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-8 sm:px-6 sm:py-12">
@@ -60,16 +47,9 @@ export default async function ContaPage() {
       </header>
 
       <div className="flex flex-col gap-4">
-        {isBlocked && (
+        {access.isBlocked && (
           <p className="rounded-2xl border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-800 dark:border-red-800 dark:bg-red-950 dark:text-red-200">
             Sua conta está bloqueada. Fale com o suporte para entender o motivo.
-          </p>
-        )}
-
-        {profileMissing && (
-          <p className="rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">
-            Não conseguimos carregar seu perfil agora. Seus dados de login estão certos — tente
-            recarregar a página.
           </p>
         )}
 
@@ -77,18 +57,22 @@ export default async function ContaPage() {
           <dl className="grid gap-3 sm:grid-cols-2">
             <div>
               <dt className="text-xs text-stone-400 dark:text-stone-500">E-mail</dt>
-              <dd className="font-medium text-stone-800 dark:text-stone-200">{displayEmail}</dd>
+              <dd className="font-medium text-stone-800 dark:text-stone-200">
+                {access.email ?? "—"}
+              </dd>
             </div>
-            {displayName !== null && (
+            {access.fullName !== null && (
               <div>
                 <dt className="text-xs text-stone-400 dark:text-stone-500">Nome</dt>
-                <dd className="font-medium text-stone-800 dark:text-stone-200">{displayName}</dd>
+                <dd className="font-medium text-stone-800 dark:text-stone-200">
+                  {access.fullName}
+                </dd>
               </div>
             )}
             <div>
               <dt className="text-xs text-stone-400 dark:text-stone-500">Status da conta</dt>
               <dd className="font-medium text-stone-800 dark:text-stone-200">
-                {isBlocked ? "Bloqueada" : "Ativa"}
+                {access.isBlocked ? "Bloqueada" : "Ativa"}
               </dd>
             </div>
           </dl>
@@ -98,10 +82,27 @@ export default async function ContaPage() {
           <h2 className="text-base font-semibold text-stone-900 dark:text-stone-50">
             Plano e licença
           </h2>
+
+          <p className="mt-2 text-lg font-semibold text-rose-600 dark:text-rose-400">
+            {PLAN_LABEL[access.plan]}
+          </p>
           <p className="mt-1 text-sm text-stone-500 dark:text-stone-400">
-            Ainda não implementado. Por enquanto o Doce Margem funciona localmente no seu navegador,
-            sem depender de plano — todos os seus ingredientes, receitas e cálculos continuam onde
-            sempre estiveram.
+            {PLAN_DESCRIPTION[access.plan]}
+          </p>
+
+          {access.proExpiresAt !== null && (
+            <p className="mt-3 text-sm text-stone-600 dark:text-stone-400">
+              Assinatura Pro válida até{" "}
+              <strong className="text-stone-800 dark:text-stone-200">
+                {formatDate(access.proExpiresAt)}
+              </strong>
+              .
+            </p>
+          )}
+
+          <p className="mt-3 text-xs text-stone-400 dark:text-stone-500">
+            Nenhuma tela do app está bloqueada por plano ainda — o controle de acesso por licença
+            entra numa próxima etapa.
           </p>
         </section>
 

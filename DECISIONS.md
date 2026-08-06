@@ -551,3 +551,25 @@ Dois detalhes que parecem pedantes e não são: (a) o `REVOKE` inclui `public`, 
 
 ### Impacto
 Técnico: o exemplo de policy do `PLAN-FASE-4.md` (`using (... has_pro_access(auth.uid()))`) **deixou de funcionar** e foi corrigido nos dois pontos onde aparecia — a forma válida é `using (user_id = (select auth.uid()) and public.current_user_has_pro_access())`. O DAL da Fase 4-3 deve chamar as expostas. Qualquer função de acesso criada daqui em diante segue a mesma regra: se o cliente vai chamar, não recebe identificador por parâmetro. A validação da Fase 4-2B ganhou um caso: provar que `authenticated` **falha** ao chamar a parametrizada e **consegue** chamar a exposta.
+
+---
+
+## 2026-08-06 — O DAL não recebe identidade por parâmetro, e reaplica a regra de bloqueio que o SQL já faz
+
+### Decisão
+Nenhuma função de `lib/auth/dal.ts` recebe `userId` — a identidade vem sempre de `getAuthUser()` (que usa `supabase.auth.getUser()` e revalida o JWT). O DAL chama **apenas** as RPCs sem parâmetro (`current_user_has_*`) e **não filtra por `user_id`** nas consultas a tabela: quem restringe é a RLS. Além disso, o DAL **reaplica** a regra de bloqueio em TypeScript (`hasX && !isBlocked`), mesmo as funções SQL já a aplicando. Falhas de qualquer natureza devolvem `ANONYMOUS_ACCESS` — nunca lançam.
+
+### Contexto
+Fase 4-3A, criação da camada de acesso que a Fase 4-5 vai usar para gating. Havia três escolhas em aberto: aceitar `userId` como parâmetro (conveniente para reuso e para o admin da Fase 7), filtrar por `user_id` nas queries além da RLS (defesa em profundidade aparente), e confiar no SQL para o bloqueio (evitando duplicar regra).
+
+### Motivo
+**Sem parâmetro de identidade:** uma assinatura que aceita `userId` transfere para cada chamador a responsabilidade de passar o valor certo. Basta uma rota futura repassar um id vindo de query string para virar IDOR. Sem parâmetro, o erro não é possível — a restrição é estrutural, não uma convenção que alguém esquece. Quando o admin (Fase 7) precisar consultar terceiros, faz isso por um caminho próprio com `service_role`, explicitamente separado.
+
+**Sem filtro redundante de `user_id`:** parece defesa em profundidade, mas é o contrário. Se a RLS estiver quebrada, o filtro no código esconde o problema — o app funciona e ninguém descobre até alguém consultar por outro caminho. Sem o filtro, uma RLS quebrada aparece imediatamente. A proteção deve morar em um lugar identificável, e esse lugar é o banco.
+
+**Com bloqueio reaplicado:** aqui a duplicação vale, porque as duas implementações erram para o **mesmo lado**. Se alguém alterar a função SQL e esquecer do `is_blocked`, o TypeScript ainda nega o acesso; a falha é restritiva, não permissiva. É diferente do caso anterior: filtro de `user_id` duplicado mascara falha, checagem de bloqueio duplicada só endurece.
+
+**Falha fechada por comparação estrita:** `resultado.data === true` em vez de truthiness. Erro de RPC devolve `data: null`, e `null === true` é `false` — o tratamento de erro vira consequência do tipo, sem `if (error)` que alguém possa esquecer.
+
+### Impacto
+Técnico: o gating da Fase 4-5 (`requireEssentialAccess`, `requireProAccess`) deve ser construído sobre `getCurrentUserAccess()` e herdar a mesma assinatura sem parâmetro. `getCurrentUserAccess` é memoizado com `cache()` do React: várias chamadas no mesmo render viram uma consulta, mas o cache **não** atravessa requisições — uma licença revogada aparece na requisição seguinte, preservando a decisão de 2026-08-05 de nunca persistir acesso calculado. Custo conhecido: são 5 consultas por render (perfil, flags, duas RPCs e a licença Pro para exibir vencimento); se virar gargalo, o caminho é uma única função SQL que devolva tudo, não cache mais longo. `ProductType`/`LicenseStatus` em `types/access.ts` duplicam o vocabulário dos `CHECK` da migration 0002 — mantê-los em sincronia é responsabilidade de quem alterar qualquer um dos dois.

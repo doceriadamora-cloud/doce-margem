@@ -4,8 +4,8 @@
 > Marcar `[x]` ao concluir. Adicionar novas tarefas quando surgirem.
 > Antes de iniciar uma nova fase: parar, resumir o que foi feito e aguardar aprovação.
 
-**Fase atual:** Fase 4-2A concluída e validada no Supabase real (`licenses`/`license_events`, RLS, policies, grants, funções e matriz de acesso).
-**Próximo passo recomendado:** concluir as validações complementares da Fase 4-2B → depois Fase 4-3 (DAL e tipos de acesso).
+**Fase atual:** Fase 4-3A concluída (`types/access.ts` + `lib/auth/dal.ts` + `/conta` consumindo o DAL). Nenhum gating criado ainda.
+**Próximo passo recomendado:** Fase 4-4 (`lib/features.ts` + `canAccessFeature`) → depois Fase 4-5 (gating de rotas + `proxy.ts`).
 
 ## Fase 0 — Setup e documentação ✅
 - [x] Criar projeto em C:\dev\doce-margem
@@ -301,10 +301,27 @@
 - [ ] Confirmar que `UNIQUE (provider, provider_order_id)` bloqueia pedido duplicado e permite múltiplos manuais (NULL)
 - [x] Provar que `authenticated` **não** executa funções parametrizadas com `uid` e **executa** somente `current_user_has_essential_access()` / `current_user_has_pro_access()`
 
-### Fase 4-3 — DAL e tipos de acesso (pendente)
-- [ ] `types/access.ts` (`ProductType`, `LicenseStatus`, `License`, `UserAccess`)
-- [ ] `lib/auth/dal.ts` (`server-only`): `getCurrentUserAccess`, `hasEssentialAccess`, `hasProAccess`, `require*`
-- [ ] Matriz de casos verificando TS × SQL (risco de divergência)
+### Fase 4-3A — types/access.ts + DAL de acesso ✅
+- [x] `types/access.ts` — `ProductType`, `LicenseStatus`, `ActivePlan`, `UserAccess`, `ANONYMOUS_ACCESS` (congelado), `resolveActivePlan()` (pura, testável)
+- [x] `lib/auth/dal.ts` com `import "server-only"` — `getCurrentUserAccess()` (memoizado com `cache()` do React), `hasEssentialAccess()`, `hasProAccess()`
+- [x] Usa `getUser()` (nunca `getSession()`); nenhuma função recebe `userId`
+- [x] Chama **só** as RPCs sem parâmetro (`current_user_has_essential_access`, `current_user_has_pro_access`)
+- [x] Consultas a tabela sem filtro de `user_id` — quem restringe é a RLS
+- [x] Bloqueio reaplicado em TypeScript (redundante com o SQL, de propósito — as duas camadas erram para o mesmo lado)
+- [x] Falha fechada: `data === true` (não truthiness); sem sessão/Supabase/migration → `ANONYMOUS_ACCESS`
+- [x] `/conta` refatorada para uma única chamada ao DAL; mostra plano, descrição e vencimento do Pro
+- [x] 27 checagens isoladas: 8 combinações de `resolveActivePlan`, regra de bloqueio, falha fechada da RPC, `ANONYMOUS_ACCESS`, e os 9 cenários da matriz da 4-2A
+- [x] Verificado contra o Supabase real: `anon` recebe `permission denied` nas RPCs exposta **e** parametrizada
+- [x] Rodar `typecheck` + `lint` + `build`
+- [ ] **Pendente de ambiente:** exercitar o caminho autenticado (`/conta` logada com licença manual) — bloqueado pela confirmação de e-mail
+
+### Fase 4-3B — Validação autenticada do DAL (pendente)
+- [ ] Confirmar e-mail de uma conta de teste e abrir `/conta` logada
+- [ ] Conceder licença `one_time` manual → `/conta` deve mostrar "Doce Margem Essencial"
+- [ ] Trocar para `annual_pro` vigente → deve mostrar "Doce Margem Pro Anual" + vencimento
+- [ ] Marcar `status = 'refunded'` → deve voltar a "Sem licença ativa"
+- [ ] Marcar `is_blocked = true` → deve mostrar "Bloqueada" e "Sem licença ativa"
+- [ ] Provar que `authenticated` **consegue** chamar `current_user_has_pro_access()` e **falha** em `has_pro_access(uid)`
 
 ### Fase 4-4 — Feature flags (pendente)
 - [ ] `lib/features.ts` + `canAccessFeature` (default fechado, sem tabela no banco)
