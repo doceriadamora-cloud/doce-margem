@@ -626,3 +626,30 @@ Confirmar o README também evita ter que reescrever a tabela pública de planos,
 Técnico: nenhuma mudança de classificação foi necessária — o código da 4-4A já estava assim. Acrescentou-se `MATRIZ_APROVADA` em `lib/features-examples.ts`, um `Record<FeatureKey, …>` congelado que faz **qualquer reclassificação futura quebrar a validação isolada**. Mover um recurso de plano deixa de ser edição silenciosa e passa a exigir alterar dois lugares e registrar nova decisão aqui — que é o comportamento desejado, já que classificação é decisão comercial, não detalhe de implementação.
 
 Produto: a Fase 3 (modo avançado na interface) continua sendo entrega do Essencial, sem gating. O `README.md` **não precisa de alteração** — a decisão o confirma.
+
+---
+
+## 2026-08-06 — Bloqueio derruba licença, não a tela de conta
+
+### Decisão
+`requireAuthenticatedAccess()` exige **apenas sessão válida**: não barra conta bloqueada nem conta sem licença. O bloqueio é verificado em `requireEssentialAccess()` e `requireProAccess()`. `/conta` usa o primeiro, e por isso permanece acessível a quem está bloqueada ou sem licença.
+
+Pelo mesmo princípio, `/acesso-bloqueado` **não tem guarda nenhum** e nunca redireciona: ela cobre os cinco estados possíveis e sempre renderiza.
+
+### Contexto
+Fase 4-5A. A especificação da fase dizia "`isBlocked === true` bloqueia tudo" e, ao mesmo tempo, "`requireAuthenticatedAccess()` exige apenas login". A implementação literal da primeira frase no guarda de autenticação criaria um beco sem saída.
+
+### Motivo
+Se o guarda de autenticação barrasse conta bloqueada, `/conta` mandaria a usuária para `/acesso-bloqueado`, cujo botão principal leva de volta a `/conta`. A pessoa bloqueada ficaria sem nenhuma tela onde ver o próprio status ou sair da conta — exatamente quem mais precisa dessas duas coisas. O mesmo vale para quem está logada sem licença: é em `/conta` que ela descobre que precisa comprar.
+
+"Bloqueio derruba tudo" significa **derruba toda licença** — compra única e Pro, sem exceção, e isso continua valendo nos três níveis (SQL, DAL e guardas). Não significa derrubar a identidade: a sessão continua válida, e as telas de gestão da própria conta continuam sendo o destino de quem foi barrado. É a mesma leitura que produziu `minimumPlan: "authenticated"` para `account` na Fase 4-4A.
+
+Uma página que existe para explicar uma negativa não pode ela mesma negar — daí `/acesso-bloqueado` não ter guarda. E o motivo exibido é recalculado pelo DAL, nunca lido da URL: um `?motivo=` é escrito por qualquer pessoa e mostraria à usuária um diagnóstico falso sobre a própria conta.
+
+### Impacto
+Técnico: telas de gestão de conta usam `requireAuthenticatedAccess()`; telas de produto usarão `requireEssentialAccess()` / `requireProAccess()` na Fase 4-5B. `/acesso-bloqueado` e `/login` nunca devem ganhar guarda de licença, sob pena de recriar o ciclo. O CTA "Voltar ao painel" da tela de bloqueio está condicionado a `hasEssential` pela mesma razão preventiva.
+
+Segurança: nenhum afrouxamento. Os guardas de licença checam `isBlocked` de novo, além de o SQL e o DAL já descontarem — as três camadas erram para o mesmo lado. Nenhuma função de acesso recebe `userId`, e `require-access.ts` não importa `services/supabase/*`: o ponto único de consulta continua sendo o DAL.
+
+### Pendência que esta decisão expõe
+Os guardas falham fechado quando o Supabase não está configurado (`ANONYMOUS_ACCESS`). Aplicá-los às telas locais na Fase 4-5B tornaria o app inutilizável sem Supabase, contrariando a decisão de 2026-08-05 de o Essencial ser local-first. **Isso precisa de decisão de produto antes da 4-5B** (registrado no `REVIEW.md`); afrouxar o guarda para liberar quando falta configuração está descartado — transformaria variável de ambiente ausente em bypass de licença.

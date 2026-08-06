@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
-import { redirect } from "next/navigation";
 import { signOutAction } from "@/app/auth/actions";
-import { getCurrentUserAccess } from "@/lib/auth/dal";
+import { requireAuthenticatedAccess } from "@/lib/auth/require-access";
 import type { ActivePlan } from "@/types/access";
 
 export const metadata: Metadata = {
@@ -31,9 +30,10 @@ function formatDate(iso: string): string {
 }
 
 export default async function ContaPage() {
-  // Uma chamada só: o DAL resolve identidade, perfil, bloqueio e licenças.
-  const access = await getCurrentUserAccess();
-  if (!access.isAuthenticated) redirect("/login");
+  // Exige só sessão — sem licença e mesmo bloqueada, a usuária precisa chegar
+  // aqui para ver o próprio status e sair da conta. O guarda já devolve o
+  // `UserAccess` resolvido (identidade, perfil, bloqueio e licenças).
+  const access = await requireAuthenticatedAccess();
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-8 sm:px-6 sm:py-12">

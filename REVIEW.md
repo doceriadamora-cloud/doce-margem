@@ -809,6 +809,52 @@ Acrescentei um terceiro nível, `"authenticated"`, fora do que a especificação
 - **A matriz ainda não é usada por ninguém.** Só ganha valor na 4-5 (gating) e na 4-6 (página de preços). Até lá, é possível que ela e a interface real divirjam sem que nada acuse — por exemplo, se uma tela nova nascer sem entrada correspondente aqui.
 - **A classificação está congelada em dois lugares** (`lib/features.ts` e `MATRIZ_APROVADA`). É o preço de tornar a reclassificação deliberada; quem mudar de plano precisa tocar nos dois e registrar no `DECISIONS.md`, e a validação cobra isso.
 
+### Fase 4-5A — Página de bloqueio + helpers de acesso
+- **Status:** ✅ Concluída. Os guardas existem e funcionam; **só `/conta` os usa**. Nenhuma tela local foi bloqueada.
+- **Escopo:** a camada 2 do modelo de três defesas do `PLAN-FASE-4.md` — a autorização de verdade. O `proxy.ts` (camada 1) fica para a 4-5B.
+
+#### O que foi feito
+- **`app/acesso-bloqueado/page.tsx`** — Server Component, rota dinâmica (`ƒ` no build).
+- **`lib/auth/require-access.ts`** — `requireAuthenticatedAccess()`, `requireEssentialAccess()`, `requireProAccess()`.
+- **`app/conta/page.tsx`** — trocou `getCurrentUserAccess()` + `redirect()` manual pelo guarda. Sem custo extra: `getCurrentUserAccess` é memoizado com `cache()`.
+
+#### Duas armadilhas que apareceram no desenho e foram fechadas
+
+**1. `requireAuthenticatedAccess()` não barra conta bloqueada — de propósito.**
+A regra "bloqueio derruba tudo" é verdadeira para **licença**, não para a tela de conta. Se o guarda de autenticação também barrasse quem está bloqueada, `/conta` mandaria a usuária para `/acesso-bloqueado` — cujo botão principal leva de volta a `/conta`. Beco sem saída, e justamente para quem mais precisa da tela: ver o próprio status e sair da conta.
+
+É a mesma razão pela qual a Fase 4-4A classificou `account` como `minimumPlan: "authenticated"`. O bloqueio age nos dois guardas de licença, onde ele importa.
+
+**2. A `/acesso-bloqueado` não redireciona ninguém.**
+Uma página cujo trabalho é explicar uma negativa não pode negar. Ela cobre os cinco estados (visitante, bloqueada, sem licença, sem Pro, e acesso completo por navegação direta) e sempre renderiza.
+
+O motivo é **recalculado pelo DAL na mesma requisição**, nunca lido de query string. Um `?motivo=bloqueada` seria escrito por qualquer um e mostraria à usuária um diagnóstico falso sobre a própria conta.
+
+#### Como se garantiu que ninguém consulta acesso de terceiros
+Mesma trava estrutural do DAL, verificada por inspeção:
+- `import "server-only"` no topo — Client Component que importar quebra o build.
+- **Nenhuma das três funções recebe parâmetro.** Sem assinatura, não há o que forjar: a identidade vem sempre de `getCurrentUserAccess()` → `supabase.auth.getUser()` (revalida o JWT).
+- `require-access.ts` **não importa `services/supabase/*`** — só `next/navigation`, `./dal` e o tipo. O ponto único de consulta continua sendo o DAL.
+- `grep` por `SERVICE_ROLE` e `getSession` no projeto: só comentários explicando que não são usados.
+
+#### Detalhe de produto
+As duas listas de plano da página saem de `ALL_FEATURES` (Fase 4-4A), com selo "em breve" no que é `planned`. Assim a tela não consegue prometer uma divisão diferente da que o gating vai aplicar. Verificado no HTML renderizado: 6 recursos Essenciais sem selo, 3 Essenciais com selo, 5 Pro todos com selo, **nenhum valor em R$ e nenhuma menção a plano mensal**.
+
+#### Validações
+- `npm run typecheck` → exit 0; `npm run lint` → exit 0; `npm run build` → exit 0, **11 rotas** (era 10; a nova é `/acesso-bloqueado`, dinâmica).
+- Teste manual contra o dev server: `GET /conta` sem sessão → **307 para `/login`**; `GET /acesso-bloqueado` → **200**, com o estado de visitante correto ("Entre na sua conta para continuar", CTAs Entrar/Criar conta, sem "Voltar ao painel").
+- **Não testado:** `/conta` com sessão real. Continua bloqueado pela confirmação de e-mail, sem acesso à caixa de entrada — a mesma pendência das Fases 4-1C e 4-3B.
+
+#### ⚠️ A decisão que precisa vir antes da 4-5B
+`getCurrentUserAccess()` devolve `ANONYMOUS_ACCESS` quando o Supabase não está configurado — falha fechada, que é o certo para um guarda. Consequência: se a 4-5B puser `requireEssentialAccess()` em `/`, `/ingredientes`, `/receitas`, `/precificacao` e `/configuracoes`, **o app inteiro passa a redirecionar para `/login` num ambiente sem Supabase**.
+
+Isso colide de frente com a decisão de 2026-08-05 de o Essencial ser local-first e continuar funcionando sem Supabase. As saídas possíveis — gatear só a nuvem, exigir licença nas telas locais, ou tratar "sem Supabase configurado" como modo local explícito — são escolhas de produto, não de implementação. **Não dá para começar a 4-5B sem essa definição**, e afrouxar o guarda para "se não tem Supabase, libera" seria transformar variável de ambiente ausente em bypass de licença.
+
+#### Riscos
+- **`redirect("/login")` não guarda para onde a usuária ia.** Depois de entrar, ela cai em `/conta`, não na tela que tentou abrir. Aceitável agora; se virar `?next=`, o destino precisa ser validado como caminho interno, senão vira redirecionamento aberto.
+- **Os guardas ainda quase não são exercitados.** Só o caminho `!isAuthenticated` foi provado de ponta a ponta; os ramos de bloqueio e de licença dependem de conta real com licença manual (Fase 4-2B/4-3B).
+- **O CTA "Voltar ao painel" está condicionado a `hasEssential`** para não devolver a usuária à mesma tela depois da 4-5B. Se a 4-5B decidir manter o painel aberto, a condição deve ser revista — está anotado no `TASKS.md`.
+
 ## Checklist técnico
 - [x] O projeto está em C:\dev\doce-margem
 - [x] Não há dependência de OneDrive

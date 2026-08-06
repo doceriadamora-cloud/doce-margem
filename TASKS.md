@@ -4,8 +4,8 @@
 > Marcar `[x]` ao concluir. Adicionar novas tarefas quando surgirem.
 > Antes de iniciar uma nova fase: parar, resumir o que foi feito e aguardar aprovação.
 
-**Fase atual:** Fase 4-4A concluída (`lib/features.ts` + `canAccessFeature`), com a classificação comercial aprovada em 2026-08-06. Nenhum gating criado ainda — nada bloqueado.
-**Próximo passo recomendado:** Fase 4-5 (gating de rotas + `proxy.ts`), construída sobre `canAccessFeature`.
+**Fase atual:** Fase 4-5A concluída (`/acesso-bloqueado` + `lib/auth/require-access.ts`). Os guardas existem, mas só `/conta` os usa — nenhuma tela local está bloqueada.
+**Próximo passo recomendado:** decidir como conciliar o Essencial local-first com o gating (ver `REVIEW.md` da 4-5A) → depois Fase 4-5B (`proxy.ts` + Route Groups).
 
 ## Fase 0 — Setup e documentação ✅
 - [x] Criar projeto em C:\dev\doce-margem
@@ -336,10 +336,25 @@
 - [x] `MATRIZ_APROVADA` congelada em `lib/features-examples.ts` — reclassificar um recurso quebra a validação em vez de passar batido
 - [x] Rodar `typecheck` + `lint` + `build` (rotas inalteradas)
 
-### Fase 4-5 — Proteção de rotas (pendente)
+### Fase 4-5A — Página de bloqueio + helpers de acesso ✅
+- [x] `app/acesso-bloqueado/page.tsx` — não redireciona ninguém (página que explica bloqueio não pode bloquear) e cobre os 5 estados possíveis
+- [x] Motivo do bloqueio **recalculado** pelo DAL, nunca lido de query string (parâmetro na URL é forjável e mostraria diagnóstico falso)
+- [x] Listas de plano geradas a partir de `ALL_FEATURES` (Fase 4-4A) — a tela não pode divergir da matriz que o gating aplica
+- [x] Sem valores e sem botão de compra — a página de preços é a Fase 4-6
+- [x] `lib/auth/require-access.ts` — `requireAuthenticatedAccess()`, `requireEssentialAccess()`, `requireProAccess()`
+- [x] `import "server-only"`, nenhuma função recebe `userId`, nenhum acesso direto ao Supabase (só consome o DAL)
+- [x] `requireAuthenticatedAccess()` **não** barra conta bloqueada — senão `/conta` viraria beco sem saída para quem mais precisa dela
+- [x] `/conta` migrada do `redirect()` manual para `requireAuthenticatedAccess()`
+- [x] `typecheck` + `lint` + `build` — 11 rotas, `/acesso-bloqueado` dinâmica (`ƒ`)
+- [x] Teste manual: `/conta` sem sessão → 307 para `/login`; `/acesso-bloqueado` → 200 com o estado de visitante correto
+- [ ] **Pendente de ambiente:** `/conta` logada — bloqueado pela confirmação de e-mail (mesma pendência das Fases 4-1C / 4-3B)
+
+### Fase 4-5B — Proteção das rotas do app (pendente)
+- [ ] **Decidir antes de codar:** como conciliar "Essencial local-first funciona sem Supabase" com `requireEssentialAccess()` nas telas locais (ver `REVIEW.md` da 4-5A — hoje o guarda falharia fechado e deixaria o app inutilizável sem Supabase configurado)
 - [ ] `proxy.ts` na raiz (**não** `middleware.ts` — renomeado no Next 16), só checagem otimista
-- [ ] Route Groups `(app)` / `(pro)` / `(admin)` com `require*` no layout
-- [ ] Tela `/acesso-bloqueado`
+- [ ] Route Groups `(app)` / `(pro)` com `require*` no layout
+- [ ] Reavaliar o CTA "Voltar ao painel" da `/acesso-bloqueado` (hoje condicionado a `hasEssential` para não devolver a usuária à mesma tela)
+- [ ] Considerar `requireFeatureAccess(feature)` ligando os guardas a `canAccessFeature`
 - [ ] Confirmar no build que rotas protegidas deixaram de ser estáticas
 
 ### Fase 4-6 — Preços e gating do Pro (= Fase 5 abaixo) (pendente)
