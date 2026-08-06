@@ -4,8 +4,8 @@
 > Marcar `[x]` ao concluir. Adicionar novas tarefas quando surgirem.
 > Antes de iniciar uma nova fase: parar, resumir o que foi feito e aguardar aprovação.
 
-**Fase atual:** Fase 4-3A concluída (`types/access.ts` + `lib/auth/dal.ts` + `/conta` consumindo o DAL). Nenhum gating criado ainda.
-**Próximo passo recomendado:** Fase 4-4 (`lib/features.ts` + `canAccessFeature`) → depois Fase 4-5 (gating de rotas + `proxy.ts`).
+**Fase atual:** Fase 4-4A concluída (`lib/features.ts` + `canAccessFeature`), com a classificação comercial aprovada em 2026-08-06. Nenhum gating criado ainda — nada bloqueado.
+**Próximo passo recomendado:** Fase 4-5 (gating de rotas + `proxy.ts`), construída sobre `canAccessFeature`.
 
 ## Fase 0 — Setup e documentação ✅
 - [x] Criar projeto em C:\dev\doce-margem
@@ -323,8 +323,18 @@
 - [ ] Marcar `is_blocked = true` → deve mostrar "Bloqueada" e "Sem licença ativa"
 - [ ] Provar que `authenticated` **consegue** chamar `current_user_has_pro_access()` e **falha** em `has_pro_access(uid)`
 
-### Fase 4-4 — Feature flags (pendente)
-- [ ] `lib/features.ts` + `canAccessFeature` (default fechado, sem tabela no banco)
+### Fase 4-4A — Feature flags em código ✅
+- [x] `lib/features.ts` — módulo puro, sem Supabase, sem tabela no banco
+- [x] `FeatureKey` (15 recursos), `FeatureMinimumPlan`, `FeatureStatus`, `FeatureDefinition`
+- [x] Matriz como `Record<FeatureKey, FeatureDefinition>` — TypeScript exige exaustividade, então recurso novo sem classificação **não compila**
+- [x] `getFeatureDefinition()`, `canAccessFeature()`, `getAccessibleFeatures()`, `getLockedFeatures()`
+- [x] `minimumPlan: "authenticated"` acrescentado para `account` — evita trancar a tela de conta para quem ainda não comprou
+- [x] `status` (available/planned) separado de `minimumPlan` — não participa do gating
+- [x] Falha fechada: bloqueio, plano insuficiente e chave desconhecida devolvem `false`
+- [x] `lib/features-examples.ts` — 30 checagens sem framework (padrão das fases anteriores)
+- [x] **Decisão comercial de 2026-08-06:** `advanced_mode` / `sub_recipes` / `household_measures` confirmados como **Essencial / planned** (fazem parte do "avançado básico"); Pro Anual reservado a recorrência, nuvem, automação, IA e relatórios — `DECISIONS.md`
+- [x] `MATRIZ_APROVADA` congelada em `lib/features-examples.ts` — reclassificar um recurso quebra a validação em vez de passar batido
+- [x] Rodar `typecheck` + `lint` + `build` (rotas inalteradas)
 
 ### Fase 4-5 — Proteção de rotas (pendente)
 - [ ] `proxy.ts` na raiz (**não** `middleware.ts` — renomeado no Next 16), só checagem otimista

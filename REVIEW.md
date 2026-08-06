@@ -764,6 +764,51 @@ Criei mais uma conta de teste (`doce.margem.dal.<timestamp>@gmail.com`) ao tenta
 - **Sessão expirada continua sem renovação automática** (débito da 4-1B, resolver na 4-5 com `proxy.ts`). Com o DAL agora fazendo 5 consultas por render, uma sessão expirada custa mais round-trips inúteis do que antes.
 - **Ambiente:** o disco `C:` está com **15 MB livres (100% cheio)**. Não afetou este trabalho (todas as rotas responderam 200), mas o cache do Turbopack já falhou ao compactar durante o teste, e isso vai atrapalhar builds e `npm install`. Vale liberar espaço antes da próxima fase.
 
+### Fase 4-4A — Feature flags em código
+- **Status:** ✅ Concluída, com a classificação comercial **aprovada em 2026-08-06**.
+- **Escopo:** só a matriz e as funções puras. **Nada bloqueado** — nenhuma rota, nenhuma tela, nenhuma navegação alterada.
+
+#### O que foi feito
+- **`lib/features.ts`** — módulo puro: não importa `services/supabase`, não consulta banco, não lê cookie. `canAccessFeature` depende exclusivamente do `UserAccess` recebido.
+- **`lib/features-examples.ts`** — 30 checagens, mesmo padrão sem framework de `modules/pricing/examples.ts`.
+- Matriz com **15 recursos**: 6 Essencial disponíveis, 1 `authenticated` disponível, 3 Essencial planejados, 5 Pro planejados.
+
+A matriz é um `Record<FeatureKey, FeatureDefinition>`, não um array: o TypeScript passa a exigir exaustividade, então **adicionar uma chave em `FeatureKey` sem classificar o recurso não compila**. É a garantia de que nenhum recurso nasce sem plano definido — e, por consequência, nenhum nasce aberto por engano.
+
+#### Classificação comercial — resolvida em 2026-08-06
+A especificação original da fase agrupava modo avançado, sub-receitas e medidas caseiras sob "Recursos **Pro ou futuros**", o que contrariava a tabela de planos do `README.md` ("Modo simples + avançado **básico**", ✅ nas duas colunas). O conflito foi levado à decisão e **resolvido a favor do Essencial**:
+
+- `advanced_mode`, `sub_recipes`, `household_measures` → **`essential` + `planned`** — são o "avançado básico"; o motor de cálculo existe desde a Fase 1B, falta a interface (Fase 3).
+- `menu_engineering`, `price_history`, `cloud_sync`, `pdf_export`, `ai_scanner` → **`pro_annual` + `planned`**.
+
+**Régua para recursos novos** (ficou explícita nesta decisão): o Pro Anual é reservado a **recorrência, nuvem, automação, IA e relatórios**. Recurso que não cai em nenhum desses cinco eixos pertence ao Essencial. Isso substitui o critério anterior, que era "ver o que o README diz caso a caso" — agora há um princípio, e ele está no comentário da seção Pro em `lib/features.ts`.
+
+Consequência boa de o conflito ter aparecido: **código e README não divergem**. A tabela de planos do README continua válida como está, e a página `/precos` da Fase 4-6 pode sair da matriz sem contradizer o material público.
+
+Para que a decisão não se perca numa edição futura distraída, `lib/features-examples.ts` congela a classificação aprovada em `MATRIZ_APROVADA` — mover um recurso de plano **quebra a validação**. Classificação virou decisão comercial versionada, não escolha de quem está com o arquivo aberto.
+
+#### Um problema de modelagem que a matriz revelou
+`account` (a tela `/conta`) não cabe em `"essential" | "pro_annual"`. Quem está logada **sem licença nenhuma** precisa entrar lá — é onde vê "Sem licença ativa" e, na Fase 4-6, o botão de comprar. Classificar como `essential` criaria, na Fase 4-5, o bug de trancar a porta exatamente para quem quer entrar.
+
+Acrescentei um terceiro nível, `"authenticated"`, fora do que a especificação previa. É um membro a mais na união e evita um erro concreto e previsível.
+
+#### Regras de Essencial × Pro implementadas
+- **Bloqueio derruba tudo**, antes de qualquer outra regra — verificado: Pro bloqueada não acessa nenhum dos 15 recursos.
+- **Pro é superset**: `hasEssential` já vem verdadeiro para quem tem Pro (resolvido no SQL e no DAL), então `case "essential"` não precisa de `|| hasPro`. Verificado: Pro acessa os 9 Essenciais e os 5 Pro.
+- **Essencial não acessa Pro**: verificado nos 5.
+- **Visitante não acessa nada**, incluindo `account`.
+- **`status` não gateia**: um recurso `planned` responde pelo plano dele, para que a página de preços possa dizer "o Pro terá isto" sem a matriz mentir sobre a que plano pertence.
+- **Falha fechada em três caminhos**: bloqueio, plano insuficiente e chave desconhecida (string vinda de fora dos tipos) devolvem `false`. O `default` do `switch` também nega — se alguém adicionar um plano novo e esquecer do `switch`, nega em vez de liberar.
+
+#### Validações
+- `npm run typecheck` → exit 0; `npm run lint` → exit 0; `npm run build` → exit 0, **10 rotas inalteradas** (nada passou a ser bloqueado).
+- **30/30 checagens** isoladas, incluindo os 9 casos que a especificação pediu, mais: conformidade com a `MATRIZ_APROVADA` congelada; os três recursos do "avançado básico" liberando para Essencial; o Pro contendo exatamente os 5 recursos previstos; partição `acessíveis + bloqueados = matriz` sem sobreposição nos 5 perfis; integridade (chave do índice bate com a da definição, nenhum rótulo vazio); ausência de plano mensal; e chave desconhecida negando sem lançar.
+
+#### Riscos
+- **`getFeatureDefinition` lança** em chave desconhecida, enquanto `canAccessFeature` nega. É proposital (uma nega acesso, a outra denuncia programação errada), mas quem chamar `getFeatureDefinition` com dado externo precisa tratar — hoje ninguém chama.
+- **A matriz ainda não é usada por ninguém.** Só ganha valor na 4-5 (gating) e na 4-6 (página de preços). Até lá, é possível que ela e a interface real divirjam sem que nada acuse — por exemplo, se uma tela nova nascer sem entrada correspondente aqui.
+- **A classificação está congelada em dois lugares** (`lib/features.ts` e `MATRIZ_APROVADA`). É o preço de tornar a reclassificação deliberada; quem mudar de plano precisa tocar nos dois e registrar no `DECISIONS.md`, e a validação cobra isso.
+
 ## Checklist técnico
 - [x] O projeto está em C:\dev\doce-margem
 - [x] Não há dependência de OneDrive

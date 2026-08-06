@@ -573,3 +573,56 @@ Fase 4-3A, criação da camada de acesso que a Fase 4-5 vai usar para gating. Ha
 
 ### Impacto
 Técnico: o gating da Fase 4-5 (`requireEssentialAccess`, `requireProAccess`) deve ser construído sobre `getCurrentUserAccess()` e herdar a mesma assinatura sem parâmetro. `getCurrentUserAccess` é memoizado com `cache()` do React: várias chamadas no mesmo render viram uma consulta, mas o cache **não** atravessa requisições — uma licença revogada aparece na requisição seguinte, preservando a decisão de 2026-08-05 de nunca persistir acesso calculado. Custo conhecido: são 5 consultas por render (perfil, flags, duas RPCs e a licença Pro para exibir vencimento); se virar gargalo, o caminho é uma única função SQL que devolva tudo, não cache mais longo. `ProductType`/`LicenseStatus` em `types/access.ts` duplicam o vocabulário dos `CHECK` da migration 0002 — mantê-los em sincronia é responsabilidade de quem alterar qualquer um dos dois.
+
+---
+
+## 2026-08-06 — Tier comercial e disponibilidade são dimensões separadas na matriz de recursos
+
+### Decisão
+Cada recurso em `lib/features.ts` carrega **dois campos independentes**: `minimumPlan` (a que plano pertence — `authenticated` | `essential` | `pro_annual`) e `status` (`available` | `planned`, se já existe na interface). `canAccessFeature` decide **apenas** por `minimumPlan`; `status` é informativo. A matriz é um `Record<FeatureKey, FeatureDefinition>`, o que faz o TypeScript exigir exaustividade. Foi acrescentado o nível `"authenticated"`, fora da especificação original, exclusivamente para `account`.
+
+### Contexto
+Fase 4-4A. A especificação da fase listou "Recursos **Pro ou futuros**" num bloco único, incluindo modo avançado, sub-receitas e medidas caseiras — que o `README.md` (a especificação viva, por definição do `CLAUDE.md`) classifica como **Essencial** na tabela de planos ("Modo simples + avançado básico", ✅ nas duas colunas). Havia também o caso de `account`, que não cabia em nenhum dos dois planos previstos.
+
+### Motivo
+O conflito aparente se dissolve quando se percebe que a lista da especificação agrupava por **disponibilidade** ("ainda não dá para usar"), não por **tier comercial** — a própria especificação pedia `status: "planned"` para sub-receitas e medidas caseiras justamente porque o motor existe e a interface não. São perguntas diferentes: "de quem é este recurso?" e "ele já existe?". Misturá-las num campo só forçaria a mentir numa das duas — ou marcar como Pro algo que o README promete no Essencial, ou marcar como disponível algo que não existe.
+
+Manter `status` fora do gating é o que permite a página de preços (Fase 4-6) sair desta mesma matriz sem duplicação: ela precisa dizer "o Pro terá engenharia de cardápio" — o recurso responde pelo plano dele mesmo antes de existir.
+
+O nível `"authenticated"` resolve um erro que apareceria na Fase 4-5: `/conta` classificada como `essential` trancaria a tela para quem está logada sem licença — exatamente quem precisa chegar lá para ver "Sem licença ativa" e comprar. O custo é um membro a mais na união; o benefício é não construir uma armadilha para o próprio funil de venda.
+
+O `Record` em vez de array não é estética: com ele, adicionar uma chave a `FeatureKey` sem classificar o recurso **quebra o build**. Nenhum recurso consegue nascer sem plano definido — que é a forma estrutural da regra "não criar recursos Pro abertos por padrão".
+
+### Impacto
+Técnico: a Fase 4-5 constrói o gating chamando `canAccessFeature`, sem reimplementar regra; a Fase 4-6 monta `/precos` a partir de `ALL_FEATURES`, usando `status` para os selos "em breve". Recurso novo exige tocar em `FeatureKey` **e** na matriz — o compilador cobra. Produto: a classificação de `advanced_mode`, `sub_recipes` e `household_measures` como Essencial foi levada à decisão e **confirmada em 2026-08-06** (entrada seguinte).
+
+---
+
+## 2026-08-06 — O "avançado básico" é Essencial; o Pro Anual é recorrência, nuvem, automação, IA e relatórios
+
+### Decisão
+`advanced_mode`, `sub_recipes` e `household_measures` ficam como **Essencial / planned** — não são recursos Pro. O Pro Anual fica reservado a cinco eixos: **recorrência, nuvem, automação, IA e relatórios**. Concretamente: `menu_engineering`, `price_history`, `cloud_sync`, `pdf_export` e `ai_scanner`.
+
+Matriz aprovada, congelada em `MATRIZ_APROVADA` (`lib/features-examples.ts`):
+
+| Plano / Status | Recursos |
+|---|---|
+| `essential` / `available` | ingredients, recipes, fixed_costs, custom_channels, pricing, backup_export_import |
+| `authenticated` / `available` | account |
+| `essential` / `planned` | advanced_mode, sub_recipes, household_measures |
+| `pro_annual` / `planned` | menu_engineering, price_history, cloud_sync, pdf_export, ai_scanner |
+
+### Contexto
+A especificação da Fase 4-4A agrupou os três recursos sob "Pro ou futuros", enquanto a tabela de planos do `README.md` — a especificação viva — promete "Modo simples + avançado **básico**" nas duas colunas, e a linha 178 detalha que é dentro do modo avançado que vivem sub-receitas e medidas caseiras. A divergência foi apontada no fim da 4-4A e levada à decisão.
+
+### Motivo
+Esses três compõem o "avançado básico" do Essencial e **já existem no motor de cálculo desde a Fase 1B** — falta apenas a interface. Cobrar Pro por algo que a promessa pública já inclui, e que o produto já sabe calcular, seria retirar da oferta o que foi anunciado: exatamente o tipo de divergência que vira reclamação de quem comprou a licença vitalícia.
+
+O critério do Pro passa a ser **estrutural, não caso a caso**: recorrência, nuvem, automação, IA e relatórios. Esses eixos têm custo marginal contínuo (servidor, chamada de modelo, sincronização) — é o que justifica cobrança anual, coerente com a decisão de 2026-06-27 de não existir plano mensal e de a compra única ser vitalícia sobre o Essencial **atual**. Recurso que não cai em nenhum dos cinco eixos pertence ao Essencial, e a régua está escrita no comentário da seção Pro em `lib/features.ts`.
+
+Confirmar o README também evita ter que reescrever a tabela pública de planos, de onde a página `/precos` da Fase 4-6 será gerada: código e material comercial permanecem dizendo a mesma coisa.
+
+### Impacto
+Técnico: nenhuma mudança de classificação foi necessária — o código da 4-4A já estava assim. Acrescentou-se `MATRIZ_APROVADA` em `lib/features-examples.ts`, um `Record<FeatureKey, …>` congelado que faz **qualquer reclassificação futura quebrar a validação isolada**. Mover um recurso de plano deixa de ser edição silenciosa e passa a exigir alterar dois lugares e registrar nova decisão aqui — que é o comportamento desejado, já que classificação é decisão comercial, não detalhe de implementação.
+
+Produto: a Fase 3 (modo avançado na interface) continua sendo entrega do Essencial, sem gating. O `README.md` **não precisa de alteração** — a decisão o confirma.
