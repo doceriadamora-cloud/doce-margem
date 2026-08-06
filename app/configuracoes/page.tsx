@@ -3,12 +3,16 @@ import FixedCostsScreen from "@/components/fixed-costs/FixedCostsScreen";
 import BusinessSettingsForm from "@/components/settings/BusinessSettingsForm";
 import CustomChannelsScreen from "@/components/channels/CustomChannelsScreen";
 import BackupPanel from "@/components/backup/BackupPanel";
+import { requireEssentialAccess } from "@/lib/auth/require-access";
 
 export const metadata: Metadata = {
   title: "Configurações — Doce Margem",
 };
 
-export default function ConfiguracoesPage() {
+export default async function ConfiguracoesPage() {
+  // Exige licença Essencial antes de renderizar (Fase 4-5B).
+  await requireEssentialAccess();
+
   return (
     <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6 sm:py-12">
       <header className="mb-8 max-w-lg">

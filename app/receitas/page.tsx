@@ -1,11 +1,15 @@
 import type { Metadata } from "next";
 import RecipesScreen from "@/components/recipes/RecipesScreen";
+import { requireEssentialAccess } from "@/lib/auth/require-access";
 
 export const metadata: Metadata = {
   title: "Receitas — Doce Margem",
 };
 
-export default function ReceitasPage() {
+export default async function ReceitasPage() {
+  // Exige licença Essencial antes de renderizar (Fase 4-5B).
+  await requireEssentialAccess();
+
   return (
     <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6 sm:py-12">
       <header className="mb-8 max-w-lg">

@@ -653,3 +653,29 @@ Segurança: nenhum afrouxamento. Os guardas de licença checam `isBlocked` de no
 
 ### Pendência que esta decisão expõe
 Os guardas falham fechado quando o Supabase não está configurado (`ANONYMOUS_ACCESS`). Aplicá-los às telas locais na Fase 4-5B tornaria o app inutilizável sem Supabase, contrariando a decisão de 2026-08-05 de o Essencial ser local-first. **Isso precisa de decisão de produto antes da 4-5B** (registrado no `REVIEW.md`); afrouxar o guarda para liberar quando falta configuração está descartado — transformaria variável de ambiente ausente em bypass de licença.
+
+> ✅ **Resolvido na entrada seguinte, de 2026-08-06:** não existe bypass. O app falha fechado.
+
+---
+
+## 2026-08-06 — Não existe bypass por ausência de Supabase; "local-first" vale para os dados, não para a entrada
+
+### Decisão
+Se o Supabase estiver ausente, mal configurado ou fora do ar, o app **falha fechado**: as telas do Essencial redirecionam para `/login`. Não há, e não deve haver, nenhum caminho em que a falta de configuração libere acesso.
+
+`requireEssentialAccess()` passa a valer em `/`, `/ingredientes`, `/receitas`, `/configuracoes` e `/precificacao`. Permanecem públicas `/login`, `/cadastro`, `/conta`, `/acesso-bloqueado` e `/auth/callback` — e as duas últimas **nunca podem ganhar guarda de licença**, sob pena de recriar o ciclo fechado na entrada anterior.
+
+### Contexto
+Fase 4-5B. A Fase 4-5A levantou a colisão: os guardas falham fechado, e a decisão de 2026-08-05 dizia que o Essencial é local-first e deve continuar funcionando sem Supabase. Aplicar o gating às telas locais tornaria o app inacessível num ambiente sem env configurada.
+
+### Motivo
+A alternativa — liberar quando falta configuração — transformaria **uma variável de ambiente esquecida na Vercel em licença grátis para todo mundo**, silenciosamente e sem erro visível. Um deploy com env faltando não avisa; ele simplesmente serve o app aberto. Nenhum ganho de conveniência em desenvolvimento paga esse risco em produção.
+
+A colisão com 2026-08-05 é aparente, e desfaz-se separando **onde o dado mora** de **quem pode entrar**. "Local-first" continua valendo integralmente no sentido em que foi decidido: os dados da usuária seguem em `localStorage`, a Fase 4 não migra nada, o `storageService` não é tocado, e o app funciona offline depois de autenticado. O que muda é que **a porta passa a ser verificada** — e verificar licença é justamente o que a Fase 4 existe para fazer. Um app cuja licença só vale quando o servidor de licença está no ar não tem licença nenhuma.
+
+### Impacto
+Técnico: cinco páginas viraram `async` e chamam o guarda como primeira instrução. O guarda está **repetido em cinco arquivos** — explícito, mas com o custo de que tela nova nasce desprotegida por omissão, sem quebrar o build. Route Groups com o guarda no layout do grupo são a correção prevista (Fase 4-5C). O gating usa `requireEssentialAccess()`, nunca `canAccessFeature` — a matriz da Fase 4-4A descreve planos, os guardas aplicam; misturar os dois espalharia a decisão de acesso por dois lugares.
+
+Produto: **`/` deixou de ser pública**, e com isso o app perdeu qualquer vitrine — quem abre o domínio cai em `/login`. Isso precisa ser endereçado no desenho da Fase 4-6: a `/precos` tem que nascer pública, e provavelmente `/` deveria voltar a ser landing com o painel movido para outra rota. O `Header` também passou a exibir para visitante cinco links que rebatem para `/login`; corrigir exige passar o acesso do layout para o componente, o que ficou fora do escopo desta fase.
+
+Ambiente de desenvolvimento: rodar o app sem `.env.local` deixa de ser possível para as telas do Essencial. É consequência aceita — o custo recai sobre quem desenvolve, não sobre a proteção do produto.

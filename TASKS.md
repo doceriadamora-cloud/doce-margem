@@ -4,8 +4,8 @@
 > Marcar `[x]` ao concluir. Adicionar novas tarefas quando surgirem.
 > Antes de iniciar uma nova fase: parar, resumir o que foi feito e aguardar aprovação.
 
-**Fase atual:** Fase 4-5A concluída (`/acesso-bloqueado` + `lib/auth/require-access.ts`). Os guardas existem, mas só `/conta` os usa — nenhuma tela local está bloqueada.
-**Próximo passo recomendado:** decidir como conciliar o Essencial local-first com o gating (ver `REVIEW.md` da 4-5A) → depois Fase 4-5B (`proxy.ts` + Route Groups).
+**Fase atual:** Fase 4-5B concluída. **O app agora exige licença Essencial** em `/`, `/ingredientes`, `/receitas`, `/configuracoes` e `/precificacao`. Sem licença, sem entrada — inclusive quando o Supabase está fora do ar.
+**Próximo passo recomendado:** decidir o destino de `/` e do `Header` (ver `REVIEW.md` da 4-5B) → depois Fase 4-6 (`/precos`) ou 4-5C (`proxy.ts` + Route Groups).
 
 ## Fase 0 — Setup e documentação ✅
 - [x] Criar projeto em C:\dev\doce-margem
@@ -349,13 +349,26 @@
 - [x] Teste manual: `/conta` sem sessão → 307 para `/login`; `/acesso-bloqueado` → 200 com o estado de visitante correto
 - [ ] **Pendente de ambiente:** `/conta` logada — bloqueado pela confirmação de e-mail (mesma pendência das Fases 4-1C / 4-3B)
 
-### Fase 4-5B — Proteção das rotas do app (pendente)
-- [ ] **Decidir antes de codar:** como conciliar "Essencial local-first funciona sem Supabase" com `requireEssentialAccess()` nas telas locais (ver `REVIEW.md` da 4-5A — hoje o guarda falharia fechado e deixaria o app inutilizável sem Supabase configurado)
-- [ ] `proxy.ts` na raiz (**não** `middleware.ts` — renomeado no Next 16), só checagem otimista
-- [ ] Route Groups `(app)` / `(pro)` com `require*` no layout
-- [ ] Reavaliar o CTA "Voltar ao painel" da `/acesso-bloqueado` (hoje condicionado a `hasEssential` para não devolver a usuária à mesma tela)
+### Fase 4-5B — Gating Essencial nas telas locais ✅
+- [x] **Decisão de 2026-08-06: sem bypass por ausência de Supabase.** Env faltando na Vercel não pode liberar o app de graça — falha fechada (`DECISIONS.md`)
+- [x] `await requireEssentialAccess()` em `/`, `/ingredientes`, `/receitas`, `/configuracoes`, `/precificacao`
+- [x] Públicas mantidas: `/login`, `/cadastro`, `/conta`, `/acesso-bloqueado`, `/auth/callback`
+- [x] Gating por `requireEssentialAccess()`, **não** por `canAccessFeature` — grep confirma zero uso da matriz em código de rota
+- [x] Sem route groups, sem refatoração de layout, sem mudança de UX além do guarda
+- [x] `typecheck` + `lint` + `build` — 11 rotas, todas dinâmicas (`ƒ`); nenhuma rota protegida é estática
+- [x] Teste manual sem sessão: as 5 protegidas → 307 para `/login`; públicas → 200; `/acesso-bloqueado` → 200 com **0 redirects**
+- [x] Toda cadeia de redirecionamento termina em ≤ 1 salto — provado com `curl -L --max-redirs 10`
+- [x] **Cookie de sessão forjado é rejeitado** (307 para `/login`) — prova que `getUser()` revalida em vez de confiar no cookie (risco #1 do `PLAN-FASE-4.md`)
+- [ ] **Pendente de ambiente:** abrir as 5 telas logada com licença Essencial — bloqueado pela confirmação de e-mail (mesma pendência das Fases 4-1C / 4-3B)
+- [ ] **Decidir:** o `Header` ainda mostra os 5 links protegidos para visitante, e todos devolvem para `/login` (ver `REVIEW.md`)
+- [ ] **Decidir:** `/` deixou de ser página pública — o app não tem mais nenhuma vitrine. Afeta o desenho da `/precos` na Fase 4-6
+
+### Fase 4-5C — Camada otimista e organização (pendente)
+- [ ] `proxy.ts` na raiz (**não** `middleware.ts` — renomeado no Next 16), só checagem otimista + renovação de token
+- [ ] Route Groups `(app)` / `(pro)` — hoje o guarda está repetido em 5 páginas
+- [ ] Reavaliar o CTA "Voltar ao painel" da `/acesso-bloqueado` (hoje condicionado a `hasEssential`)
 - [ ] Considerar `requireFeatureAccess(feature)` ligando os guardas a `canAccessFeature`
-- [ ] Confirmar no build que rotas protegidas deixaram de ser estáticas
+- [ ] Considerar `?next=` no redirecionamento para `/login` (validando caminho interno, senão vira open redirect)
 
 ### Fase 4-6 — Preços e gating do Pro (= Fase 5 abaixo) (pendente)
 - [ ] Página `/precos` separando Essencial e Pro Anual

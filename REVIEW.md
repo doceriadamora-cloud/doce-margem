@@ -855,6 +855,47 @@ Isso colide de frente com a decisão de 2026-08-05 de o Essencial ser local-firs
 - **Os guardas ainda quase não são exercitados.** Só o caminho `!isAuthenticated` foi provado de ponta a ponta; os ramos de bloqueio e de licença dependem de conta real com licença manual (Fase 4-2B/4-3B).
 - **O CTA "Voltar ao painel" está condicionado a `hasEssential`** para não devolver a usuária à mesma tela depois da 4-5B. Se a 4-5B decidir manter o painel aberto, a condição deve ser revista — está anotado no `TASKS.md`.
 
+### Fase 4-5B — Gating Essencial nas telas locais
+- **Status:** ✅ Concluída. **O app passou a exigir licença.** Duas consequências de produto precisam de decisão (abaixo).
+- **Escopo:** cinco chamadas de guarda. Nenhuma pasta reorganizada, nenhum layout refatorado, nenhuma UX alterada além do bloqueio.
+
+#### O que foi feito
+`await requireEssentialAccess()` como primeira instrução de `/`, `/ingredientes`, `/receitas`, `/configuracoes` e `/precificacao`. As cinco eram Server Components síncronos e viraram `async` — nenhuma outra alteração.
+
+Públicas, intocadas: `/login`, `/cadastro`, `/conta`, `/acesso-bloqueado`, `/auth/callback`.
+
+#### Como se evitou o loop em `/acesso-bloqueado`
+Três coisas, nesta ordem:
+
+1. **A página não tem guarda nenhum** (Fase 4-5A) e não redireciona em nenhum dos cinco estados que reconhece.
+2. **Os destinos de redirecionamento são todos públicos.** `/login` e `/acesso-bloqueado` nunca ganham guarda de licença — está registrado no `DECISIONS.md` de 2026-08-06 como invariante, não como detalhe.
+3. **`/conta` usa `requireAuthenticatedAccess()`**, que não barra bloqueio nem falta de licença. É o que faz o botão principal da tela de bloqueio ter para onde ir.
+
+Verificado empiricamente com `curl -L --max-redirs 10`: **toda cadeia termina em 0 ou 1 salto**. `/acesso-bloqueado` → 0 redirects, 200. Não há par de rotas que se aponte mutuamente.
+
+#### Achado positivo: sessão forjada é rejeitada
+Enviei um cookie `sb-<ref>-auth-token` fabricado, com um `user.id` inventado, para `/ingredientes`. Resultado: **307 para `/login`**.
+
+É a primeira demonstração empírica do risco #1 do `PLAN-FASE-4.md` — `getUser()` revalida o JWT com o servidor Auth em vez de acreditar no cookie. Se o DAL usasse `getSession()`, esse mesmo cookie teria aberto a tela.
+
+#### Validações
+- `npm run typecheck` → exit 0; `npm run lint` → exit 0; `npm run build` → exit 0.
+- **11 rotas, todas `ƒ` (dinâmicas)** — risco #7 do plano ("rota estática vazar conteúdo protegido") não se aplica: nenhuma protegida é pré-renderizada.
+- Sem sessão: as 5 protegidas → **307 → `/login`**; `/login`, `/cadastro`, `/acesso-bloqueado` → **200**; `/auth/callback` sem code → `/login?erro=confirmacao`.
+- `grep`: `canAccessFeature` tem **zero** ocorrências em código de rota — o gating é só pelos guardas, como pedido.
+- **Não testado:** as 5 telas logada com licença Essencial. Continua bloqueado pela confirmação de e-mail sem acesso à caixa de entrada (pendência herdada das Fases 4-1C e 4-3B). É o único caminho que falta provar: hoje está demonstrado que **ninguém entra sem licença**, não que **quem tem licença entra**.
+
+#### ⚠️ Duas consequências de produto que precisam de decisão
+
+**1. O `Header` ficou mentindo.** Ele mostra "Painel / Ingredientes / Receitas / Precificação / Configurações" para todo mundo, inclusive visitante. Agora os cinco devolvem para `/login`. Não corrigi porque a fase proibia mexer em UX e refatorar layout — mas é um defeito visível introduzido aqui, não uma imperfeição herdada. Corrigir exige passar o acesso do layout para o `Header` (que já recebe `isAuthenticated`, então o caminho existe e é curto).
+
+**2. O app não tem mais vitrine.** Com `/` protegida, quem abre o domínio cai em `/login`. Não existe nenhuma página pública que explique o produto — o que é um problema comercial direto para a Fase 4-6: a `/precos` precisa nascer pública, e provavelmente `/` deveria ser a landing, com o painel movido para `/painel`. Vale decidir antes de escrever a página de preços, para não ter que mover rota depois.
+
+#### Riscos
+- **O guarda está repetido em 5 arquivos.** Funciona e é explícito, mas tela nova nasce desprotegida por omissão — e omissão não quebra build. Route Groups com o guarda no layout do grupo resolvem isso na 4-5C; enquanto não vier, vale conferir na revisão de cada fase.
+- **`signOutAction` redireciona para `/`**, que agora rebate para `/login`. Funciona, com um salto a mais. Apontar direto para `/login` seria mais limpo, mas é mudança de UX fora do escopo desta fase.
+- **Sem `?next=`:** quem tentou abrir `/receitas` e foi para o login cai em `/conta` depois de entrar, não na tela que queria. Se for implementado, o destino tem que ser validado como caminho interno.
+
 ## Checklist técnico
 - [x] O projeto está em C:\dev\doce-margem
 - [x] Não há dependência de OneDrive

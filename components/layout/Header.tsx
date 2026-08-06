@@ -32,7 +32,7 @@ interface HeaderProps {
    * verdade fica no servidor, em cada rota protegida.
    */
   isAuthenticated: boolean;
-  /** `false` quando o app roda sem Supabase configurado — esconde a área de conta. */
+  /** Indica se a autenticação está configurada; sem ela não há sessão válida. */
   authEnabled: boolean;
 }
 
@@ -42,6 +42,7 @@ interface HeaderProps {
  */
 export default function Header({ isAuthenticated, authEnabled }: HeaderProps) {
   const pathname = usePathname();
+  const showAuthenticatedNavigation = authEnabled && isAuthenticated;
 
   function linkClass(href: string): string {
     return pathname === href ? activeClass : inactiveClass;
@@ -55,46 +56,50 @@ export default function Header({ isAuthenticated, authEnabled }: HeaderProps) {
         </span>
 
         <div className="flex flex-wrap items-center gap-3">
-          <nav
-            aria-label="Navegação principal"
-            className="flex flex-wrap items-center gap-1 text-sm"
-          >
-            {availableSections.map((item) => (
-              <Link
-                key={item.href}
-                href={item.href}
-                aria-current={pathname === item.href ? "page" : undefined}
-                className={linkClass(item.href)}
-              >
-                {item.label}
-              </Link>
-            ))}
-          </nav>
-
-          {authEnabled && (
+          {showAuthenticatedNavigation && (
             <nav
-              aria-label="Conta"
-              className="flex flex-wrap items-center gap-1 border-l border-stone-200 pl-3 text-sm dark:border-stone-800"
+              aria-label="Navegação principal"
+              className="flex flex-wrap items-center gap-1 text-sm"
             >
-              {isAuthenticated ? (
-                <Link href="/conta" className={linkClass("/conta")}>
-                  Conta
+              {availableSections.map((item) => (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  aria-current={pathname === item.href ? "page" : undefined}
+                  className={linkClass(item.href)}
+                >
+                  {item.label}
                 </Link>
-              ) : (
-                <>
-                  <Link href="/login" className={linkClass("/login")}>
-                    Entrar
-                  </Link>
-                  <Link
-                    href="/cadastro"
-                    className="rounded-full bg-rose-600 px-3 py-1 font-medium text-white transition-colors hover:bg-rose-700"
-                  >
-                    Criar conta
-                  </Link>
-                </>
-              )}
+              ))}
             </nav>
           )}
+
+          <nav
+            aria-label="Conta"
+            className={`flex flex-wrap items-center gap-1 text-sm ${
+              showAuthenticatedNavigation
+                ? "border-l border-stone-200 pl-3 dark:border-stone-800"
+                : ""
+            }`}
+          >
+            {showAuthenticatedNavigation ? (
+              <Link href="/conta" className={linkClass("/conta")}>
+                Conta
+              </Link>
+            ) : (
+              <>
+                <Link href="/login" className={linkClass("/login")}>
+                  Entrar
+                </Link>
+                <Link
+                  href="/cadastro"
+                  className="rounded-full bg-rose-600 px-3 py-1 font-medium text-white transition-colors hover:bg-rose-700"
+                >
+                  Criar conta
+                </Link>
+              </>
+            )}
+          </nav>
         </div>
       </div>
     </header>
