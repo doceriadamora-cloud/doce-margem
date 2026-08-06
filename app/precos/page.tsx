@@ -110,7 +110,7 @@ export default function PrecosPage() {
               backup manual.
             </p>
             <p className="mt-5 text-lg font-semibold text-stone-900 dark:text-stone-100">
-              Preço de lançamento em breve
+              R$97 à vista (crédito ou pix) ou 12x de R$10,03
             </p>
           </header>
 
