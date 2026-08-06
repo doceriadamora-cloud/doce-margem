@@ -4,8 +4,8 @@
 > Marcar `[x]` ao concluir. Adicionar novas tarefas quando surgirem.
 > Antes de iniciar uma nova fase: parar, resumir o que foi feito e aguardar aprovação.
 
-**Fase atual:** Fase 4-1B concluída (Supabase client de servidor + cadastro/login/logout/conta). Fase 2-8 com backup concluído; polimentos restantes pendentes.
-**Próximo passo recomendado:** confirmar um e-mail de teste ponta a ponta no navegador → depois Fase 4-2 (licenças no banco).
+**Fase atual:** Fase 4-2A concluída (migration de `licenses`/`license_events` + funções de acesso). SQL **ainda não aplicado** no Supabase.
+**Próximo passo recomendado:** aplicar `0002_licenses.sql` e validar as invariantes no banco → depois Fase 4-3 (DAL e tipos de acesso).
 
 ## Fase 0 — Setup e documentação ✅
 - [x] Criar projeto em C:\dev\doce-margem
@@ -268,10 +268,34 @@
 - [ ] Decidir se a confirmação de e-mail fica ligada (hoje está) e ajustar a copy do cadastro
 - [ ] Trigger de `update` em `auth.users` para espelhar troca de e-mail em `profiles.email`, se a UI oferecer isso
 
-### Fase 4-2 — Licenças no banco (pendente)
-- [ ] Migrations `licenses` + `license_events` (constraints, índices, idempotência)
-- [ ] Funções SQL `has_essential_access()` / `has_pro_access()` (`SECURITY DEFINER`)
-- [ ] RLS: `licenses` **read-only** para o cliente (sem policy de escrita)
+### Fase 4-2A — Base SQL de licenças ✅
+- [x] Migration `supabase/migrations/0002_licenses.sql`
+- [x] Tabela `public.licenses` (id, user_id, product_type, status, expires_at, provider, provider_order_id, timestamps)
+- [x] `CHECK` em `product_type` (`one_time` | `annual_pro`) — **sem plano mensal**
+- [x] `CHECK` em `status` (`active` | `refunded` | `chargeback` | `cancelled` | `expired`)
+- [x] `CHECK` de coerência: `annual_pro` exige `expires_at`; `one_time` exige `expires_at` nulo
+- [x] `UNIQUE (provider, provider_order_id)` — idempotência de webhook
+- [x] Tabela `public.license_events` com `CHECK` fechado em `event_type` (8 valores)
+- [x] FKs de `license_events` com `ON DELETE SET NULL` — evidência sobrevive à exclusão de conta/licença
+- [x] Trigger `license_events_immutable` — bloqueia `UPDATE` para **todos**, inclusive service_role
+- [x] Trigger `licenses_set_updated_at` (reusa `set_updated_at` de 0001)
+- [x] Funções **internas** `is_user_blocked(uid)`, `has_pro_access(uid)`, `has_essential_access(uid)` — `SECURITY DEFINER`, `STABLE`, `search_path` fixado; `EXECUTE` revogado de `public`/`anon`/`authenticated`
+- [x] Funções **expostas** `current_user_has_pro_access()`, `current_user_has_essential_access()` — sem parâmetro, resolvem `auth.uid()` por dentro, `false` em sessão anônima; `EXECUTE` só para `authenticated`
+- [x] Vazamento lateral fechado: não há como consultar acesso de terceiros pelo cliente
+- [x] Corrigido em relação ao plano: `is_blocked` vem de `user_access_flags`, não de `profiles`
+- [x] RLS habilitado nas duas tabelas; **só** policies de `SELECT` do próprio registro
+- [x] **Zero** policy de escrita e **zero** grant de escrita — dupla barreira
+- [x] 4 índices (caminho quente de acesso, vencimento, histórico por usuária, histórico por licença)
+- [x] Rodar `typecheck` + `lint` (sem impacto — nenhum TS alterado)
+- [ ] **Pendente de ambiente:** aplicar a migration e validar as invariantes no banco (ver `REVIEW.md`)
+
+### Fase 4-2B — Validação das licenças no banco (pendente)
+- [ ] Aplicar `0002_licenses.sql` no Supabase
+- [ ] Provar que sessão `authenticated` **falha** ao tentar `insert`/`update`/`delete` em `licenses`
+- [ ] Provar que `update` em `license_events` falha até com service_role
+- [ ] Rodar a matriz de 10 casos das funções de acesso contra o banco (ver `REVIEW.md`)
+- [ ] Confirmar que `UNIQUE (provider, provider_order_id)` bloqueia pedido duplicado e permite múltiplos manuais (NULL)
+- [ ] Provar que `authenticated` **não** executa `has_pro_access('<uuid alheio>')` e **executa** `current_user_has_pro_access()`
 
 ### Fase 4-3 — DAL e tipos de acesso (pendente)
 - [ ] `types/access.ts` (`ProductType`, `LicenseStatus`, `License`, `UserAccess`)

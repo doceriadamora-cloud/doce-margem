@@ -176,7 +176,31 @@ CREATE POLICY license_events_select_own ON license_events
 Uma função `SECURITY DEFINER` que centraliza a regra, para as tabelas de dados do
 Pro (fase futura de nuvem) referenciarem direto na policy:
 
+> ✅ **Implementado na Fase 4-2A**, com **três correções** em relação ao rascunho
+> abaixo (mantido como registro histórico):
+> 1. `is_blocked` vem de **`user_access_flags`**, não de `profiles` — a Fase 4-1A
+>    moveu essa coluna, e o rascunho, copiado literalmente, não compilaria.
+> 2. `search_path = ''` (estrito, tudo qualificado) em vez de `= public`, para
+>    ficar igual a `0001_profiles.sql`.
+> 3. **As funções que recebem `uid` são INTERNAS** — sem `EXECUTE` para
+>    `anon`/`authenticated`. O cliente e as policies usam as versões **sem
+>    parâmetro** (`current_user_has_pro_access()` /
+>    `current_user_has_essential_access()`), que resolvem `auth.uid()` por dentro
+>    e por isso só respondem sobre quem chamou.
+>
+> ⚠️ **A policy de exemplo mais abaixo está desatualizada por causa de (3):**
+> com o `EXECUTE` revogado, `has_pro_access(auth.uid())` numa policy falharia
+> para `authenticated`. A forma correta é:
+>
+> ```sql
+> using ( user_id = (select auth.uid()) and public.current_user_has_pro_access() )
+> ```
+>
+> Versão real: `supabase/migrations/0002_licenses.sql` — 5 funções de acesso
+> (3 internas, 2 expostas).
+
 ```sql
+-- ⚠️ RASCUNHO HISTÓRICO — desatualizado. Ver 0002_licenses.sql.
 CREATE FUNCTION public.has_pro_access(uid uuid) RETURNS boolean
 LANGUAGE sql SECURITY DEFINER STABLE
 SET search_path = public          -- obrigatório em SECURITY DEFINER
@@ -186,7 +210,7 @@ AS $$
     FROM licenses l
     JOIN profiles p ON p.id = l.user_id
     WHERE l.user_id = uid
-      AND p.is_blocked = false
+      AND p.is_blocked = false     -- ⚠️ hoje mora em user_access_flags
       AND l.product_type = 'annual_pro'
       AND l.status = 'active'
       AND l.expires_at > now()
@@ -196,7 +220,10 @@ $$;
 -- Análoga: has_essential_access(uid) — one_time ativa OU pro ativa.
 
 -- Uso futuro, em qualquer tabela de dados na nuvem:
--- USING (user_id = auth.uid() AND has_pro_access(auth.uid()))
+-- ⚠️ Forma correta desde a 4-2A (a de baixo não funcionaria — EXECUTE revogado):
+-- USING (user_id = (select auth.uid()) AND public.current_user_has_pro_access())
+--
+-- USING (user_id = auth.uid() AND has_pro_access(auth.uid()))   -- ❌ histórico
 ```
 
 Assim o bloqueio por reembolso é enforçado **no banco**, não na aplicação.
@@ -356,9 +383,12 @@ do Pro, com o `backup export/import` (Fase 2-8) como rede de segurança.
 supabase/migrations/
   0001_profiles.sql            -- ✅ FEITO (4-1A): profiles + user_access_flags,
                                --    triggers, RLS, grants por coluna
-  0002_licenses.sql            -- licenses + license_events + constraints + índices
-  0003_access_functions.sql    -- has_essential_access() / has_pro_access()
-  0004_rls_policies.sql        -- policies (licenses read-only p/ cliente)
+  0002_licenses.sql            -- ✅ FEITO (4-2A): licenses + license_events +
+                               --    constraints, RLS, funções de acesso e índices.
+                               --    Absorveu o que seriam 0003 e 0004: separar
+                               --    tabela, policy e função em migrations
+                               --    distintas deixaria o schema num estado
+                               --    inseguro entre uma e outra.
 
 services/supabase/
   client.ts                    -- browser (anon)
@@ -406,7 +436,8 @@ verificada contra as duas implementações.
 |---|---|---|
 | **4-1A** ✅ | Migration `profiles` + `user_access_flags` + triggers + RLS + grants | SQL revisado; zero policy de escrita em `user_access_flags`; só `full_name` atualizável |
 | **4-1B** | Supabase clients + telas de login/cadastro/logout | Cadastrar / entrar / sair funcionando; `profiles` criado no signup |
-| **4-2** | `licenses` + `license_events` + RLS + funções SQL de acesso | Licença inserida via SQL vira acesso; cliente **não** consegue inserir |
+| **4-2A** ✅ | Migration `licenses` + `license_events` + RLS + funções SQL de acesso | SQL revisado; 0 policies de escrita; 0 grants de escrita; matriz de 10 casos documentada |
+| **4-2B** | Aplicar e validar no banco | Licença inserida via SQL vira acesso; cliente **não** consegue inserir; `UPDATE` em `license_events` falha até com service_role |
 | **4-3** | `types/access.ts` + DAL | `getCurrentUserAccess` correto nas 7 combinações da matriz |
 | **4-4** | `lib/features.ts` + `canAccessFeature` | Matriz features × planos testada isolada; default fechado |
 | **4-5** | `proxy.ts` + Route Groups + telas de bloqueio | Rota Pro nega sem Pro, nos 3 níveis |

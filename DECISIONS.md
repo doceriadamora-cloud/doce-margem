@@ -493,3 +493,61 @@ O vazamento dessa exceção é pequeno e delimitado: revela que existe um cadast
 
 ### Impacto
 Produto: a copy do cadastro assume confirmação de e-mail **ligada**. Se essa configuração for desligada no painel do Supabase, a mensagem "Confira seu e-mail" fica errada e precisa ser revista junto — a decisão de manter ou não a confirmação está registrada como pendência na Fase 4-1C. Técnico: `isEmailNotConfirmedError` checa `error.code` **e**, como reserva, o texto da mensagem — o campo `code` foi adicionado ao `AuthError` do supabase-js depois, e depender só dele quebraria em versões mais antigas. Fluxos futuros de erro de auth (recuperação de senha, troca de e-mail) devem seguir o mesmo critério: genérico por padrão, específico só quando o silêncio prejudicar mais do que protege.
+
+---
+
+## 2026-08-05 — Auditoria de licenças sobrevive à exclusão de conta e é imutável a UPDATE
+
+### Decisão
+As chaves estrangeiras de `license_events` usam **`ON DELETE SET NULL`**, não `CASCADE`: apagar uma conta ou uma licença **não** apaga o histórico — o evento fica órfão e anonimizado. Um trigger bloqueia **`UPDATE` para todos**, inclusive `service_role`; corrigir um registro errado se faz **inserindo um evento corretivo**. `DELETE` fica liberado apenas para os papéis administrativos, para atender pedido de apagamento de dados (LGPD), já que `payload` pode conter dados pessoais vindos do provedor de pagamento. O `event_type` tem vocabulário **fechado por CHECK** (8 valores).
+
+### Contexto
+Fase 4-2A, criação de `licenses` e `license_events`. Minha primeira versão usava `ON DELETE CASCADE` nas FKs (por simetria com `profiles`/`user_access_flags`, onde cascade é correto) e deixava `event_type` como texto livre, argumentando que um evento novo não deveria exigir migration.
+
+### Motivo
+Cascade estava errado aqui, e a diferença é de propósito da tabela: `user_access_flags` é **estado atual** — sem a conta, não há estado a guardar. `license_events` é **evidência** — e é justamente quando a conta some que a evidência mais importa. Numa disputa de chargeback, meses depois, a pergunta é "esta pessoa realmente comprou, e quando foi reembolsada?"; se apagar a conta apagou o histórico, não há o que responder. `SET NULL` preserva o fato e descarta o vínculo pessoal, o que também ajuda em privacidade.
+
+Bloquear `UPDATE` até para `service_role` é o que separa um log de auditoria de uma tabela comum: um histórico que o próprio sistema pode reescrever silenciosamente não prova nada. É a mesma regra que este projeto já segue em documentação ("nunca remova decisões antigas; registre uma nova entrada"). O `DELETE` administrativo permanece porque obrigação legal de apagamento se sobrepõe à conveniência de auditoria — e, diferente do `UPDATE`, é uma ação explícita e rastreável fora do banco.
+
+O `CHECK` em `event_type` inverteu meu raciocínio inicial: numa tabela de auditoria, texto livre significa que um typo (`'refund'` em vez de `'refunded'`) cria um registro que nenhuma consulta encontra — o dado existe mas é invisível, que é o pior modo de falha para auditoria. Um vocabulário novo é uma extensão deliberada e merece passar por migration.
+
+### Impacto
+Técnico: `license_events.user_id` e `license_id` são **nullable** (exigência do `SET NULL`), então consultas precisam tratar eventos órfãos; a policy de RLS (`auth.uid() = user_id`) faz com que eventos órfãos não sejam visíveis a nenhum cliente — só via `service_role`. Adicionar um `event_type` novo na Fase 6/7 exige migration alterando o `CHECK`. Como não há trigger em `licenses` gerando eventos automaticamente, **a Fase 6 é responsável por registrar cada mudança de status** — se o webhook esquecer, a mudança acontece sem auditoria; avaliar lá se um trigger de log automático deve entrar.
+
+---
+
+## 2026-08-05 — Vencimento de licença é calculado por `expires_at`, nunca pelo status
+
+### Decisão
+As funções de acesso decidem vencimento comparando **`expires_at > now()`**. O valor `status = 'expired'` existe como conveniência de registro, mas **não** é o que revoga: uma licença `annual_pro` vencida que continue com `status = 'active'` (porque nenhum job rodou) **não** concede Pro. Constraints garantem coerência na origem: `annual_pro` exige `expires_at` preenchido, `one_time` exige `expires_at` nulo.
+
+### Contexto
+Fase 4-2A. O modelo tem dois jeitos de expressar "esta assinatura acabou": mudar `status` para `expired` ou deixar `expires_at` no passado. Ter os dois cria a pergunta de qual manda.
+
+### Motivo
+Depender de `status = 'expired'` exigiria que algo — job agendado, webhook, cron — rodasse na hora certa para marcar cada licença vencida. Todo esse maquinário é uma peça a mais que pode falhar silenciosamente, e o modo de falha é o pior possível: **acesso concedido a quem não pagou**. Comparar com `now()` não depende de nada rodar: a verdade é derivada do dado, sempre atual, e a falha é fechada. É o mesmo princípio já adotado para `fixedCostRate` e custo de receita (2026-08-04): não persistir valor derivado, para que ele não fique obsoleto.
+
+Caso-limite coberto por constraint em vez de lógica: `annual_pro` com `expires_at` nulo é impossível (`licenses_annual_needs_expiry`). Se ainda assim ocorresse, `NULL > now()` avalia como desconhecido e a licença é excluída do resultado — falha fechada também aí.
+
+### Impacto
+Técnico: um job de expiração (se existir no futuro) é **cosmético** — serve para relatório e para a usuária ver "assinatura vencida" na tela, nunca para revogar acesso. O DAL da Fase 4-3 deve replicar exatamente esta regra em TypeScript, e a matriz de 10 casos registrada no `REVIEW.md` da 4-2A é o instrumento para provar que as duas implementações não divergem (risco #6 do `PLAN-FASE-4.md`). Comercial: quem tem compra única mantém o Essencial quando o Pro vence — os dois gatilhos são independentes.
+
+---
+
+## 2026-08-05 — Função exposta ao cliente não recebe identificador de usuária como parâmetro
+
+### Decisão
+Toda função SQL que responda sobre acesso existe em **duas camadas**. As **internas** recebem `uid uuid` e têm `EXECUTE` revogado de `public`, `anon` e `authenticated` — restam para `service_role` (admin, Fase 7) e para serem chamadas por dentro das expostas. As **expostas** não recebem parâmetro nenhum, resolvem `auth.uid()` internamente e devolvem `false` quando ele é nulo: `current_user_has_pro_access()` e `current_user_has_essential_access()`. Só as expostas recebem `EXECUTE` para `authenticated`; `anon` não recebe nenhuma. Policies de RLS de tabelas futuras devem usar as expostas.
+
+### Contexto
+Fase 4-2A. A primeira versão seguiu a assinatura `has_pro_access(uid uuid)` prevista no `PLAN-FASE-4.md` e concedia `EXECUTE` a `authenticated`, porque policies de RLS são avaliadas com os privilégios de quem faz a consulta. Ao revisar, levantei que isso permitia a qualquer usuária logada perguntar "o UUID fulano tem Pro?" — vazamento lateral de informação.
+
+### Motivo
+O risco prático era baixo: seria preciso conhecer o UUID de outra pessoa, e a RLS de `profiles` impede descobri-lo pelo app. Mas era uma superfície gratuita — a mesma regra de negócio é entregável sem ela. Uma função sem parâmetro **não tem como** responder sobre terceiros: a restrição passa a ser estrutural, não uma convenção de "sempre passe `auth.uid()`" que alguém esquece numa fase futura.
+
+Manter as parametrizadas (em vez de deletá-las) preserva o que o admin da Fase 7 vai precisar — consultar o acesso de uma cliente específica ao investigar um chamado — sem reabrir a porta para o cliente comum. A cadeia funciona porque, dentro de uma função `SECURITY DEFINER`, o papel efetivo é o da dona da função, não o de quem chamou: revogar `EXECUTE` das internas não impede as expostas de chamá-las.
+
+Dois detalhes que parecem pedantes e não são: (a) o `REVOKE` inclui `public`, porque o Postgres concede `EXECUTE` a `PUBLIC` por padrão em toda função nova — revogar só de `anon`/`authenticated` deixaria a porta aberta pelo default; (b) a checagem `auth.uid() is null → false` é explícita em vez de delegar para a função interna, para que o comportamento em sessão anônima seja uma decisão declarada e não uma consequência acidental de `EXISTS` com `NULL`.
+
+### Impacto
+Técnico: o exemplo de policy do `PLAN-FASE-4.md` (`using (... has_pro_access(auth.uid()))`) **deixou de funcionar** e foi corrigido nos dois pontos onde aparecia — a forma válida é `using (user_id = (select auth.uid()) and public.current_user_has_pro_access())`. O DAL da Fase 4-3 deve chamar as expostas. Qualquer função de acesso criada daqui em diante segue a mesma regra: se o cliente vai chamar, não recebe identificador por parâmetro. A validação da Fase 4-2B ganhou um caso: provar que `authenticated` **falha** ao chamar a parametrizada e **consegue** chamar a exposta.

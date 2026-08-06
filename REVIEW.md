@@ -614,6 +614,105 @@ Criei uma conta de teste de verdade e exercitei os caminhos de erro. Dois achado
 - Todas as rotas viraram dinâmicas. Correto para um app com auth, mas significa render por requisição — reavaliar se algum conteúdo público (ex.: `/precos`, Fase 4-6) puder voltar a ser estático.
 - Copy do cadastro assume confirmação de e-mail ligada. Se ela for desligada no painel, a mensagem "Confira seu e-mail" fica errada — a decisão precisa ser tomada e refletida na copy (Fase 4-1C).
 
+### Fase 4-2A — Base SQL de licenças
+- **Status:** ✅ Concluída no que depende do repositório. ⚠️ **SQL não executado** — ver "Limitação".
+- **Escopo:** só SQL e documentação. Sem gating de rota, sem webhooks, sem admin, sem uso de service role em código, sem tocar na interface local.
+
+#### O que foi feito
+`supabase/migrations/0002_licenses.sql` (novo, único arquivo de código):
+- **`public.licenses`** — 4 constraints além das PK/FK: `product_type` e `status` com vocabulário fechado, coerência produto×validade (`annual_pro` exige `expires_at`; `one_time` exige nulo), e `UNIQUE (provider, provider_order_id)` para idempotência de webhook.
+- **`public.license_events`** — `CHECK` fechado em `event_type` (8 valores), FKs com `ON DELETE SET NULL`, trigger de imutabilidade.
+- **5 funções de acesso, em duas camadas** (ver "Funções de acesso" abaixo).
+- **RLS** nas duas tabelas, só `SELECT` do próprio registro. **4 índices.**
+
+#### Funções de acesso — internas × expostas
+Ajuste feito ainda na 4-2A, fechando o vazamento lateral que eu havia levantado como risco na primeira entrega:
+
+| Camada | Funções | `EXECUTE` |
+|---|---|---|
+| **Internas** (recebem `uid`) | `is_user_blocked(uid)`, `has_pro_access(uid)`, `has_essential_access(uid)` | revogado de `public`, `anon` e `authenticated` — só `service_role` |
+| **Expostas** (sem parâmetro) | `current_user_has_pro_access()`, `current_user_has_essential_access()` | só `authenticated` |
+
+As expostas resolvem `auth.uid()` por dentro e devolvem `false` quando ele é nulo (sessão anônima), de forma explícita em vez de depender de a função interna tratar `NULL` por acaso. Como recebem zero parâmetros, **não há como perguntar sobre outra pessoa** — o vazamento fica fechado por construção, não por convenção de uso.
+
+A chamada em cadeia funciona porque, dentro de uma função `SECURITY DEFINER`, o papel efetivo é o da dona da função (não `authenticated`) — revogar `EXECUTE` das internas não impede as expostas de chamá-las. Também revoguei de `public`, e não só de `anon`/`authenticated`: o Postgres concede `EXECUTE` a `PUBLIC` por padrão em toda função nova, então revogar só dos papéis nomeados deixaria a porta aberta.
+
+**Consequência para as fases seguintes:** policies de RLS de tabelas futuras do Pro devem usar `public.current_user_has_pro_access()`. A forma que o `PLAN-FASE-4.md` sugeria — `has_pro_access(auth.uid())` — **falharia** agora, por falta de privilégio. O plano foi corrigido nos dois pontos onde aparecia.
+
+Não criei `current_user_is_blocked()`: o cliente já lê o próprio `is_blocked` direto de `user_access_flags` pela RLS da 4-1A, e uma função a mais só ampliaria a superfície sem necessidade. Se o DAL da 4-3 preferir a função, é adicioná-la lá.
+
+#### Divergência do plano encontrada e corrigida
+O `PLAN-FASE-4.md` (linha 189) definia a função de acesso como `join profiles p ... where p.is_blocked = false`. Mas a Fase 4-1A **moveu `is_blocked` de `profiles` para `user_access_flags`** — copiado literalmente do plano, este SQL **não compilaria** (coluna inexistente). Corrigido na migration; o plano foi alinhado. É exatamente o tipo de deriva que um plano escrito antes da implementação acumula, e vale o hábito de reler o schema real antes de transcrever.
+
+#### Três decisões que divergem da minha primeira versão (a especificação estava certa)
+Eu havia escrito uma versão antes de a especificação completa chegar. Três pontos dela eram melhores:
+1. **`ON DELETE SET NULL` em vez de `CASCADE`** nas FKs de `license_events`. Eu tinha posto cascade — o que **destruiria a evidência** de um reembolso ao apagar a conta, exatamente quando ela é mais necessária (disputa de chargeback). Com `SET NULL`, o evento sobrevive órfão e anonimizado. Efeito colateral bom: exclusão de conta não cascateia mais para cá, o que simplificou o trigger de imutabilidade.
+2. **`CHECK` fechado em `event_type`.** Eu havia deixado livre, argumentando que evento novo não deveria exigir migration. Numa tabela de auditoria isso é fraco: um typo (`'refund'` em vez de `'refunded'`) cria um registro que nenhuma consulta encontra. Um vocabulário novo é uma extensão deliberada — merece migration.
+3. **Assinatura `(uid uuid)` nas funções.** Eu havia feito sem parâmetro, usando `auth.uid()` internamente, para impedir consultar terceiros. Mantida a assinatura da especificação por ser o que o admin (Fase 7) e as policies precisam. Ressalva registrada em "Riscos".
+
+#### Como o cliente é impedido de criar/editar licença — duas barreiras independentes
+1. **Sem policy de escrita.** Com RLS ligado e nenhuma policy de `INSERT`/`UPDATE`/`DELETE`, o Postgres nega por padrão. Só `service_role` (que ignora RLS) grava.
+2. **Sem privilégio de escrita.** `REVOKE ALL` seguido de apenas `GRANT SELECT`. Mesmo que uma migration futura adicione uma policy por engano, falta o privilégio.
+
+Vale a mesma leitura da Fase 4-1A: **RLS decide quais linhas; GRANT decide quais colunas.** Aqui o cliente não escreve nada, então nenhum grant de escrita — nem por coluna.
+
+#### Como Essencial × Pro Anual foi tratado
+- **Coexistem:** nenhuma unicidade por `(user_id, product_type)`. Acesso é agregado sobre todas as linhas.
+- **Pro implica Essencial:** `has_essential_access` aceita `one_time` ativa **OU** `annual_pro` vigente. Sem isso, quem assina o Pro sem ter comprado o Essencial ficaria sem as telas básicas.
+- **Essencial não implica Pro:** `has_pro_access` só olha `annual_pro`.
+- **Pro vencido, Essencial permanece:** quem tem `one_time` ativa continua com Essencial quando o Pro expira.
+- **Sem plano mensal:** o `CHECK` em `product_type` aceita só dois valores — o banco recusa fisicamente.
+
+#### Como reembolso / chargeback / cancelamento foi tratado
+Por **status no backend**, nunca por lógica de frontend. Três gatilhos independentes de revogação:
+1. `status <> 'active'` → aquela licença não conta;
+2. `expires_at <= now()` (só `annual_pro`) → Pro cai, Essencial permanece se houver `one_time` ativa;
+3. `is_user_blocked(uid)` → derruba tudo, mesmo com licença ativa.
+
+O efeito é **imediato**: o acesso é sempre calculado na hora, sem cache com TTL. Um webhook (Fase 6) muda `status` e a verificação seguinte já reflete.
+
+Detalhe deliberado: `status = 'expired'` é conveniência de registro, **não** é o que decide vencimento. As funções comparam `expires_at > now()`, então uma licença vencida que ficou com `status = 'active'` (job não rodou) **não** concede Pro. Falha fechada.
+
+#### Matriz de casos das funções de acesso
+Verificada por leitura contra o SQL. É a mesma matriz que a Fase 4-3 deve usar para provar que TypeScript e SQL não divergem — o risco #6 do plano.
+
+| # | Situação | `has_essential` | `has_pro` |
+|---|---|:---:|:---:|
+| 1 | Sem licença | ❌ | ❌ |
+| 2 | `one_time` active | ✅ | ❌ |
+| 3 | `one_time` refunded | ❌ | ❌ |
+| 4 | `annual_pro` active, vigente | ✅ | ✅ |
+| 5 | `annual_pro` active, vencido | ❌ | ❌ |
+| 6 | `annual_pro` refunded, vigente | ❌ | ❌ |
+| 7 | `one_time` active + `annual_pro` vigente | ✅ | ✅ |
+| 8 | `one_time` active + `annual_pro` vencido | ✅ | ❌ |
+| 9 | `one_time` active + bloqueada | ❌ | ❌ |
+| 10 | `annual_pro` vigente + bloqueada | ❌ | ❌ |
+
+Casos-limite cobertos por constraint, não por lógica: `annual_pro` com `expires_at` nulo é impossível (`licenses_annual_needs_expiry`); se ainda assim ocorresse, `NULL > now()` avalia como desconhecido e a licença é excluída — falha fechada.
+
+#### Validações
+- `npm run typecheck` → exit 0; `npm run lint` → exit 0. Nenhum TypeScript alterado; rodados para confirmar ausência de impacto.
+- Auditoria estática do SQL: **0** policies de escrita; **0** grants de escrita para `authenticated`; RLS em **2/2** tabelas; **4/4** funções com `search_path` fixado; **0** referências a `profiles.is_blocked`; assinaturas `(uid uuid)` nas 3 funções de acesso.
+- SQL **não executado**, conforme instrução explícita da tarefa.
+
+#### ⚠️ Limitação — o que NÃO foi verificado
+Como na Fase 4-1A, **nenhuma linha deste SQL rodou**. A revisão foi leitura + auditoria estática. Ainda **não** está provado que:
+- a sintaxe roda sem erro (em especial os `CHECK` compostos e as funções `SECURITY DEFINER` aninhadas — `has_pro_access` chama `is_user_blocked`);
+- uma sessão `authenticated` de fato **falha** ao tentar `insert into licenses`;
+- o trigger de imutabilidade bloqueia `UPDATE` em `license_events` mesmo por `service_role`;
+- a matriz de 10 casos acima se comporta como previsto contra dados reais;
+- uma sessão `authenticated` **falha** ao chamar `has_pro_access('<uuid alheio>')` e **consegue** chamar `current_user_has_pro_access()`.
+
+Essa validação está registrada como **Fase 4-2B** e deve acontecer antes da Fase 4-3 — o DAL vai codificar a mesma regra em TypeScript, e comparar contra um SQL não verificado só duplicaria uma suposição.
+
+#### Riscos
+- **Principal:** o SQL nunca rodou (acima). Até rodar, a proteção é intenção fundamentada, não fato verificado.
+- ~~**Funções aceitam `uid` arbitrário.**~~ **→ Fechado ainda na 4-2A:** as parametrizadas viraram internas (sem `EXECUTE` para o cliente) e foram criadas `current_user_has_pro_access()` / `current_user_has_essential_access()`, sem parâmetro. Ver "Funções de acesso" acima.
+- **`provider` sem `CHECK`.** Um typo (`'kiwfy'`) criaria licença que a idempotência não casa. Mitigado por ser sempre escrito por código, nunca digitado — mas é uma escolha consciente de flexibilidade sobre rigidez.
+- **`license_events` não é preenchida automaticamente.** Nenhum trigger em `licenses` gera evento; quem registra é o webhook (Fase 6). Se ele esquecer, a mudança de status acontece sem auditoria. Vale decidir na Fase 6 se um trigger de log automático entra — é uma escolha de contrato, não deste arquivo.
+- **`current_user in ('service_role','postgres','supabase_admin')`** no trigger assume os papéis do Supabase gerenciado, como em 0001. Self-hosted com papéis diferentes exigiria revisão.
+
 ## Checklist técnico
 - [x] O projeto está em C:\dev\doce-margem
 - [x] Não há dependência de OneDrive
