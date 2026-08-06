@@ -615,7 +615,7 @@ Criei uma conta de teste de verdade e exercitei os caminhos de erro. Dois achado
 - Copy do cadastro assume confirmação de e-mail ligada. Se ela for desligada no painel, a mensagem "Confira seu e-mail" fica errada — a decisão precisa ser tomada e refletida na copy (Fase 4-1C).
 
 ### Fase 4-2A — Base SQL de licenças
-- **Status:** ✅ Concluída no que depende do repositório. ⚠️ **SQL não executado** — ver "Limitação".
+- **Status:** ✅ Concluída no repositório e validada manualmente no Supabase real em 2026-08-05.
 - **Escopo:** só SQL e documentação. Sem gating de rota, sem webhooks, sem admin, sem uso de service role em código, sem tocar na interface local.
 
 #### O que foi feito
@@ -673,41 +673,41 @@ O efeito é **imediato**: o acesso é sempre calculado na hora, sem cache com TT
 
 Detalhe deliberado: `status = 'expired'` é conveniência de registro, **não** é o que decide vencimento. As funções comparam `expires_at > now()`, então uma licença vencida que ficou com `status = 'active'` (job não rodou) **não** concede Pro. Falha fechada.
 
-#### Matriz de casos das funções de acesso
-Verificada por leitura contra o SQL. É a mesma matriz que a Fase 4-3 deve usar para provar que TypeScript e SQL não divergem — o risco #6 do plano.
+#### Matriz de acesso validada no Supabase real
+Os sete cenários abaixo foram executados manualmente contra as funções SQL. É a matriz de referência que a Fase 4-3 deve repetir para provar que TypeScript e SQL não divergem — o risco #6 do plano.
 
-| # | Situação | `has_essential` | `has_pro` |
+| # | Situação | Essencial | Pro |
 |---|---|:---:|:---:|
 | 1 | Sem licença | ❌ | ❌ |
 | 2 | `one_time` active | ✅ | ❌ |
-| 3 | `one_time` refunded | ❌ | ❌ |
-| 4 | `annual_pro` active, vigente | ✅ | ✅ |
-| 5 | `annual_pro` active, vencido | ❌ | ❌ |
-| 6 | `annual_pro` refunded, vigente | ❌ | ❌ |
-| 7 | `one_time` active + `annual_pro` vigente | ✅ | ✅ |
-| 8 | `one_time` active + `annual_pro` vencido | ✅ | ❌ |
-| 9 | `one_time` active + bloqueada | ❌ | ❌ |
-| 10 | `annual_pro` vigente + bloqueada | ❌ | ❌ |
+| 3 | `annual_pro active` com `expires_at` futuro | ✅ | ✅ |
+| 4 | `annual_pro` vencido + `one_time active` | ✅ | ❌ |
+| 5 | `one_time refunded` + Pro vencido | ❌ | ❌ |
+| 6 | `is_blocked = true`, mesmo com licença ativa | ❌ | ❌ |
+| 7 | `is_blocked = false` + `one_time active` | ✅ | ❌ |
 
 Casos-limite cobertos por constraint, não por lógica: `annual_pro` com `expires_at` nulo é impossível (`licenses_annual_needs_expiry`); se ainda assim ocorresse, `NULL > now()` avalia como desconhecido e a licença é excluída — falha fechada.
 
 #### Validações
 - `npm run typecheck` → exit 0; `npm run lint` → exit 0. Nenhum TypeScript alterado; rodados para confirmar ausência de impacto.
-- Auditoria estática do SQL: **0** policies de escrita; **0** grants de escrita para `authenticated`; RLS em **2/2** tabelas; **4/4** funções com `search_path` fixado; **0** referências a `profiles.is_blocked`; assinaturas `(uid uuid)` nas 3 funções de acesso.
-- SQL **não executado**, conforme instrução explícita da tarefa.
+- A migration `supabase/migrations/0002_licenses.sql` foi aplicada com sucesso no Supabase real.
+- `licenses` e `license_events` existem e estão com RLS ativo.
+- Policies encontradas: `licenses_select_own` e `license_events_select_own`, ambas somente para `SELECT`; não há policies de `INSERT`/`UPDATE`/`DELETE` para cliente.
+- Grants validados: `authenticated` tem apenas `SELECT` em `licenses` e `license_events`; `anon` e `authenticated` não têm grants de escrita nessas tabelas.
+- As cinco funções existem: `is_user_blocked(uid uuid)`, `has_essential_access(uid uuid)`, `has_pro_access(uid uuid)`, `current_user_has_essential_access()` e `current_user_has_pro_access()`.
+- Privilégios validados: `anon` não executa nenhuma função; `authenticated` não executa as parametrizadas com `uid` e executa somente as duas funções `current_user_*`.
+- A matriz de sete cenários acima foi validada manualmente contra o banco real.
 
-#### ⚠️ Limitação — o que NÃO foi verificado
-Como na Fase 4-1A, **nenhuma linha deste SQL rodou**. A revisão foi leitura + auditoria estática. Ainda **não** está provado que:
-- a sintaxe roda sem erro (em especial os `CHECK` compostos e as funções `SECURITY DEFINER` aninhadas — `has_pro_access` chama `is_user_blocked`);
+#### Validações complementares ainda pendentes
+O contexto manual informado não incluiu testes destrutivos ou de constraints. Ainda não está registrado que:
 - uma sessão `authenticated` de fato **falha** ao tentar `insert into licenses`;
 - o trigger de imutabilidade bloqueia `UPDATE` em `license_events` mesmo por `service_role`;
-- a matriz de 10 casos acima se comporta como previsto contra dados reais;
-- uma sessão `authenticated` **falha** ao chamar `has_pro_access('<uuid alheio>')` e **consegue** chamar `current_user_has_pro_access()`.
+- `UNIQUE (provider, provider_order_id)` bloqueia pedido duplicado e permite múltiplos registros manuais com `provider_order_id` nulo.
 
-Essa validação está registrada como **Fase 4-2B** e deve acontecer antes da Fase 4-3 — o DAL vai codificar a mesma regra em TypeScript, e comparar contra um SQL não verificado só duplicaria uma suposição.
+Essas verificações complementares permanecem registradas na **Fase 4-2B**.
 
 #### Riscos
-- **Principal:** o SQL nunca rodou (acima). Até rodar, a proteção é intenção fundamentada, não fato verificado.
+- A estrutura, os privilégios e a regra de acesso foram validados no Supabase real; permanecem pendentes apenas os testes complementares listados acima.
 - ~~**Funções aceitam `uid` arbitrário.**~~ **→ Fechado ainda na 4-2A:** as parametrizadas viraram internas (sem `EXECUTE` para o cliente) e foram criadas `current_user_has_pro_access()` / `current_user_has_essential_access()`, sem parâmetro. Ver "Funções de acesso" acima.
 - **`provider` sem `CHECK`.** Um typo (`'kiwfy'`) criaria licença que a idempotência não casa. Mitigado por ser sempre escrito por código, nunca digitado — mas é uma escolha consciente de flexibilidade sobre rigidez.
 - **`license_events` não é preenchida automaticamente.** Nenhum trigger em `licenses` gera evento; quem registra é o webhook (Fase 6). Se ele esquecer, a mudança de status acontece sem auditoria. Vale decidir na Fase 6 se um trigger de log automático entra — é uma escolha de contrato, não deste arquivo.

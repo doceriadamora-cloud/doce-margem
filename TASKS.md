@@ -4,8 +4,8 @@
 > Marcar `[x]` ao concluir. Adicionar novas tarefas quando surgirem.
 > Antes de iniciar uma nova fase: parar, resumir o que foi feito e aguardar aprovação.
 
-**Fase atual:** Fase 4-2A concluída (migration de `licenses`/`license_events` + funções de acesso). SQL **ainda não aplicado** no Supabase.
-**Próximo passo recomendado:** aplicar `0002_licenses.sql` e validar as invariantes no banco → depois Fase 4-3 (DAL e tipos de acesso).
+**Fase atual:** Fase 4-2A concluída e validada no Supabase real (`licenses`/`license_events`, RLS, policies, grants, funções e matriz de acesso).
+**Próximo passo recomendado:** concluir as validações complementares da Fase 4-2B → depois Fase 4-3 (DAL e tipos de acesso).
 
 ## Fase 0 — Setup e documentação ✅
 - [x] Criar projeto em C:\dev\doce-margem
@@ -287,15 +287,19 @@
 - [x] **Zero** policy de escrita e **zero** grant de escrita — dupla barreira
 - [x] 4 índices (caminho quente de acesso, vencimento, histórico por usuária, histórico por licença)
 - [x] Rodar `typecheck` + `lint` (sem impacto — nenhum TS alterado)
-- [ ] **Pendente de ambiente:** aplicar a migration e validar as invariantes no banco (ver `REVIEW.md`)
+- [x] Aplicar `0002_licenses.sql` com sucesso no Supabase real
+- [x] Confirmar `licenses` e `license_events` com RLS ativo e somente policies próprias de `SELECT`
+- [x] Confirmar grants de cliente: `authenticated` somente com `SELECT`; sem `INSERT`/`UPDATE`/`DELETE`
+- [x] Confirmar privilégios das funções: `anon` sem `EXECUTE`; `authenticated` somente nas duas funções `current_user_*`
+- [x] Validar no banco a matriz de acesso registrada em `REVIEW.md`
 
 ### Fase 4-2B — Validação das licenças no banco (pendente)
-- [ ] Aplicar `0002_licenses.sql` no Supabase
+- [x] Aplicar `0002_licenses.sql` no Supabase
 - [ ] Provar que sessão `authenticated` **falha** ao tentar `insert`/`update`/`delete` em `licenses`
 - [ ] Provar que `update` em `license_events` falha até com service_role
-- [ ] Rodar a matriz de 10 casos das funções de acesso contra o banco (ver `REVIEW.md`)
+- [x] Rodar a matriz informada das funções de acesso contra o banco (ver `REVIEW.md`)
 - [ ] Confirmar que `UNIQUE (provider, provider_order_id)` bloqueia pedido duplicado e permite múltiplos manuais (NULL)
-- [ ] Provar que `authenticated` **não** executa `has_pro_access('<uuid alheio>')` e **executa** `current_user_has_pro_access()`
+- [x] Provar que `authenticated` **não** executa funções parametrizadas com `uid` e **executa** somente `current_user_has_essential_access()` / `current_user_has_pro_access()`
 
 ### Fase 4-3 — DAL e tipos de acesso (pendente)
 - [ ] `types/access.ts` (`ProductType`, `LicenseStatus`, `License`, `UserAccess`)

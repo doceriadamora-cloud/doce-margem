@@ -383,8 +383,9 @@ do Pro, com o `backup export/import` (Fase 2-8) como rede de segurança.
 supabase/migrations/
   0001_profiles.sql            -- ✅ FEITO (4-1A): profiles + user_access_flags,
                                --    triggers, RLS, grants por coluna
-  0002_licenses.sql            -- ✅ FEITO (4-2A): licenses + license_events +
-                               --    constraints, RLS, funções de acesso e índices.
+  0002_licenses.sql            -- ✅ APLICADA E VALIDADA (4-2A): licenses +
+                               --    license_events, constraints, RLS, funções
+                               --    de acesso e índices.
                                --    Absorveu o que seriam 0003 e 0004: separar
                                --    tabela, policy e função em migrations
                                --    distintas deixaria o schema num estado
@@ -436,8 +437,8 @@ verificada contra as duas implementações.
 |---|---|---|
 | **4-1A** ✅ | Migration `profiles` + `user_access_flags` + triggers + RLS + grants | SQL revisado; zero policy de escrita em `user_access_flags`; só `full_name` atualizável |
 | **4-1B** | Supabase clients + telas de login/cadastro/logout | Cadastrar / entrar / sair funcionando; `profiles` criado no signup |
-| **4-2A** ✅ | Migration `licenses` + `license_events` + RLS + funções SQL de acesso | SQL revisado; 0 policies de escrita; 0 grants de escrita; matriz de 10 casos documentada |
-| **4-2B** | Aplicar e validar no banco | Licença inserida via SQL vira acesso; cliente **não** consegue inserir; `UPDATE` em `license_events` falha até com service_role |
+| **4-2A** ✅ | Migration `licenses` + `license_events` + RLS + funções SQL de acesso | SQL aplicado no Supabase real; tabelas, RLS, policies, grants, privilégios das funções e matriz de acesso validados |
+| **4-2B** | Validações complementares no banco | Provar falhas reais de escrita, imutabilidade de `license_events` e constraint de idempotência |
 | **4-3** | `types/access.ts` + DAL | `getCurrentUserAccess` correto nas 7 combinações da matriz |
 | **4-4** | `lib/features.ts` + `canAccessFeature` | Matriz features × planos testada isolada; default fechado |
 | **4-5** | `proxy.ts` + Route Groups + telas de bloqueio | Rota Pro nega sem Pro, nos 3 níveis |
