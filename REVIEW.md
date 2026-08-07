@@ -1168,6 +1168,32 @@ Seria a correção automática para toda tabela futura. Recusei: concede `ALL` e
 - `npm run typecheck` → exit 0; `npm run lint` → exit 0.
 - `build` não rodado: nenhum arquivo TS/TSX tocado.
 
+### Auditoria pré-lançamento — 2026-08-07
+- **Documento:** `GO-LIVE-AND-PRO-ROADMAP.md`. Diagnóstico, sem alteração de código.
+- **Escopo:** leitura de código, migrations, histórico do Git e documentação viva. **Sem internet, sem service role, sem SQL.**
+
+#### O que a auditoria concluiu
+**A parte difícil está feita.** O motor de precificação está completo e verificado, e o modelo de licença é sólido — o cliente não consegue se conceder licença nem se desbloquear, em duas barreiras independentes. O que falta é a ponte entre o pagamento e o acesso.
+
+**Bloqueador nº 1: compra aprovada não libera nada.** O webhook grava o evento e para por aí. Hoje, quem comprar não recebe acesso sem intervenção manual. São 10 bloqueadores críticos no total, e quatro deles (reembolso não revogar, idempotência com `provider_event_id` nulo, e-mail divergente, comprador sem cadastro) coincidem com os riscos de segurança ainda abertos.
+
+#### Três achados que valem registro
+1. **Três caminhos de saída do handler não escrevem log nenhum** — corpo ilegível, corpo vazio e JSON inválido devolvem 400 em silêncio. Se o teste da Kiwify mandar corpo não-JSON com token válido, o resultado é 400 sem uma linha sequer, e quem procura por `[webhook:kiwify]` conclui erradamente que a requisição nunca chegou. É a hipótese H3 da seção 3 e uma correção de observabilidade para a próxima fase.
+2. **`GET` na rota do webhook distingue 405 de 404**, e essa diferença resolve sozinha a hipótese mais provável do diagnóstico: 405 significa que a rota existe no deploy, 404 que não. É o teste mais barato disponível.
+3. **As 5 linhas de teste que deixei em `webhook_events` podem enganar a investigação** — um `order by created_at desc limit 1` devolve uma delas, não a da Kiwify. Filtrar por `payload ->> '_teste_claude_4_7c' is null`.
+
+#### Dívidas que a auditoria expôs por atravessarem várias fases
+- **Nenhuma tela jamais foi testada por clique real** (pendente desde a Fase 2-2). Tudo foi validado por SSR, HTTP e lógica isolada. É a maior incerteza do cronograma.
+- **O caminho autenticado nunca rodou ponta a ponta** (Fase 4-3B) — login → licença → tela liberada foi deduzido, nunca observado.
+- **`NEXT_PUBLIC_APP_URL` local ainda é `localhost:3000`.** Se estiver assim na Vercel, o link de confirmação de e-mail está quebrado para todos os clientes.
+
+#### Estimativa
+**Essencial vendendo: 35–60 h ≈ 2 a 3 semanas.** Do zero ao Pro completo com IA: 6 a 11 semanas. A faixa é larga por causa do teste em navegador real — é impossível estimar correções de bugs que ninguém viu ainda.
+
+#### Validações
+- `npm run typecheck` → exit 0; `npm run lint` → exit 0.
+- Nenhum código, migration ou `modules/pricing` alterado.
+
 ## Checklist técnico
 - [x] O projeto está em C:\dev\doce-margem
 - [x] Não há dependência de OneDrive

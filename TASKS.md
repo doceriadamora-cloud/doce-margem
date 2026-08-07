@@ -5,7 +5,12 @@
 > Antes de iniciar uma nova fase: parar, resumir o que foi feito e aguardar aprovação.
 
 **Fase atual:** Fase 4-7C concluída e validada — webhook em modo captura funcionando de ponta a ponta, **13/13 testes locais**. Nenhuma licença é liberada ainda.
-**Próximo passo recomendado:** preencher `KIWIFY_WEBHOOK_SECRET`, fazer deploy e cadastrar a URL na Kiwify para capturar um payload real → depois Fase 4-7D (liberação automática).
+**Próximo passo recomendado:** rodar o diagnóstico do webhook (`GO-LIVE-AND-PRO-ROADMAP.md`, seção 3) → capturar payload real → Fase 4-7F (liberação automática).
+
+> 📋 **Auditoria pré-lançamento (2026-08-07): `GO-LIVE-AND-PRO-ROADMAP.md`** —
+> estado do produto, 10 bloqueadores críticos, diagnóstico do webhook, fronteira
+> Essencial × Pro, copy pública, prazos e checklist de lançamento.
+> **Bloqueador nº 1: compra aprovada não libera licença** (Fase 4-7F não existe).
 
 ## Fase 0 — Setup e documentação ✅
 - [x] Criar projeto em C:\dev\doce-margem
