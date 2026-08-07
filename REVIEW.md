@@ -1247,6 +1247,68 @@ Banco confirma: **5 requisições com sucesso = 5 linhas**, o replay não criou 
 - **`?signature=` viaja na URL** e entra em log de proxy, CDN e histórico de acesso. É a Kiwify que escolhe o portador, não nós — mas vale saber que o segredo do webhook tem exposição maior que um header. Rotacionar o token no painel invalida o antigo, se algum dia for preciso.
 - **Ainda não confirmado em produção:** o ajuste só vale depois do redeploy.
 
+### Fase 4-7E — Validação da assinatura real (HMAC)
+- **Status:** ✅ Implementado e validado localmente. ⚠️ **Compra real ainda não testada** — e essa é a única prova que conta.
+- **Escopo:** só a autenticação do handler. Nenhuma liberação de licença, `licenses` e `license_events` intocadas.
+
+#### A conclusão da 4-7D estava errada, e o log escrito nela é que provou
+A 4-7D aceitou `?signature=` como **token simples**, sobre a hipótese de que o painel da Kiwify mandava o próprio segredo ali. O teste real desmentiu: o log de produção registrou `signatureLooksLikeHex=true` — um digest, não um segredo.
+
+Vale registrar o mecanismo: **o bit de diagnóstico que acrescentei na 4-7D foi exatamente o que derrubou a minha própria hipótese.** Sem ele, o 401 seria mais uma tentativa às cegas.
+
+#### Como a assinatura é validada agora
+Ordem fechada, primeira que bater vence:
+
+| # | Portador | Verificação |
+|---|---|---|
+| 1 | `x-kiwify-token` | token simples = segredo |
+| 2 | `Authorization: Bearer` | token simples = segredo |
+| 3 | `?token=` | token simples = segredo |
+| 4 | `?signature=` | **HMAC-SHA256 do corpo cru**, hex |
+| 5 | `?signature=` | **HMAC-SHA1 do corpo cru**, hex |
+
+Prefixos `sha256=` / `sha1=` são removidos antes de comparar. Tudo em tempo constante: os dois lados passam por SHA-256 antes do `timingSafeEqual`, que assim nunca lança por tamanhos diferentes — e nenhum comprimento vaza.
+
+**A aceitação de `signature` como token simples foi removida**, conforme sua preferência e porque manter as duas leituras seria pior do que parece: a verificação fraca (comparar com o segredo) passaria a valer **sempre que a forte falhasse**. Isso é fallback silencioso — o padrão que transforma autenticação forte em teatro. Verificado: `?signature=<segredo>` agora devolve **401**.
+
+#### Uma inversão de ordem que precisa ficar registrada
+A Fase 4-7C autenticava **antes** de ler o corpo. Com HMAC isso é impossível: a assinatura é sobre os bytes recebidos, e não há como conferi-la sem tê-los.
+
+O handler agora lê `request.text()` primeiro e autentica depois. **A garantia que importa continua de pé** — payload não autenticado nunca chega ao banco (princípio 2 da migration 0003). O que mudou é que ele existe em memória por alguns milissegundos. `request.json()` segue proibido: consumiria o stream e destruiria os bytes originais, que são a única coisa contra a qual a assinatura pode ser conferida.
+
+#### Testes locais — 14/14
+Corpo bruto fixo de 94 bytes, assinaturas calculadas com o mesmo segredo:
+
+| # | Caso | Obtido |
+|---|---|:--:|
+| 1 | sem token/signature | ✅ 401 |
+| 2–4 | token nos 3 portadores | ✅ 200 |
+| 5 | **HMAC-SHA256 correta** | ✅ 200 |
+| 6 | **HMAC-SHA1 correta** | ✅ 200 |
+| 7 | prefixo `sha256=` | ✅ 200 |
+| 8 | signature errada (texto) | ✅ 401 |
+| 9 | hex 64 com digest errado | ✅ 401 |
+| 10 | **signature = o próprio segredo** | ✅ 401 |
+| 11 | **HMAC válida de OUTRO corpo** | ✅ 401 |
+| 12 | JSON inválido + assinatura correta | ✅ 400 |
+| 13 | evento válido + assinatura correta | ✅ 200, gravou |
+| 14 | replay do mesmo `provider_event_id` | ✅ 200 `duplicate:true` |
+
+O caso 11 é o que prova que a verificação é real: uma assinatura legítima, calculada com o segredo certo, **não** autentica um corpo diferente. Sem esse teste, um bug que ignorasse o corpo passaria despercebido.
+
+Log de sucesso confirmou o caminho usado: `tokenCarrierUsed=hmac-sha256`.
+
+#### Flags de log
+`hasHeaderToken`, `hasBearer`, `hasQueryToken`, `hasQuerySignature`, `signatureFormat`, `hmacSha256Match`, `hmacSha1Match`, `tokenCarrierUsed`, `authResult`.
+
+`signatureFormat` classifica a **forma** — `hex-64(sha256?)`, `hex-40(sha1?)`, `base64-N`, `other`, `none` — nunca o valor. `grep` confirma: nenhum `console.*` imprime token, signature, segredo, payload, e-mail ou qualquer dado pessoal.
+
+#### O que ainda não está provado
+- **Nenhuma compra real foi testada.** SHA-256 e SHA-1 em hex são as duas convenções mais comuns, não uma certeza. Se a Kiwify usar base64, um corpo canonicalizado, ou um segredo diferente do token do painel, o resultado continua sendo 401.
+- **É justamente para isso que `signatureFormat` existe.** Se o próximo teste falhar, o log dirá se o digest é hex-64, hex-40, base64 ou outra coisa — e aí a correção é uma linha, não uma investigação.
+- **Liberação de licença não existe.** O handler grava o evento e para. Compra aprovada continua não virando acesso — é a Fase 4-7F.
+- **7 linhas de teste em `webhook_events`** (5 da 4-7D + `local-hmac-001` + `local-hmac-002-*`). Vale apagar antes de ligar na Kiwify de verdade, para não misturar payload real com payload inventado.
+
 ## Checklist técnico
 - [x] O projeto está em C:\dev\doce-margem
 - [x] Não há dependência de OneDrive

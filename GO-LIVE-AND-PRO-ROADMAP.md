@@ -105,7 +105,7 @@ verificar**, e por isso pesam mais do que o tamanho delas sugere:
 |---|---|---|
 | C1 | **Compra aprovada não libera licença** | A Fase 4-7D não existe. Hoje: cliente paga, o webhook registra o evento, e **nada acontece**. Você concede à mão ou o cliente fica sem acesso. |
 | C2 | **Preço não definido** | `/precos` diz "Preço de lançamento em breve" e o CTA depende de `NEXT_PUBLIC_BUY_ESSENTIAL_URL`. Sem preço não há oferta. |
-| C3 | **Webhook não confirmado em produção** | Seção 3. Sem ele, C1 não tem nem como ser construído. |
+| C3 | **Webhook não confirmado em produção** | ⚠️ Parcial: a rota responde e a Fase 4-7E implementou a verificação HMAC que o teste real exigia. **Falta uma compra real fechar o ciclo.** |
 | C4 | **Payload real da Kiwify não capturado** | Todos os nomes de campo em `lib/webhooks/kiwify-payload.ts` são hipótese. Escrever a concessão de licença sobre chute é construir a parte que mexe em dinheiro no escuro. |
 | C5 | **`KIWIFY_WEBHOOK_SECRET` vazia** | Handler responde 500 e não grava nada. Falha fechada correta — e webhook morto. |
 | C6 | **Reembolso e chargeback não revogam** | Cliente pede reembolso, recebe o dinheiro **e mantém acesso vitalício**. Prejuízo direto e problema com a Kiwify. |
@@ -230,7 +230,16 @@ não de segurança.
 
 ---
 
-#### H4 — A Kiwify usa assinatura/HMAC, não token simples · **probabilidade média**
+#### H4 — A Kiwify usa assinatura/HMAC, não token simples · **✅ CONFIRMADA**
+
+> **Esta era a hipótese certa.** O teste real registrou
+> `hasQuerySignature=true signatureLooksLikeHex=true` — digest, não token.
+> A Fase 4-7E implementou a verificação HMAC do corpo cru (SHA-256, depois
+> SHA-1, em hex) e **removeu** a leitura de `signature` como token simples.
+> **Falta confirmar com compra real:** se ainda der 401, o `signatureFormat` no
+> log identifica o formato verdadeiro. Detalhes no `REVIEW.md` (Fase 4-7E).
+
+O texto original fica abaixo como registro do raciocínio:
 
 Previsto desde o `PLAN-FASE-4.md` 13.8. O handler aceita `x-kiwify-token`,
 `Authorization: Bearer` e `?token=`. Se a Kiwify assina o corpo e manda
@@ -791,7 +800,7 @@ Considerando **~4 h úteis por dia**.
 | S1 | **Service role vazar no bundle** | 🟢 controlado | lida por um arquivo só, com `server-only`. **Nunca** dar prefixo `NEXT_PUBLIC_` |
 | S2 | **Cliente se conceder licença** | 🟢 fechado | zero policy de escrita **e** zero privilégio em `licenses` — duas barreiras |
 | S3 | **Cliente se desbloquear** | 🟢 fechado | `user_access_flags` separada, sem escrita para cliente |
-| S4 | **Webhook público aceitar payload forjado** | 🟡 parcial | token validado em tempo constante e antes de ler o corpo; **falta HMAC se a Kiwify usar** |
+| S4 | **Webhook público aceitar payload forjado** | 🟢 fechado (a confirmar) | HMAC do corpo cru implementado na Fase 4-7E (SHA-256/SHA-1 hex), em tempo constante. Provado que assinatura válida de **outro** corpo é rejeitada. **Falta a compra real** |
 | S5 | **Token da Kiwify vazar** | 🟡 atenção | se viajar em query string, entra em log de proxy. Prefira header quando houver escolha; nunca logue a URL completa |
 | S6 | **Reembolso não revogar** | 🔴 **aberto** | Fase 4-7G. Hoje reembolso mantém acesso vitalício |
 | S7 | **Licença indevida por replay** | 🟢 fechado | índice único parcial testado — replay devolve 200 sem duplicar |

@@ -866,3 +866,38 @@ Técnico: **toda migration futura que criar tabela escrita pelo backend precisa 
 Segurança: `licenses` com `insert/update` é o poder de conceder e revogar licença. O grant não é a proteção — a proteção é **quem tem a `SUPABASE_SERVICE_ROLE_KEY`**. Ela nunca pode receber prefixo `NEXT_PUBLIC_`, e hoje é lida por um único arquivo, `services/supabase/admin.ts`, com `import "server-only"`.
 
 Dívida documental: os comentários de `0002` (linha 366) e `0003` (linha 342) continuam afirmando que `service_role` não precisa de grant. Corrigi-los exige alterar migrations antigas; por ora a falsidade está registrada no cabeçalho da `0004`. É paliativo — quem ler a `0002` isolada continua sendo informado errado.
+
+---
+
+## 2026-08-07 — Um parâmetro, uma leitura: `signature` é assinatura, nunca token
+
+### Decisão
+`?signature=` no webhook da Kiwify é validado **exclusivamente como HMAC do corpo cru** — HMAC-SHA256 e, se falhar, HMAC-SHA1, ambos em hex, com prefixo `sha256=`/`sha1=` normalizado antes da comparação.
+
+**A aceitação de `signature` como token simples, introduzida na Fase 4-7D, foi removida.**
+
+Consequência de ordem: o handler passou a ler o corpo (`request.text()`) **antes** de autenticar.
+
+### Contexto
+Fase 4-7E. A 4-7D acrescentou `?signature=` aos portadores aceitos e o tratou como token simples, sobre a hipótese de que o painel da Kiwify mandava o próprio segredo ali. O teste real desmentiu: o log de produção registrou `signatureLooksLikeHex=true` — um digest.
+
+O bit de diagnóstico acrescentado na própria 4-7D foi o que derrubou a hipótese da 4-7D.
+
+### Motivo
+
+**Por que remover a leitura como token, em vez de manter as duas.** Parece conservador manter a verificação antiga "por compatibilidade". Não é: a ordem de tentativa faz a verificação **fraca valer sempre que a forte falhar**. Um atacante que descobrisse o segredo por qualquer via — log de proxy, histórico de URL, captura de tela do painel — poderia autenticar sem saber assinar nada, e o caminho HMAC viraria decoração. Fallback silencioso de forte para fraca é como autenticação forte vira teatro.
+
+Além disso, um parâmetro com duas leituras é um parâmetro sem significado definido. Quem for depurar isso em seis meses precisa poder ler `signature` e saber o que é.
+
+**Por que tentar dois algoritmos.** SHA-256 e SHA-1 em hex são as duas convenções dominantes em webhooks. Tentar ambos custa dois HMACs por requisição — irrelevante — e evita um ciclo inteiro de deploy e teste caso a Kiwify use SHA-1. Não é chute disfarçado: se nenhum bater, o resultado é 401, e o `signatureFormat` no log diz qual formato veio.
+
+**Por que a inversão de ordem é aceitável.** A Fase 4-7C autenticava antes de ler o corpo, e isso era bom. Com HMAC é impossível — a assinatura é sobre os bytes recebidos. A garantia que realmente importa continua intacta: **payload não autenticado nunca vira linha em `webhook_events`** (princípio 2 da migration 0003 — auditoria que o atacante alimenta não serve para disputa de chargeback). O que mudou é que o corpo existe em memória por alguns milissegundos antes de ser recusado.
+
+**Por que comparar hashes em vez dos digests diretamente.** `timingSafeEqual` lança quando os buffers têm tamanhos diferentes, o que forçaria um `if` de comprimento antes — e esse `if` é o canal lateral que a função existe para fechar. Passando os dois lados por SHA-256, a comparação é sempre de 32 bytes: nunca lança, nada vaza.
+
+### Impacto
+Técnico: `authenticate()` devolve o método usado, e ele aparece no log de sucesso como `tokenCarrierUsed` — é assim que se descobre qual mecanismo a Kiwify realmente usa quando a compra real funcionar. Os três portadores de token simples continuam aceitos e são úteis para teste manual via `curl`/PowerShell.
+
+Segurança: verificado que uma assinatura **legítima**, calculada com o segredo correto sobre **outro** corpo, é rejeitada com 401. Esse é o teste que separa verificação real de verificação aparente — sem ele, um bug que ignorasse o corpo passaria despercebido.
+
+⚠️ **Nada foi confirmado contra compra real.** Se a Kiwify usar base64, corpo canonicalizado ou um segredo diferente do token do painel, o resultado continua sendo 401 — e o `signatureFormat` no log é o que apontará a correção. Liberação automática de licença continua não existindo: o handler grava o evento e para.

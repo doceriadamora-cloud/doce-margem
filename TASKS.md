@@ -4,8 +4,8 @@
 > Marcar `[x]` ao concluir. Adicionar novas tarefas quando surgirem.
 > Antes de iniciar uma nova fase: parar, resumir o que foi feito e aguardar aprovação.
 
-**Fase atual:** Fase 4-7D concluída — `?signature=` aceito, **12/12 testes locais**. O 401 da Kiwify em produção está explicado e corrigido. Nenhuma licença é liberada ainda.
-**Próximo passo recomendado:** redeployar → repetir o teste da Kiwify (deve virar 200) → **compra real de valor mínimo** para capturar o payload de produção → Fase 4-7E (liberação automática).
+**Fase atual:** Fase 4-7E concluída — `?signature=` validado como **HMAC do corpo cru**, **14/14 testes locais**. Nenhuma licença é liberada ainda.
+**Próximo passo recomendado:** redeployar → repetir o teste da Kiwify → se ainda der 401, ler `signatureFormat` no log → **compra real de valor mínimo** → Fase 4-7F (liberação automática).
 
 > 📋 **Auditoria pré-lançamento (2026-08-07): `GO-LIVE-AND-PRO-ROADMAP.md`** —
 > estado do produto, 10 bloqueadores críticos, diagnóstico do webhook, fronteira
@@ -485,7 +485,22 @@
 - [ ] **Confirmar em produção:** redeployar e disparar o teste da Kiwify de novo — deve virar 200 e gravar
 - [ ] ⚠️ **Confirmar com compra real:** o teste do painel pode usar autenticação diferente do evento de produção. Se um evento real der 401 com `signatureLooksLikeHex=true`, aí sim é HMAC e precisa de fase própria
 
-### Fase 4-7E — Liberação automática de licença (pendente)
+### Fase 4-7E — Validação da assinatura real (HMAC) ✅
+- [x] **Hipótese da 4-7D refutada pelo teste real:** `signatureLooksLikeHex=true` no log de produção prova que `signature` é **assinatura, não token simples**
+- [x] `?signature=` passou a ser validado como **HMAC do corpo cru** — SHA-256 e, se falhar, SHA-1, ambos em hex
+- [x] **Aceitação de `signature` como token simples REMOVIDA** — o mesmo parâmetro não pode ter duas leituras, e a mais fraca valeria sempre que a mais forte falhasse
+- [x] Prefixo `sha256=` / `sha1=` normalizado antes da comparação
+- [x] **Ordem de leitura invertida:** corpo cru primeiro, autenticação depois — HMAC não é verificável sem os bytes. Payload não autenticado continua **nunca chegando ao banco**
+- [x] Comparação em tempo constante por hash SHA-256 dos dois lados — `timingSafeEqual` nunca lança por tamanhos diferentes
+- [x] Log com as flags pedidas: `hasQuerySignature`, `signatureFormat`, `hmacSha256Match`, `hmacSha1Match`, `tokenCarrierUsed`, `authResult` — **zero valores**
+- [x] `tokenCarrierUsed` também no log de sucesso: identifica qual mecanismo a Kiwify realmente usou quando funcionar
+- [x] **14/14 testes locais**, incluindo HMAC de outro corpo → 401 (replay cruzado) e `signature` = segredo → 401
+- [x] `typecheck` + `lint` + `build` — 13 rotas
+- [x] `licenses` e `license_events` intocadas (2 linhas cada, `provider=manual`)
+- [ ] ⚠️ **Compra real ainda não testada.** SHA-256 e SHA-1 hex são as convenções mais comuns, não uma certeza. Se a Kiwify usar base64, corpo canonicalizado ou outro segredo, continua dando 401 — o `signatureFormat` no log dirá qual
+- [ ] **Limpar antes de ligar na Kiwify:** 7 linhas de teste em `webhook_events` (5 da 4-7D + `local-hmac-001` e `local-hmac-002-*`)
+
+### Fase 4-7F — Liberação automática de licença (pendente)
 - [ ] Cadastrar o webhook no painel da Kiwify — **ainda não existe webhook cadastrado**
 - [ ] Criar `POST /api/webhooks/kiwify` — **a rota ainda não existe**
 - [ ] **Capturar payload real da Kiwify** (webhook.site) antes de escrever código — sem isso os nomes de campo são chute

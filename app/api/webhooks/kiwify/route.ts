@@ -1,4 +1,4 @@
-import { createHash, timingSafeEqual } from "node:crypto";
+import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 import { createSupabaseAdminClient } from "@/services/supabase/admin";
 import {
   extractKiwifyWebhook,
@@ -18,8 +18,13 @@ import {
  * de licença sobre suposição de formato seria construir a parte que mexe em
  * dinheiro em cima de chute.
  *
- * **Fase 4-7D:** acrescentado `?signature=` aos portadores de token aceitos,
- * depois de a Kiwify tomar 401 em produção mandando o segredo por ali.
+ * **Fase 4-7D:** acrescentado `?signature=` aos portadores aceitos, depois de a
+ * Kiwify tomar 401 em produção mandando algo por ali.
+ *
+ * **Fase 4-7E:** o teste real mostrou `signatureLooksLikeHex=true` — ou seja,
+ * `signature` é **assinatura, não token**. O parâmetro passou a ser validado
+ * como **HMAC do corpo cru** (SHA-256, depois SHA-1), e a aceitação como token
+ * simples foi **removida**, para o mesmo parâmetro não ter duas leituras.
  *
  * Exportar só `POST` faz o Next responder **405** a GET/PUT/DELETE sozinho, com
  * o header `Allow` correto — não é preciso escrever um GET só para recusá-lo.
@@ -35,89 +40,138 @@ export const runtime = "nodejs";
 /* ─────────────────────── Autenticação da requisição ─────────────────────── */
 
 /**
- * Compara em tempo constante.
+ * Compara duas strings em tempo constante.
  *
  * Compara os **hashes**, não os textos: SHA-256 devolve sempre 32 bytes, então
- * nem o comprimento do segredo vaza. Comparar direto exigiria um `if` de
- * tamanho antes do `timingSafeEqual` (que lança com buffers de tamanhos
- * diferentes), e esse `if` é justamente um canal lateral.
+ * nem o comprimento vaza e `timingSafeEqual` nunca lança por tamanhos
+ * diferentes. Comparar direto exigiria um `if` de tamanho antes, e esse `if` é
+ * justamente um canal lateral.
  */
-function secretsMatch(candidate: string, secret: string): boolean {
-  const a = createHash("sha256").update(candidate, "utf8").digest();
-  const b = createHash("sha256").update(secret, "utf8").digest();
-  return timingSafeEqual(a, b);
+function constantTimeEquals(a: string, b: string): boolean {
+  const ha = createHash("sha256").update(a, "utf8").digest();
+  const hb = createHash("sha256").update(b, "utf8").digest();
+  return timingSafeEqual(ha, hb);
+}
+
+/** Remove prefixos de algoritmo do tipo `sha256=` que alguns provedores usam. */
+function stripAlgorithmPrefix(value: string): string {
+  return value.trim().replace(/^(sha256|sha1|hmac-sha256|hmac-sha1)\s*=\s*/i, "");
 }
 
 /**
- * Onde o segredo pode vir.
+ * Classifica a FORMA da assinatura, nunca o valor.
  *
- * Os três primeiros portadores foram previstos na Fase 4-7C. O quarto veio de
- * **observação em produção** (Fase 4-7D): o teste disparado pelo painel da
- * Kiwify chegou à Vercel com o segredo em `?signature=` e tomou 401, porque o
- * handler não olhava esse parâmetro.
- *
- * ⚠️ **`signature` é tratado aqui como token simples, não como HMAC.** Só é
- * aceito se for **exatamente igual** a `KIWIFY_WEBHOOK_SECRET`. Isso não é um
- * enfraquecimento: se a Kiwify um dia mandar um HMAC de verdade nesse mesmo
- * parâmetro, ele não vai bater com o segredo e a requisição continua sendo
- * recusada com 401 — nunca aceita "por parecer uma assinatura". O nome do
- * parâmetro não decide nada; a comparação com o segredo decide.
- *
- * HMAC completo **não** foi implementado de propósito: exigiria conhecer o
- * algoritmo e o formato de digest usados pela Kiwify, e nenhum payload real
- * documentado confirma isso ainda. Implementar por suposição a verificação de
- * uma rota que concede licença seria construir no escuro a parte que mexe em
- * dinheiro. Fica para quando houver evidência — ver `REVIEW.md` (Fase 4-7D).
+ * Serve só para diagnóstico: quando um 401 acontece, isto responde "que
+ * algoritmo a Kiwify parece estar usando?" sem imprimir um byte do digest.
  */
-function collectTokenCandidates(request: Request): string[] {
+function classifySignatureFormat(rawSignature: string | null): string {
+  if (rawSignature === null) return "none";
+  const value = stripAlgorithmPrefix(rawSignature);
+  if (value === "") return "empty";
+  if (/^[0-9a-f]{64}$/i.test(value)) return "hex-64(sha256?)";
+  if (/^[0-9a-f]{40}$/i.test(value)) return "hex-40(sha1?)";
+  if (/^[0-9a-f]+$/i.test(value)) return `hex-${value.length}`;
+  if (value.length % 4 === 0 && /^[A-Za-z0-9+/]+={0,2}$/.test(value)) {
+    return `base64-${value.length}`;
+  }
+  return "other";
+}
+
+/**
+ * HMAC do **corpo cru** confere com a assinatura recebida?
+ *
+ * `rawBody` precisa ser exatamente os bytes que chegaram — daí o handler ler
+ * `request.text()` e só depois fazer `JSON.parse`. Reserializar o objeto
+ * mudaria espaços e ordem de chaves, e o digest deixaria de bater.
+ */
+function hmacHexMatches(
+  algorithm: "sha256" | "sha1",
+  rawBody: string,
+  secret: string,
+  receivedSignature: string,
+): boolean {
+  const expected = createHmac(algorithm, secret).update(rawBody, "utf8").digest("hex");
+  return constantTimeEquals(expected, stripAlgorithmPrefix(receivedSignature).toLowerCase());
+}
+
+/** Como a requisição se autenticou — só para log e diagnóstico. */
+type AuthMethod =
+  | "header-token"
+  | "bearer-token"
+  | "query-token"
+  | "hmac-sha256"
+  | "hmac-sha1"
+  | null;
+
+interface AuthOutcome {
+  ok: boolean;
+  method: AuthMethod;
+  /** Linha de log pronta. Só booleanos e classificações — nenhum valor. */
+  diagnostics: string;
+}
+
+/**
+ * Autentica a requisição, em ordem fechada.
+ *
+ * 1. `x-kiwify-token`        — token simples
+ * 2. `Authorization: Bearer` — token simples
+ * 3. `?token=`               — token simples
+ * 4. `?signature=`           — **HMAC do corpo cru**, SHA-256 e depois SHA-1
+ *
+ * ⚠️ **`signature` NÃO é mais aceito como token simples** (mudança da Fase
+ * 4-7E). A 4-7D o tratava assim, sobre a hipótese de que o painel da Kiwify
+ * mandava o próprio segredo ali. O teste real desmentiu: o log de produção
+ * registrou `signatureLooksLikeHex=true`, ou seja, um digest. Manter as duas
+ * leituras faria o mesmo parâmetro significar duas coisas — e a mais fraca
+ * (comparar com o segredo) passaria a valer sempre que a mais forte falhasse,
+ * que é exatamente o tipo de fallback silencioso que enfraquece autenticação.
+ *
+ * ⚠️ **Nada aqui foi confirmado contra uma compra real.** SHA-256 e SHA-1 em
+ * hex são as duas convenções mais comuns, e é por isso que ambas são tentadas —
+ * mas se a Kiwify usar outra combinação (base64, corpo canonicalizado,
+ * segredo diferente do token do painel), o resultado continua sendo 401. O
+ * `signatureFormat` no log é o que vai dizer qual delas foi.
+ */
+function authenticate(request: Request, rawBody: string, secret: string): AuthOutcome {
   const url = new URL(request.url);
-  const candidates: string[] = [];
 
   const headerToken = request.headers.get("x-kiwify-token");
-  if (headerToken) candidates.push(headerToken.trim());
-
   const authorization = request.headers.get("authorization");
-  if (authorization) {
-    const bearer = authorization.replace(/^Bearer\s+/i, "").trim();
-    if (bearer !== "") candidates.push(bearer);
+  const bearerToken = authorization === null ? null : authorization.replace(/^Bearer\s+/i, "").trim();
+  const queryToken = url.searchParams.get("token");
+  const querySignature = url.searchParams.get("signature");
+
+  let method: AuthMethod = null;
+  if (headerToken && constantTimeEquals(headerToken.trim(), secret)) {
+    method = "header-token";
+  } else if (bearerToken && constantTimeEquals(bearerToken, secret)) {
+    method = "bearer-token";
+  } else if (queryToken && constantTimeEquals(queryToken.trim(), secret)) {
+    method = "query-token";
+  } else if (querySignature) {
+    if (hmacHexMatches("sha256", rawBody, secret, querySignature)) method = "hmac-sha256";
+    else if (hmacHexMatches("sha1", rawBody, secret, querySignature)) method = "hmac-sha1";
   }
 
-  const queryToken = url.searchParams.get("token");
-  if (queryToken) candidates.push(queryToken.trim());
-
-  const querySignature = url.searchParams.get("signature");
-  if (querySignature) candidates.push(querySignature.trim());
-
-  return candidates;
-}
-
-/**
- * Diagnóstico de 401: **só booleanos**.
- *
- * Nunca imprime token, signature nem segredo — em nenhum caminho, nem truncado.
- * `signatureLooksLikeHex` existe para responder à única pergunta que sobra
- * depois de um 401: a Kiwify mandou o token simples ou um digest? Cadeia longa
- * só de hexadecimais é assinatura; qualquer outra coisa é token.
- *
- * Esse bit é seguro justamente por só aparecer no 401: se a autenticação
- * falhou, o valor inspecionado **não** é o segredo, e a forma dele não revela
- * nada sobre o segredo.
- */
-function describeCarriers(request: Request): string {
-  const url = new URL(request.url);
-  const signature = url.searchParams.get("signature");
-
   const flags = {
-    hasHeaderToken: Boolean(request.headers.get("x-kiwify-token")),
-    hasBearer: Boolean(request.headers.get("authorization")),
-    hasQueryToken: Boolean(url.searchParams.get("token")),
-    hasQuerySignature: Boolean(signature),
-    signatureLooksLikeHex: signature !== null && /^[0-9a-f]{32,128}$/i.test(signature.trim()),
+    hasHeaderToken: Boolean(headerToken),
+    hasBearer: Boolean(authorization),
+    hasQueryToken: Boolean(queryToken),
+    hasQuerySignature: Boolean(querySignature),
+    signatureFormat: classifySignatureFormat(querySignature),
+    hmacSha256Match: method === "hmac-sha256",
+    hmacSha1Match: method === "hmac-sha1",
+    tokenCarrierUsed: method ?? "none",
+    authResult: method === null ? "denied" : "allowed",
   };
 
-  return Object.entries(flags)
-    .map(([key, value]) => `${key}=${value}`)
-    .join(" ");
+  return {
+    ok: method !== null,
+    method,
+    diagnostics: Object.entries(flags)
+      .map(([key, value]) => `${key}=${value}`)
+      .join(" "),
+  };
 }
 
 /* ─────────────────────── Respostas ─────────────────────── */
@@ -144,25 +198,32 @@ export async function POST(request: Request): Promise<Response> {
     return json({ error: "not_configured" }, 500);
   }
 
-  // 2. Autenticar ANTES de ler o corpo. Payload não autenticado não chega perto
-  //    do banco — nem como linha de auditoria (princípio 2 da migration 0003:
+  // 2. Corpo como TEXTO, antes de autenticar.
+  //
+  //    A Fase 4-7C autenticava primeiro; **a 4-7E teve que inverter**, porque
+  //    HMAC é calculado sobre os bytes recebidos e não há como verificá-lo sem
+  //    tê-los em mãos. A garantia que importa continua de pé: payload não
+  //    autenticado **nunca chega ao banco** (princípio 2 da migration 0003 —
   //    auditoria que o atacante alimenta não serve para disputa de chargeback).
-  const candidates = collectTokenCandidates(request);
-  const authenticated = candidates.some((candidate) => secretsMatch(candidate, secret));
-  if (!authenticated) {
-    console.warn(`[webhook:kiwify] 401 — portadores presentes: ${describeCarriers(request)}`);
-    return json({ error: "unauthorized" }, 401);
-  }
-
-  // 3. Corpo como TEXTO primeiro. Se a validação virar HMAC na Fase 4-7D, ela
-  //    será sobre estes bytes — `request.json()` consumiria o stream e destruiria
-  //    a única evidência verificável.
+  //    Ele agora existe em memória por alguns milissegundos, e só.
+  //
+  //    `request.json()` continua proibido aqui: consumiria o stream e destruiria
+  //    os bytes originais, que são a única coisa contra a qual a assinatura pode
+  //    ser conferida.
   let raw: string;
   try {
     raw = await request.text();
   } catch {
     return json({ error: "unreadable_body" }, 400);
   }
+
+  // 3. Autenticar: token simples nos três portadores, depois HMAC do corpo cru.
+  const auth = authenticate(request, raw, secret);
+  if (!auth.ok) {
+    console.warn(`[webhook:kiwify] 401 — ${auth.diagnostics}`);
+    return json({ error: "unauthorized" }, 401);
+  }
+
   if (raw.trim() === "") {
     return json({ error: "empty_body" }, 400);
   }
@@ -218,7 +279,8 @@ export async function POST(request: Request): Promise<Response> {
   // captura. `payload` cru fica no banco, que é onde se pode consultá-lo com
   // controle de acesso.
   console.info(
-    `[webhook:kiwify] gravado — evento=${extraction.eventType} ` +
+    `[webhook:kiwify] gravado — tokenCarrierUsed=${auth.method} ` +
+      `evento=${extraction.eventType} ` +
       `bruto=${extraction.rawEventName ?? "—"} status=${status} ` +
       `event_id=${extraction.providerEventId !== null} ` +
       `order_id=${extraction.providerOrderId !== null} ` +

@@ -681,6 +681,24 @@ implementação.
 > HMAC de verdade e vira fase própria — com o corpo cru, que o handler já lê
 > antes do `JSON.parse` justamente para isso.
 
+> ❌ **A conclusão acima estava errada, e a Fase 4-7E corrigiu.** O teste real da
+> Kiwify registrou `signatureLooksLikeHex=true`: `signature` é **assinatura, não
+> token simples**. A leitura como token foi **removida** — manter as duas faria a
+> verificação fraca valer sempre que a forte falhasse, que é fallback silencioso.
+>
+> `?signature=` agora é validado como **HMAC do corpo cru**, tentando
+> HMAC-SHA256 e depois HMAC-SHA1, ambos em hex, com prefixo `sha256=`/`sha1=`
+> normalizado. **14/14 testes locais**, incluindo o caso decisivo: uma assinatura
+> legítima calculada sobre **outro** corpo é rejeitada com 401.
+>
+> **Consequência de ordem:** o handler passou a ler o corpo **antes** de
+> autenticar — HMAC não é verificável sem os bytes. A garantia de 13.7 continua
+> valendo: payload não autenticado nunca vira linha em `webhook_events`.
+>
+> ⚠️ **Ainda não confirmado contra compra real.** SHA-256 e SHA-1 em hex são
+> convenção, não certeza. Se falhar, `signatureFormat` no log identifica o
+> formato verdadeiro (`base64-N`, `hex-40`, `other`) e a correção fica pontual.
+
 ### Códigos de resposta (mais importante do que parece)
 
 O código define se o provedor reenvia. Errar aqui produz reenvio infinito ou
