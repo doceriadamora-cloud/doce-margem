@@ -4,8 +4,8 @@
 > Marcar `[x]` ao concluir. Adicionar novas tarefas quando surgirem.
 > Antes de iniciar uma nova fase: parar, resumir o que foi feito e aguardar aprovação.
 
-**Fase atual:** Fase 4-7B concluída — `0003_webhook_support.sql` escrita. **SQL não aplicado.** Nenhum route handler.
-**Próximo passo recomendado:** rodar a checagem de e-mails duplicados e aplicar a migration → decidir "compra antes do cadastro" e capturar um payload real → Fase 4-7C.
+**Fase atual:** Fase 4-7B concluída e validada — `0003_webhook_support.sql` aplicada no Supabase real. Nenhum route handler.
+**Próximo passo recomendado:** Fase 4-7C — capturar um payload real, confirmar a autenticação da Kiwify e implementar o Route Handler.
 
 ## Fase 0 — Setup e documentação ✅
 - [x] Criar projeto em C:\dev\doce-margem
@@ -422,11 +422,13 @@
 - [x] RLS habilitada, **zero policies** (nem de leitura) + `revoke all` e **zero grants** — duas barreiras independentes
 - [x] **Sem trigger de imutabilidade**, ao contrário de `license_events`: esta tabela precisa de UPDATE (`received → processed`)
 - [x] Rodar `typecheck` + `lint`
-- [ ] ⚠️ **ANTES DE APLICAR:** rodar a checagem de e-mails duplicados da seção 4 da migration — se retornar linhas, o `CREATE INDEX` falha
-- [ ] **Pendente de ambiente:** aplicar no Supabase real e validar (a migration não foi executada nem checada por parser SQL — não há Postgres local)
-- [ ] **Decisão registrada, custo conhecido:** `provider` aceita só `'kiwify'`; Hotmart exigirá migration (junto com o `event_type`, que usa vocabulário português da Kiwify)
+- [x] Aplicar `0003_webhook_support.sql` manualmente no Supabase real
+- [x] Validar tabela, RLS, ausência de policies/privilégios e os índices de idempotência/e-mail no banco real
+- [x] **Decisão registrada, custo conhecido:** `provider` aceita só `'kiwify'`; Hotmart exigirá migration (junto com o `event_type`, que usa vocabulário português da Kiwify)
 
 ### Fase 4-7C — Implementação do webhook (pendente)
+- [ ] Cadastrar o webhook no painel da Kiwify — **ainda não existe webhook cadastrado**
+- [ ] Criar `POST /api/webhooks/kiwify` — **a rota ainda não existe**
 - [ ] **Capturar payload real da Kiwify** (webhook.site) antes de escrever código — sem isso os nomes de campo são chute
 - [ ] Confirmar o mecanismo de validação observado (token simples × HMAC em query string)
 - [ ] **Decidir:** compra antes do cadastro — convite via Admin API (recomendado no plano) × concessão manual

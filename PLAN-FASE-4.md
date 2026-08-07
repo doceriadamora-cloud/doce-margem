@@ -472,8 +472,9 @@ Registradas no `REVIEW.md`, item por item:
 
 # 13. Fase 4-7 — Webhook Kiwify (plano técnico)
 
-> Escrito na **Fase 4-7A**. Nenhum código, nenhuma rota, nenhuma migration foi
-> criada. Este capítulo é o que a 4-7B vai implementar.
+> Escrito na **Fase 4-7A**. A migration de suporte foi criada na 4-7B, aplicada
+> e validada no Supabase real. Nenhuma rota foi criada; a implementação do
+> Route Handler continua sendo a Fase 4-7C.
 
 Checkout do Essencial já existente: `https://pay.kiwify.com.br/i5YqT17`, apontado
 pela `/precos` através de `NEXT_PUBLIC_BUY_ESSENTIAL_URL`.
@@ -686,25 +687,29 @@ perda silenciosa de venda:
 > reembolso. O cliente não lê a tabela: RLS sem policy nenhuma e zero grants.
 > `pending_purchases` **não** foi criada — a decisão de 13.4 (convite via Admin
 > API) segue pendente e só ela dirá se a fila é necessária.
+>
+> ✅ **Validada no Supabase real em 2026-08-06:** `webhook_events` existe, RLS
+> está ativo, não há policies, `anon` e `authenticated` não têm privilégios, o
+> índice único parcial de `provider_event_id` existe e o índice `lower(email)`
+> em `profiles` existe.
 
-O `README.md` (linha 87) e o `TASKS.md` (Fase 6) prometem uma tabela
-`webhook_events` que **não existe** — a 0002 resolveu idempotência com a UNIQUE
-de `licenses`. Divergência a resolver.
+O `README.md` (linha 87) e o `TASKS.md` (Fase 6) já previam a tabela
+`webhook_events`; a `0003_webhook_support.sql` concretizou essa parte do plano.
 
 A UNIQUE cobre replay de concessão. **Não cobre** replay de revogação (13.6), nem
 falha no meio do processamento, nem "recebi mas ainda não processei". Se a 4-7B
 adotar o caminho 2 de 13.4, `pending_purchases` e `webhook_events` são quase a
 mesma tabela — vale desenhar as duas juntas em vez de criar duas migrations.
 
-## 13.10 Ordem sugerida da 4-7B
+## 13.10 Ordem sugerida da 4-7C
 
 1. **Capturar um payload real** (webhook.site apontado no painel da Kiwify) —
    antes de qualquer código. Sem isso, os nomes de campo são chute.
 2. Confirmar o mecanismo de validação observando o cabeçalho/query da requisição.
-3. Decidir 13.4 (convite × fila) e escrever a migration correspondente.
+3. Decidir 13.4 (convite × fila); migration adicional só se a decisão exigir.
 4. `services/supabase/admin.ts`.
-5. O Route Handler.
-6. Testar com o payload capturado, incluindo replay e token errado.
+5. Criar `POST /api/webhooks/kiwify` — a rota ainda não existe.
+6. Cadastrar o webhook na Kiwify e testar com o payload capturado, incluindo replay e token errado.
 
 ⚠️ **A URL pública só existe depois do deploy.** Localhost não recebe webhook. O
 teste de ponta a ponta com compra real só é possível pós-deploy — e é o único

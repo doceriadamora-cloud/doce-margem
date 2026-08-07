@@ -955,7 +955,7 @@ O plano foi escrito lendo `0001_profiles.sql` e `0002_licenses.sql`, não a part
 - **E-mail diferente no checkout:** compra com um e-mail, cadastro com outro. Nenhuma automação resolve; depende de concessão manual (Fase 7). Mitigação parcial: normalizar `lower(trim(email))` e criar `unique index on profiles (lower(email))` — hoje a coluna não tem índice nem UNIQUE, então a busca é varredura **e** sensível a maiúsculas.
 
 ### Fase 4-7B — Migration de suporte ao webhook
-- **Status:** ✅ Arquivo escrito. ⚠️ **Não aplicado e não validado por parser SQL** — não há Postgres nem `psql` neste ambiente.
+- **Status:** ✅ Aplicada manualmente e validada no Supabase real em 2026-08-06.
 - **Escopo:** só `supabase/migrations/0003_webhook_support.sql` + documentação. Nenhum código, nenhum route handler, nenhuma edição em 0001/0002.
 
 #### Estrutura criada
@@ -979,8 +979,8 @@ A especificação sugeria `create unique index on public.profiles (lower(email))
 
 Solução: índice **parcial**, `where email <> ''`. Não enfraquece nada — string vazia não é e-mail de compra nenhuma, e o handler nunca vai procurar por ela.
 
-#### ⚠️ Checagem obrigatória antes de aplicar
-Duplicatas reais de e-mail continuam podendo derrubar o índice. Rodar **antes** do `db push`:
+#### Checagem de unicidade do e-mail
+Duplicatas reais de e-mail derrubariam o índice. A consulta preventiva documentada na migration é:
 
 ```sql
 select lower(email) as email_normalizado, count(*)
@@ -989,12 +989,11 @@ where email <> ''
 group by 1 having count(*) > 1;
 ```
 
-Se retornar linhas, resolver as duplicatas primeiro. **Nunca remover o `unique` para "fazer passar"** — duas contas com o mesmo e-mail tornam a identificação por e-mail ambígua, que é exatamente o que o webhook não pode ter.
+O índice `profiles_email_lower_unique` foi criado com sucesso no Supabase real. Isso confirma que não havia duplicata bloqueando a aplicação naquele momento. **Nunca remover o `unique` para "fazer passar"** — duas contas com o mesmo e-mail tornam a identificação por e-mail ambígua, que é exatamente o que o webhook não pode ter.
 
 Lembrete: existem **duas contas de teste** criadas na Fase 4-1B que nunca puderam ser apagadas (exigiria service role). Elas entram nessa contagem.
 
-#### Riscos antes de aplicar
-- **Nada foi executado.** Sem Postgres local e sem `psql`, a verificação foi estrutural (delimitadores `$$` pareados, 5 constraints, 6 índices, 0 policies, 0 grants, nenhum `alter table` em 0001/0002). **Erro de sintaxe só aparece no `db push`.**
+#### Riscos restantes
 - **`provider` aceita só `'kiwify'`.** Hotmart — já citada no `README.md` e no `.env.example` — exigirá migration. É coerente e não descuido: o `CHECK` de `event_type` usa o vocabulário **português** da Kiwify (`compra_aprovada`), que a Hotmart não usa; um provedor novo estenderia os dois de qualquer forma. Note a assimetria deliberada com `licenses.provider`, que **não** tem CHECK — lá o valor é só procedência, aqui ele determina como o payload é lido.
 - **`provider_event_id` NULL desliga a idempotência.** Mesmo buraco de NULL do `PLAN-FASE-4.md` 13.1(C): NULLs não conflitam entre si, então o índice único parcial não protege. **A 4-7C precisa rejeitar payload sem identificador de evento**, nunca gravar NULL e seguir. Está anotado no `TASKS.md` e no comentário da coluna.
 - **O CHECK de coerência restringe o handler.** Inserir direto como `processed` obriga a preencher `processed_at` no mesmo statement. É intencional, mas quem escrever a 4-7C precisa saber antes de descobrir por erro de constraint.
@@ -1003,6 +1002,11 @@ Lembrete: existem **duas contas de teste** criadas na Fase 4-1B que nunca pudera
 #### Validações
 - `npm run typecheck` → exit 0; `npm run lint` → exit 0.
 - `build` não rodado: nenhum arquivo TS/TSX foi tocado.
+- `public.webhook_events` existe e está com RLS ativo.
+- A tabela tem **zero policies**; `anon` e `authenticated` têm **zero privilégios** nela.
+- O índice único parcial de `provider_event_id` existe.
+- O índice `lower(email)` em `profiles` existe.
+- Ainda não existe webhook cadastrado na Kiwify e ainda não existe `/api/webhooks/kiwify`; a próxima fase continua sendo a implementação do Route Handler.
 
 ## Checklist técnico
 - [x] O projeto está em C:\dev\doce-margem
