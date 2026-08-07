@@ -701,6 +701,41 @@ falha no meio do processamento, nem "recebi mas ainda não processei". Se a 4-7B
 adotar o caminho 2 de 13.4, `pending_purchases` e `webhook_events` são quase a
 mesma tabela — vale desenhar as duas juntas em vez de criar duas migrations.
 
+## 13.9-bis ⛔ Correção obrigatória descoberta na Fase 4-7C
+
+O plano acima repete que "`service_role` grava porque ignora RLS". **Isso está
+pela metade.** `service_role` tem `BYPASSRLS` (ignora *policies*) mas **continua
+sujeito a `GRANT`** — e nenhuma das três migrations concede privilégio nenhum a
+ele.
+
+Comprovado contra o Supabase real na 4-7C: `42501 permission denied` em
+`webhook_events`, `licenses` e `user_access_flags`, com o próprio Postgres
+sugerindo `GRANT INSERT ON public.webhook_events TO service_role;`.
+
+**Nada em 13.5, 13.6 e 13.7 funciona até isso ser corrigido.** Lista de grants e
+o motivo de `license_events` ficar sem `update`: `DECISIONS.md`, 2026-08-06.
+
+> ✅ **Corrigido na Fase 4-7C-fix:** `supabase/migrations/0004_service_role_grants.sql`,
+> **ainda não aplicada**. Concede o mínimo por tabela (nenhum `delete`, nada para
+> `anon`/`authenticated`) mais `execute` nas três funções internas da 0002 — que
+> sofriam da mesma falha, já que `revoke ... from public` também tirou o acesso
+> de `service_role`. `alter default privileges` foi avaliado e descartado por
+> conceder `ALL` a toda tabela futura.
+>
+> ⚠️ **Consequência para o resto deste plano:** toda migration que criar tabela
+> escrita pelo backend precisa trazer o `grant` a `service_role` junto. Não há
+> rede automática, por decisão.
+>
+> ✅ **0004 aplicada e validada em 2026-08-06.** Os testes do Route Handler foram
+> reexecutados: **13/13 PASS**, gravação em `webhook_events` funcionando, replay
+> devolvendo 200 sem duplicar, token inválido sem deixar rastro. A idempotência
+> de 13.6 está **provada na prática**, não só no papel — o índice único parcial
+> barrou a repetição e o handler traduziu o `23505` em 200.
+>
+> Segue valendo o alerta de 13.6: a proteção depende de `provider_event_id` **não
+> ser nulo**. Nos testes ele sempre veio; com payload real da Kiwify, isso ainda
+> precisa ser confirmado.
+
 ## 13.10 Ordem sugerida da 4-7C
 
 1. **Capturar um payload real** (webhook.site apontado no painel da Kiwify) —

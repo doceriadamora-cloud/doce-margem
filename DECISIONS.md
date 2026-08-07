@@ -788,3 +788,81 @@ Operacional: **a migration não foi aplicada nem validada por parser SQL** — n
 ⚠️ **Checagem obrigatória antes de aplicar:** duplicatas de e-mail derrubam o `CREATE UNIQUE INDEX`. A consulta está na seção 4 da migration e no `REVIEW.md`. Se retornar linhas, resolver as duplicatas — **nunca remover o `unique` para fazer passar**, porque duas contas com o mesmo e-mail tornam a identificação ambígua, que é exatamente o que o webhook não pode ter. As duas contas de teste da Fase 4-1B, que nunca puderam ser apagadas, entram nessa contagem.
 
 LGPD: `payload` guarda dado pessoal e, diferente de `license_events`, `DELETE` aqui não tem trigger impedindo — pedido de apagamento se atende por service_role.
+
+---
+
+## 2026-08-06 — `service_role` ignora RLS, mas NÃO dispensa GRANT
+
+### Decisão
+Registro de correção de uma premissa errada que atravessou três migrations.
+
+`service_role` no Supabase tem o atributo `BYPASSRLS` — ignora *policies*. Isso **não** o torna superusuário: **privilégio de tabela (`GRANT`) continua valendo para ele**. Sem `grant`, ele recebe `42501 permission denied`, exatamente como qualquer outro papel.
+
+As migrations `0001`, `0002` e `0003` foram escritas assumindo o contrário, e **nenhuma delas concede um único privilégio a `service_role`**. O comentário da `0002` (linha 366) chega a afirmar por escrito: *"Só service_role — que, sendo superusuário efetivo no Supabase, não depende de grant explícito."* A afirmação é falsa.
+
+### Contexto
+Fase 4-7C. O Route Handler do webhook foi o **primeiro código do projeto a usar a service role** — até então tudo passava pela chave anônima, sujeito à RLS. O `INSERT` em `webhook_events` falhou com `42501`, e o diagnóstico direto contra o Supabase real mostrou o mesmo erro em `licenses` e `user_access_flags`. O próprio Postgres devolveu a correção na dica: `GRANT INSERT ON public.webhook_events TO service_role;`.
+
+Ou seja: não era a migration nova. O buraco existe desde a `0001` e ficou invisível por quatro subfases porque nada o exercitava.
+
+### Motivo
+A confusão tem raiz plausível: a documentação do Supabase descreve `service_role` como a chave que "bypasses Row Level Security", e a RLS é de fato a proteção que o projeto mais discutiu. Mas são dois mecanismos independentes e ortogonais — o mesmo par que a Fase 4-1A já tinha separado em outro contexto ("RLS decide *quais linhas*, GRANT decide *quais colunas*"). O projeto aplicou essa distinção corretamente a `authenticated` e a esqueceu para `service_role`.
+
+Projetos Supabase normalmente têm `alter default privileges ... grant all on tables to service_role`, o que faz o problema não aparecer. Neste projeto ele apareceu — motivo a confirmar, mas irrelevante para a correção: **grant explícito funciona em qualquer configuração**, default privileges ou não.
+
+### Impacto
+**Bloqueante para o faturamento.** Sem correção, os webhooks da Fase 4-7D e o admin da Fase 7 falhariam por completo — e o modo de falha é o pior possível: a Kiwify recebe 500, reenvia algumas vezes, desiste, e a licença nunca é concedida. Do lado do app, nada aparece: nenhuma linha em `webhook_events`, nenhum erro na interface. Venda perdida em silêncio.
+
+Correção pendente, em migration própria (não criada na 4-7C, que estava proibida de mexer em migrations):
+
+```sql
+grant select, insert, update on public.webhook_events    to service_role;
+grant select, insert, update on public.licenses          to service_role;
+grant select, insert         on public.license_events    to service_role;
+grant select, insert, update on public.user_access_flags to service_role;
+grant select                 on public.profiles          to service_role;
+```
+
+`license_events` sem `update` de propósito: o trigger da `0002` bloqueia `UPDATE` para todos, inclusive `service_role`, e conceder o privilégio daria a impressão de que a auditoria é editável.
+
+Também vale verificar se o projeto tem `alter default privileges` para `service_role` — sem isso, **toda tabela nova nasce com o mesmo problema**, e o próximo a descobrir será o próximo a perder uma venda.
+
+Documentação: os comentários da `0002` (linha 366) e da `0003` (linha 342) afirmam algo falso e devem ser corrigidos junto com a migration de grants — não por estética, mas porque são exatamente o tipo de comentário confiante que faz a próxima pessoa não checar.
+
+---
+
+## 2026-08-06 — Privilégio do backend é concedido verbo a verbo, sem rede automática
+
+### Decisão
+Complementa a entrada anterior (`service_role` ignora RLS mas não dispensa GRANT), que descreveu o problema. Esta registra **como** ele foi corrigido, em `supabase/migrations/0004_service_role_grants.sql`:
+
+- **Nenhum `delete` para `service_role`, em nenhuma tabela.**
+- **`license_events` sem `update`**, apesar de `insert`.
+- **`grant execute` nas três funções internas** da 0002 (`is_user_blocked`, `has_pro_access`, `has_essential_access`) — e **não** nas versões `current_user_has_*`.
+- **`alter default privileges` avaliado e recusado.** Toda tabela nova precisa trazer seu grant explícito.
+- `user_access_flags` com `select, update` mas **sem `insert`**.
+- Zero grants para `anon` e `authenticated`; nenhuma policy criada; nenhuma RLS removida.
+
+### Contexto
+Fase 4-7C-fix. A entrada anterior documentou a descoberta: nenhuma das três migrations concedia privilégio a `service_role`, e o webhook — primeiro código do projeto a usá-lo — falhou com `42501`. Esta fase implementou a correção, e cada escolha abaixo foi feita contra a alternativa mais permissiva.
+
+### Motivo
+
+**Sem `delete` em lugar nenhum.** Licença revogada vira `status = 'refunded'`; ela não some. Uma licença apagada destrói a resposta para "esta pessoa já teve acesso, e quando o perdeu?" — que é exatamente a pergunta de uma disputa de chargeback, o cenário em que o registro mais importa. O mesmo vale para `webhook_events`: apagar log é operação de exceção (LGPD) e deve exigir acesso administrativo direto ao banco, com intenção explícita, não uma chamada de aplicação que pode ser disparada por engano.
+
+**`license_events` sem `update`.** O trigger `license_events_immutable` da 0002 já bloqueia UPDATE para todos, inclusive `service_role` — então conceder o privilégio não daria poder nenhum. Mas passaria a impressão de que a auditoria é editável, e quem lesse os grants tiraria a conclusão errada. O privilégio ausente e o trigger dizem a mesma coisa; é isso que se quer.
+
+**Funções internas sim, `current_user_has_*` não.** As internas recebem `uid` e são o que o admin da Fase 7 precisa para responder "esta usuária tem acesso?" sem reimplementar a regra em TypeScript — que é justamente a duplicação que essas funções existem para evitar. As versões sem parâmetro resolvem `auth.uid()`, NULL fora de sessão autenticada: para `service_role` devolveriam sempre `false`. Conceder acesso a elas criaria uma armadilha silenciosa para quem chamasse a função errada.
+
+**`alter default privileges` recusado.** Seria a correção automática para toda tabela futura, e é a saída óbvia — mas concede `ALL` em tudo que nascer, exatamente o "privilégio amplo demais" que este projeto recusa por princípio. O custo de não usar é ter que conceder explicitamente a cada tabela nova. **Esse custo é o benefício:** obriga a decidir, verbo por verbo, o que o backend realmente precisa, em vez de herdar tudo por omissão. Foi a mesma escolha feita na 0002 ao não dar policy de escrita em `licenses`.
+
+**`user_access_flags` sem `insert`.** A linha nasce com a conta, pelo trigger `handle_new_user`. Conceder `insert` cobriria um caso que não deveria existir e esconderia o problema real quando existisse.
+
+### Impacto
+Técnico: **toda migration futura que criar tabela escrita pelo backend precisa trazer o `grant` a `service_role` junto.** Não há rede automática, por decisão — o lembrete está em caixa-alta na seção 4 da 0004, onde quem criar a próxima tabela vai passar. Sem isso, a falha se repete, e o modo de falha é silencioso do lado do provedor de pagamento.
+
+⚠️ **Risco conhecido e aceito:** sem `insert` em `user_access_flags`, um perfil que exista sem a linha correspondente faria o `UPDATE` de bloqueio não afetar linha nenhuma — **sem erro**. O admin veria sucesso e a conta seguiria liberada. A consulta 5.4 da migration procura esses casos e deve ser rodada antes de confiar no bloqueio administrativo.
+
+Segurança: `licenses` com `insert/update` é o poder de conceder e revogar licença. O grant não é a proteção — a proteção é **quem tem a `SUPABASE_SERVICE_ROLE_KEY`**. Ela nunca pode receber prefixo `NEXT_PUBLIC_`, e hoje é lida por um único arquivo, `services/supabase/admin.ts`, com `import "server-only"`.
+
+Dívida documental: os comentários de `0002` (linha 366) e `0003` (linha 342) continuam afirmando que `service_role` não precisa de grant. Corrigi-los exige alterar migrations antigas; por ora a falsidade está registrada no cabeçalho da `0004`. É paliativo — quem ler a `0002` isolada continua sendo informado errado.

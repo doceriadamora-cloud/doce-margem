@@ -1008,6 +1008,166 @@ Lembrete: existem **duas contas de teste** criadas na Fase 4-1B que nunca pudera
 - O índice `lower(email)` em `profiles` existe.
 - Ainda não existe webhook cadastrado na Kiwify e ainda não existe `/api/webhooks/kiwify`; a próxima fase continua sendo a implementação do Route Handler.
 
+### Fase 4-7C — Route Handler Kiwify em modo captura
+- **Status:** ✅ Código completo e validado. ⛔ **Gravação bloqueada por um problema de banco anterior a esta fase** (abaixo).
+- **Escopo:** capturar payload. Nenhuma licença criada, `licenses` e `license_events` intocadas.
+
+> ✅ **Desbloqueada em 2026-08-06.** A migration `0004_service_role_grants.sql` foi aplicada e os testes foram reexecutados: **13/13 PASS**. O relato do bloqueio fica abaixo como registro — ver "Reexecução" no fim desta seção para o resultado final.
+
+#### ⛔ Achado que bloqueou a fase — e era maior do que a fase
+Os testes de gravação falharam com `42501`. Investiguei em vez de supor, e o diagnóstico direto contra o Supabase real devolveu:
+
+```
+permission denied for table webhook_events
+hint: GRANT INSERT ON public.webhook_events TO service_role;
+```
+
+O mesmo erro aparece em **`licenses` e `user_access_flags`**. Ou seja: **não é a migration 0003.** A `service_role` nunca teve privilégio de tabela nenhum neste projeto, desde a 0001.
+
+Confirmado por `grep`: **não existe um único `grant ... to service_role` em nenhuma das três migrations.** E o comentário da 0002, linha 366, afirma o contrário:
+
+> "Só service_role — que, sendo superusuário efetivo no Supabase, não depende de grant explícito."
+
+**Essa afirmação é falsa**, e este teste é a primeira coisa no projeto a exercitá-la. `service_role` tem o atributo `BYPASSRLS` — ignora *policies* — mas **privilégio de tabela é outra coisa**, e `GRANT` continua valendo. As três migrations foram escritas sobre essa confusão. Ninguém notou porque, até agora, todo acesso ao banco usava a chave anônima.
+
+Consequência: **os webhooks da Fase 4-7D e o admin da Fase 7 não funcionariam**, e o modo de falha seria exatamente este — silencioso do lado do provedor, 500 do nosso lado, venda perdida.
+
+Correção (migration nova, **fora do escopo desta fase** — nenhuma migration foi criada nem alterada aqui):
+
+```sql
+grant select, insert, update on public.webhook_events to service_role;
+grant select, insert, update on public.licenses       to service_role;
+grant select, insert          on public.license_events to service_role;
+grant select, insert, update on public.user_access_flags to service_role;
+grant select                 on public.profiles        to service_role;
+```
+
+Vale conferir também se o projeto tem `alter default privileges ... to service_role` — se não tiver, toda tabela nova nasce com o mesmo problema.
+
+#### O que foi entregue e está validado
+- **`app/api/webhooks/kiwify/route.ts`** — só `POST` exportado, então o Next responde **405** com header `Allow` nos demais métodos sem precisar de um GET escrito só para recusar.
+- **`services/supabase/admin.ts`** — service role isolada de `server.ts`, `server-only`, chave nunca exportada nem logada, `persistSession: false`. Sem configuração devolve `null`, e o handler recusa com 500 — **nunca cai para a chave anônima**, que mascararia erro de privilégio como erro de dados.
+- **`lib/webhooks/kiwify-payload.ts`** — extractores puros, sem I/O. Separados do handler pelo mesmo motivo que a matemática vive em `modules/`: para serem verificáveis sem subir servidor.
+- **`lib/webhooks/kiwify-payload-examples.ts`** — **28/28 PASS**.
+
+#### Decisões de segurança do handler
+- **Autenticar antes de ler o corpo.** Payload não autenticado não chega ao banco nem como auditoria — princípio 2 da migration 0003.
+- **Comparação por hash, não por texto.** SHA-256 dos dois lados e `timingSafeEqual`: 32 bytes sempre, então nem o comprimento do segredo vaza. Comparar direto exigiria um `if` de tamanho antes (senão `timingSafeEqual` lança), e esse `if` é o canal lateral.
+- **Falha fechada sem segredo** — verificado: 500, e o token nem é avaliado.
+- **Respostas pobres de propósito.** Webhook é endpoint público; detalhar "pedido já processado" o transformaria em oráculo sobre a base de clientes. `error.message` do Postgres nunca sai na resposta (pode conter nome de coluna e constraint).
+- **Diagnóstico no 401 sem vazar nada.** O log registra **quais portadores vieram**, nunca o valor. Inclui `?signature` — que o handler não aceita como token, mas cuja presença identificaria HMAC como o mecanismo real da Kiwify. Sem isso, um 401 em produção seria mistério: nada gravado, nada explicado.
+
+#### Testes locais — 7 de 13
+Dev server com segredo de teste (`.env.local` não foi tocado):
+
+| # | Caso | Esperado | Obtido |
+|---|---|:--:|:--:|
+| 1 | `GET` | 405 | ✅ 405 |
+| 2 | `POST` sem token | 401 | ✅ 401 |
+| 3 | token errado em `x-kiwify-token` | 401 | ✅ 401 |
+| 4 | token errado em `Bearer` | 401 | ✅ 401 |
+| 5 | token errado em `?token=` | 401 | ✅ 401 |
+| 6 | token certo + JSON inválido | 400 | ✅ 400 |
+| 7 | token certo + corpo vazio | 400 | ✅ 400 |
+| — | **sem `KIWIFY_WEBHOOK_SECRET`** | 500 | ✅ 500, nada gravado |
+| 8–13 | gravação e replay | 200 | ⛔ 500 (`42501`) |
+
+O log confirmou os três portadores sendo reconhecidos individualmente (`portadores presentes: x-kiwify-token` / `authorization` / `?token`).
+
+**Nota:** os 500 dos testes 8–13 são o **comportamento correto** para falha de infraestrutura — a Kiwify reenviaria, que é a recuperação desejada. **Nenhuma linha foi criada em `webhook_events`**: os INSERTs foram recusados pelo Postgres. Não há resíduo de teste para limpar.
+
+#### Validações
+- `npm run typecheck` → exit 0; `npm run lint` → exit 0; `npm run build` → exit 0, **13 rotas**, `/api/webhooks/kiwify` dinâmica.
+- Extractores isolados: **28/28 PASS**, incluindo 11 entradas hostis (`null`, `42`, `[]`, `{Customer:null}`, …) que não podem lançar nem virar evento acionável.
+
+#### Riscos
+- **O formato da Kiwify continua sendo hipótese.** Os 28 testes provam que os extractores *não quebram*, não que os caminhos estão certos. Só payload real resolve.
+- **Se a Kiwify usar HMAC (`?signature=`), a captura devolve 401 e não grava nada.** É o cenário mais provável segundo o `PLAN-FASE-4.md` 13.8. Mitigado pelo log de portadores, que diria exatamente isso — mas exige olhar o log do deploy.
+- **`provider_event_id` nulo continua desligando a idempotência.** O handler grava `null` hoje. Quando o formato real for conhecido, a 4-7D deve rejeitar payload sem identificador de evento.
+- **Ambiente: disco C: chegou a 0 bytes livres** durante a fase. Limpei `.next/dev` (607 MB de cache Turbopack gerado pelos dev servers desta sessão) para destravar. Não é causado pelo código, mas vai voltar.
+
+#### ✅ Reexecução após a 0004 — 13/13 PASS
+
+| # | Caso | Esperado | Obtido |
+|---|---|:--:|:--:|
+| 1 | `GET` | 405 | ✅ |
+| 2 | sem token | 401 | ✅ |
+| 3–5 | token errado nos 3 portadores | 401 | ✅ |
+| 6–7 | JSON inválido / corpo vazio | 400 | ✅ |
+| 8 | `compra_aprovada` (header) | 200 | ✅ `{received:true}` |
+| 9 | **replay do mesmo `provider_event_id`** | 200 | ✅ `{received:true,duplicate:true}` |
+| 10 | `compra_reembolsada` (Bearer) | 200 | ✅ |
+| 11 | `chargeback` (`?token=`) | 200 | ✅ |
+| 12 | evento desconhecido | 200 + `ignored` | ✅ |
+| 13 | JSON sem nome de evento | 200 + `unknown` | ✅ |
+
+**O que o banco confirma** (consulta com service role, só leitura):
+
+```
+event_type          status     event_id  order_id  processed_at  user_id  license_id
+compra_aprovada     received   e1        ok        null          null     null
+compra_reembolsada  received   e2        ok        null          null     null
+chargeback          received   e3        ok        null          null     null
+ignored             ignored    e4        ok        sim           null     null
+unknown             ignored    e5        —         sim           null     null
+```
+
+- **Replay não duplicou.** 6 requisições com token válido, **5 linhas** — o índice único parcial `webhook_events_provider_event_unique` da 0003 barrou a repetida, o handler traduziu o `23505` em 200, e a Kiwify não teria motivo para reenviar.
+- **Token inválido não gera linha.** 13 requisições no total, e a tabela inteira tem **5 linhas**, todas com o marcador da rodada. As tentativas 2–5 (sem token / token errado) não deixaram rastro — a autenticação roda antes de o corpo ser lido, como projetado.
+- **A distinção `ignored` × `unknown` funcionou na prática**, não só nos testes isolados: `boleto_gerado` virou `ignored` (nome lido, fora do escopo) e o payload sem nome de evento virou `unknown`.
+- **CHECK `status ↔ processed_at` respeitado** nas 5 linhas — `received` sem carimbo, `ignored` carimbado.
+- **`user_id` e `license_id` nulos** nas 5, como esta fase exige.
+- **`licenses` e `license_events` intocadas:** ambas com 2 linhas, todas `provider = 'manual'` / `source = 'manual:test'`, do teste manual de 02:08–02:09. Nenhuma com `provider = 'kiwify'` nem `source = 'webhook:kiwify'`.
+
+**Limpeza das 5 linhas de teste**, quando quiser:
+
+```sql
+delete from public.webhook_events
+where payload ->> '_teste_claude_4_7c' is not null;
+```
+
+Não é urgente — a tabela é log de captura, e as linhas mostram o handler funcionando. Mas convém apagar antes de ligar o webhook na Kiwify de verdade, para o payload real não se misturar com payload inventado por mim.
+
+**Nota de método:** os testes usaram um segredo injetado só no processo do dev server. **`.env.local` não foi tocado**, e `KIWIFY_WEBHOOK_SECRET` continua vazia lá — o webhook em produção só funcionará quando ela for preenchida com o token do painel da Kiwify.
+
+### Fase 4-7C-fix — Grants para service_role
+- **Status:** ✅ Migration escrita. ⚠️ **Não aplicada** (regra da fase) e não validada por parser SQL — não há Postgres local.
+- **Escopo:** só `0004_service_role_grants.sql` + documentação. Nenhuma linha de código, nenhuma migration antiga tocada (`git diff` vazio em 0001/0002/0003).
+
+#### Grants concedidos
+
+| Objeto | Privilégios | Por que não mais que isso |
+|---|---|---|
+| `schema public` | `usage` | pré-requisito; sem ele todo grant de tabela falha com o mesmo 42501 |
+| `profiles` | `select` | webhook só precisa achar a usuária pelo e-mail |
+| `webhook_events` | `select, insert, update` | a linha muda de `received` para `processed`/`ignored`/`failed` |
+| `licenses` | `select, insert, update` | compra, reembolso, chargeback, renovação |
+| `license_events` | `select, insert` | **sem `update`** — é auditoria |
+| `user_access_flags` | `select, update` | bloqueio administrativo; a linha nasce pelo trigger |
+| 3 funções internas | `execute` | ver abaixo |
+
+**Nenhum `delete` em lugar nenhum.** Licença revogada vira `status = 'refunded'`, nunca some — uma licença apagada destrói a resposta para "esta pessoa já teve acesso?", que é a pergunta de uma disputa de chargeback.
+
+#### Um segundo caso da mesma falha, em funções
+A 0002 fez `revoke execute ... from public, anon, authenticated` nas três funções internas. Revogar de `PUBLIC` remove o default do Postgres, e `service_role` **não é dono dessas funções** — logo hoje também não consegue executá-las. É o mesmo engano da seção de tabelas, aplicado a funções, e contraria o que a própria 0002 declara como projeto ("Usadas por service_role (admin, Fase 7)").
+
+Incluí `grant execute` nas três. **Não estava na lista pedida** — sinalizo para você poder tirar, mas sem isso a Fase 7 teria que reimplementar a regra de acesso em TypeScript, que é exatamente a duplicação que as funções SQL existem para evitar.
+
+As versões sem parâmetro (`current_user_has_*`) ficaram **de fora de propósito**: elas resolvem `auth.uid()`, que é NULL fora de sessão autenticada, então responderiam sempre `false` para `service_role`. Conceder acesso a elas só criaria uma armadilha silenciosa para quem chamasse a função errada no admin.
+
+#### `alter default privileges` — avaliado e descartado
+Seria a correção automática para toda tabela futura. Recusei: concede `ALL` em tudo que nascer, que é literalmente o "privilégio amplo demais" que a fase proíbe. O preço é ter que conceder explicitamente a cada tabela nova — e esse preço **é o ponto**, porque obriga a decidir verbo por verbo o que o backend realmente precisa. Deixei o lembrete em caixa-alta na seção 4 da migration, onde a próxima pessoa que criar tabela vai passar.
+
+#### Riscos antes de aplicar
+- **Não executada e não checada por parser.** Verificação foi estrutural: 10 comandos, todos `grant ... to service_role`; zero grants a `anon`/`authenticated`, zero `grant all`, zero `create policy`, zero `alter table`, zero `revoke`, zero `delete`. Erro de sintaxe só aparece no `db push`.
+- **`user_access_flags` sem `insert`, e a consequência é silenciosa.** Se algum perfil existir sem linha nessa tabela (conta anterior ao trigger, ou importada), o `UPDATE` de bloqueio não afeta linha nenhuma e **não dá erro** — o admin veria sucesso e a conta seguiria liberada. A consulta 5.4 da migration procura esses casos; vale rodar antes de confiar no bloqueio.
+- **Os comentários falsos continuam lá.** 0002 linha 366 e 0003 linha 342 seguem afirmando que `service_role` não precisa de grant. Corrigi-los exigiria alterar migrations antigas, proibido nesta fase — então registrei a falsidade no cabeçalho da 0004. É paliativo: quem ler a 0002 isolada continua sendo informado errado.
+- **Escopo do grant é o backend inteiro, não só o webhook.** `licenses` com `insert/update` é o poder de conceder e revogar licença. A proteção real aqui não é o grant, é **quem tem a `SUPABASE_SERVICE_ROLE_KEY`** — ela nunca pode ter prefixo `NEXT_PUBLIC_`, e hoje é lida por um único arquivo (`services/supabase/admin.ts`).
+
+#### Validações
+- `npm run typecheck` → exit 0; `npm run lint` → exit 0.
+- `build` não rodado: nenhum arquivo TS/TSX tocado.
+
 ## Checklist técnico
 - [x] O projeto está em C:\dev\doce-margem
 - [x] Não há dependência de OneDrive

@@ -4,8 +4,8 @@
 > Marcar `[x]` ao concluir. Adicionar novas tarefas quando surgirem.
 > Antes de iniciar uma nova fase: parar, resumir o que foi feito e aguardar aprovação.
 
-**Fase atual:** Fase 4-7B concluída e validada — `0003_webhook_support.sql` aplicada no Supabase real. Nenhum route handler.
-**Próximo passo recomendado:** Fase 4-7C — capturar um payload real, confirmar a autenticação da Kiwify e implementar o Route Handler.
+**Fase atual:** Fase 4-7C concluída e validada — webhook em modo captura funcionando de ponta a ponta, **13/13 testes locais**. Nenhuma licença é liberada ainda.
+**Próximo passo recomendado:** preencher `KIWIFY_WEBHOOK_SECRET`, fazer deploy e cadastrar a URL na Kiwify para capturar um payload real → depois Fase 4-7D (liberação automática).
 
 ## Fase 0 — Setup e documentação ✅
 - [x] Criar projeto em C:\dev\doce-margem
@@ -426,7 +426,47 @@
 - [x] Validar tabela, RLS, ausência de policies/privilégios e os índices de idempotência/e-mail no banco real
 - [x] **Decisão registrada, custo conhecido:** `provider` aceita só `'kiwify'`; Hotmart exigirá migration (junto com o `event_type`, que usa vocabulário português da Kiwify)
 
-### Fase 4-7C — Implementação do webhook (pendente)
+### Fase 4-7C — Route Handler em modo captura ✅ (com bloqueio de banco)
+- [x] `app/api/webhooks/kiwify/route.ts` — só `POST` exportado (Next devolve **405** sozinho nos outros métodos), `runtime = "nodejs"`
+- [x] `services/supabase/admin.ts` — service role isolada, `server-only`, chave nunca exportada, falha fechada
+- [x] `lib/webhooks/kiwify-payload.ts` — extractores **puros**, sem I/O, testáveis isolados
+- [x] `lib/webhooks/kiwify-payload-examples.ts` — **28 checagens**, incluindo 11 entradas hostis que não podem lançar
+- [x] Token aceito em `x-kiwify-token`, `Authorization: Bearer` e `?token=`, comparado por **hash SHA-256 + `timingSafeEqual`** (nem o comprimento do segredo vaza)
+- [x] Autenticação **antes** de ler o corpo — payload não autenticado nunca chega ao banco
+- [x] Corpo lido como texto cru antes do `JSON.parse` (pré-requisito para HMAC na 4-7D)
+- [x] `.env.example` documenta que o "token" do painel da Kiwify vai em `KIWIFY_WEBHOOK_SECRET`
+- [x] `typecheck` + `lint` + `build` — 13 rotas, `/api/webhooks/kiwify` dinâmica
+- [x] Testes locais 1–7: GET → 405; sem token → 401; token errado nos 3 portadores → 401; JSON inválido → 400; corpo vazio → 400; **sem segredo configurado → 500 sem gravar nada**
+- [x] ~~BLOQUEADO por `42501`~~ — resolvido pela Fase 4-7C-fix (`0004_service_role_grants.sql`, aplicada)
+- [x] **Testes 8–13 reexecutados após o grant: 13/13 PASS**
+- [x] Gravação em `webhook_events` funciona — 5 linhas, todas com `provider = 'kiwify'`
+- [x] **Replay do mesmo `provider_event_id` → 200 com `duplicate: true`, sem sexta linha** (índice único parcial da 0003 funcionando)
+- [x] **Token inválido não gera linha:** 13 requisições, só 5 linhas na tabela inteira, todas com marcador da rodada — zero das tentativas 2–5
+- [x] `event_type` distingue corretamente `ignored` (nome lido, fora do escopo) de `unknown` (nenhum nome encontrado)
+- [x] CHECK `status ↔ processed_at` respeitado nas 5 linhas; `user_id`/`license_id` nulos como previsto
+- [x] `licenses` e `license_events` intocadas — as 2 linhas de cada são `provider=manual` / `source=manual:test`, do teste manual anterior
+- [ ] **Limpar quando quiser:** as 5 linhas de teste têm `payload->>'_teste_claude_4_7c'` preenchido (ver `REVIEW.md` para o `DELETE`)
+
+### Fase 4-7C-fix — Grants para service_role ✅
+- [x] `supabase/migrations/0004_service_role_grants.sql` — **não altera 0001, 0002 nem 0003** (`git diff` vazio nas três)
+- [x] `grant usage on schema public` — pré-requisito; sem ele todo privilégio de tabela falha com o mesmo 42501, confundindo o diagnóstico
+- [x] `profiles` → `select` apenas
+- [x] `webhook_events` → `select, insert, update` (a linha muda de `received` para `processed`/`ignored`/`failed`)
+- [x] `licenses` → `select, insert, update` (compra, reembolso, chargeback, renovação)
+- [x] `license_events` → `select, insert` — **sem `update`**, coerente com o trigger de imutabilidade da 0002
+- [x] `user_access_flags` → `select, update` (bloqueio administrativo); sem `insert`, a linha nasce pelo trigger
+- [x] **`grant execute` nas 3 funções internas** (`is_user_blocked`, `has_pro_access`, `has_essential_access`) — mesma falha da 0002 aplicada a funções, e o admin da Fase 7 depende delas
+- [x] **Nenhum `delete` concedido** em nenhuma tabela — revogar é `status`, não apagar
+- [x] Zero grants a `anon`/`authenticated`, zero `grant all`, zero policy, zero `alter table`, zero `revoke`
+- [x] **Sem `alter default privileges`** — descartado por ser exatamente o "privilégio amplo demais" que o projeto recusa
+- [x] 4 consultas de conferência pós-aplicação escritas na seção 5 da migration
+- [x] Rodar `typecheck` + `lint`
+- [ ] **Pendente de ambiente:** aplicar no Supabase real e rodar as 4 conferências da seção 5
+- [ ] **Depois de aplicar:** reexecutar os testes 8–13 da Fase 4-7C (gravação e replay do webhook)
+- [ ] **Conferir:** a consulta 5.4 procura perfis sem linha em `user_access_flags` — se houver, o bloqueio administrativo dessas contas falharia em silêncio
+- [ ] Corrigir os comentários falsos sobre `service_role` em `0002` (linha 366) e `0003` (linha 342) — exige alterar migrations antigas, decisão em aberto
+
+### Fase 4-7D — Liberação automática de licença (pendente)
 - [ ] Cadastrar o webhook no painel da Kiwify — **ainda não existe webhook cadastrado**
 - [ ] Criar `POST /api/webhooks/kiwify` — **a rota ainda não existe**
 - [ ] **Capturar payload real da Kiwify** (webhook.site) antes de escrever código — sem isso os nomes de campo são chute
