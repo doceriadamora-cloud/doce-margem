@@ -106,7 +106,7 @@ verificar**, e por isso pesam mais do que o tamanho delas sugere:
 | C1 | **Compra aprovada não libera licença** | A Fase 4-7D não existe. Hoje: cliente paga, o webhook registra o evento, e **nada acontece**. Você concede à mão ou o cliente fica sem acesso. |
 | C2 | **Preço não definido** | `/precos` diz "Preço de lançamento em breve" e o CTA depende de `NEXT_PUBLIC_BUY_ESSENTIAL_URL`. Sem preço não há oferta. |
 | C3 | **Webhook não confirmado em produção** | ⚠️ Parcial: a rota responde e a Fase 4-7E implementou a verificação HMAC que o teste real exigia. **Falta uma compra real fechar o ciclo.** |
-| C4 | **Payload real da Kiwify não capturado** | Todos os nomes de campo em `lib/webhooks/kiwify-payload.ts` são hipótese. Escrever a concessão de licença sobre chute é construir a parte que mexe em dinheiro no escuro. |
+| C4 | ~~**Payload real da Kiwify não capturado**~~ | ✅ **Resolvido na Fase 4-7F.** Capturado em produção: `webhook_event_type = "order_approved"`, `order_id`, `Product.*`, `Customer.*`. Extractores mapeados sobre fato. Falta só confirmar que a **compra real** usa o mesmo formato do teste. |
 | C5 | **`KIWIFY_WEBHOOK_SECRET` vazia** | Handler responde 500 e não grava nada. Falha fechada correta — e webhook morto. |
 | C6 | **Reembolso e chargeback não revogam** | Cliente pede reembolso, recebe o dinheiro **e mantém acesso vitalício**. Prejuízo direto e problema com a Kiwify. |
 | C7 | **Compra antes do cadastro sem decisão** | `licenses.user_id → profiles.id → auth.users.id`. Não existe licença para e-mail sem conta — **nem com service role**. Quem comprar sem ter conta fica em limbo. |
@@ -804,7 +804,7 @@ Considerando **~4 h úteis por dia**.
 | S5 | **Token da Kiwify vazar** | 🟡 atenção | se viajar em query string, entra em log de proxy. Prefira header quando houver escolha; nunca logue a URL completa |
 | S6 | **Reembolso não revogar** | 🔴 **aberto** | Fase 4-7G. Hoje reembolso mantém acesso vitalício |
 | S7 | **Licença indevida por replay** | 🟢 fechado | índice único parcial testado — replay devolve 200 sem duplicar |
-| S8 | **Idempotência sumir com `provider_event_id` nulo** | 🔴 **aberto** | NULLs não conflitam em UNIQUE. O handler precisa **rejeitar** payload sem identificador |
+| S8 | **Idempotência sumir com `provider_event_id` nulo** | 🟢 fechado | Confirmado que a Kiwify não envia event_id. Fase 4-7F derivou a chave `evento:pedido`, testada: replay não duplica, e reembolso do mesmo pedido gera linha própria |
 | S9 | **Compra com e-mail diferente** | 🔴 **aberto** | sem automação possível; precisa de admin + processo de suporte |
 | S10 | **Comprador sem cadastro** | 🔴 **aberto** | bloqueio físico por FK. Decisão pendente: convite × fila |
 | S11 | **Open redirect no login** | 🟢 fechado | não há `?next=`. Se for implementado, validar caminho interno |

@@ -531,6 +531,21 @@ nova** e a idempotência simplesmente não existe.
 Regra que sai daí: **payload sem `provider_order_id` legível é rejeitado**, nunca
 gravado com `NULL`. Ver 13.6.
 
+> ✅ **Confirmado com dado real e resolvido na Fase 4-7F.** A captura mostrou que
+> a Kiwify **não envia identificador de evento** — `provider_event_id` veio
+> `NULL` e a idempotência não existia, exatamente como previsto aqui.
+>
+> A solução foi uma **chave determinística `evento:pedido`**, derivada quando o
+> provedor não manda a própria:
+>
+> ```
+> compra_aprovada:07271940-b573-41a6-9e6a-0e504bf45916
+> ```
+>
+> Chavear só pelo pedido seria pior que não chavear: o reembolso viraria
+> duplicata do pagamento e a licença nunca seria revogada. Identificador
+> explícito da Kiwify, se um dia vier, tem prioridade automática.
+
 ## 13.2 Rota e forma
 
 `POST /api/webhooks/kiwify` — Route Handler (`app/api/webhooks/kiwify/route.ts`).

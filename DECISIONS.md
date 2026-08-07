@@ -901,3 +901,81 @@ Técnico: `authenticate()` devolve o método usado, e ele aparece no log de suce
 Segurança: verificado que uma assinatura **legítima**, calculada com o segredo correto sobre **outro** corpo, é rejeitada com 401. Esse é o teste que separa verificação real de verificação aparente — sem ele, um bug que ignorasse o corpo passaria despercebido.
 
 ⚠️ **Nada foi confirmado contra compra real.** Se a Kiwify usar base64, corpo canonicalizado ou um segredo diferente do token do painel, o resultado continua sendo 401 — e o `signatureFormat` no log é o que apontará a correção. Liberação automática de licença continua não existindo: o handler grava o evento e para.
+
+---
+
+## 2026-08-07 — Idempotência determinística: a chave é `evento:pedido`, não o pedido
+
+### Decisão
+Quando o provedor de pagamento não envia identificador de evento, o
+`provider_event_id` é **derivado** como `${event_type}:${order_id}`:
+
+```
+compra_aprovada:07271940-b573-41a6-9e6a-0e504bf45916
+```
+
+Identificador explícito do provedor, quando existir, tem prioridade — e o campo
+`eventIdSource` (`provider` | `derived` | `none`) registra qual dos dois valeu.
+
+Duas decisões acessórias, tomadas junto:
+
+- **`order_status` saiu da lista de caminhos de nome de evento.** Sem
+  `webhook_event_type` legível, o resultado é `unknown`, nunca um palpite.
+- **`id` saiu dos candidatos a `order_id`.**
+
+### Contexto
+Fase 4-7F. O POST de teste da Kiwify chegou à produção, passou pela verificação
+HMAC da 4-7E e foi gravado em `webhook_events`. A captura mostrou a estrutura
+real — `webhook_event_type: "order_approved"`, `order_id`, `order_status: "paid"`,
+`Product.*`, `Customer.*` — e **nenhum identificador de evento**.
+
+`provider_event_id` gravou `NULL`. Em Postgres, NULLs não conflitam entre si numa
+UNIQUE, então o índice `webhook_events_provider_event_unique` não protegia coisa
+nenhuma: cada reenvio viraria uma linha nova, em silêncio. O risco estava previsto
+no `PLAN-FASE-4.md` 13.1(C) desde o planejamento; a captura o confirmou com dado
+real.
+
+### Motivo
+
+**Por que derivar, em vez de rejeitar.** O plano original mandava rejeitar payload
+sem identificador. Isso fazia sentido enquanto "sem identificador" era hipótese de
+payload malformado. Com a captura, virou outra coisa: **é o formato normal da
+Kiwify**. Rejeitar seria recusar todo webhook legítimo do provedor — 400 em cada
+compra, e nenhuma licença jamais liberada.
+
+**Por que `evento:pedido` e não só o pedido.** Um pedido produz eventos diferentes
+ao longo do tempo: aprovada hoje, reembolsada em duas semanas, chargeback em dois
+meses. Chave só pelo pedido faria o **reembolso ser descartado como duplicata do
+pagamento** — a licença nunca seria revogada, o dinheiro voltaria para a
+compradora e o acesso continuaria valendo. É o pior erro possível nesta parte do
+sistema, e seria silencioso.
+
+**Por que `order_status` teve que sair.** O payload real traz `order_status:
+"paid"`, e `paid` é apelido de `compra_aprovada` no mapa de eventos. Enquanto
+`webhook_event_type` estiver presente, a prioridade resolve. Mas bastaria ele vir
+vazio numa notificação de boleto ou de reembolso para um **status de pagamento
+virar "compra aprovada"** e, na fase seguinte, liberar licença indevida. Um campo
+que descreve o estado do pagamento não pode decidir que evento aconteceu. Sem
+`webhook_event_type` legível, o certo é `unknown`: fica gravado, nada é liberado,
+e alguém olha.
+
+**Por que `id` saiu dos candidatos a pedido.** Num payload da Kiwify, `id` pode
+ser do produto ou do cliente. Um `provider_order_id` errado corromperia o elo
+entre a licença e a compra — e esse elo é o que sustenta o reembolso.
+
+### Impacto
+Técnico: `extractKiwifyWebhook` passou a devolver `eventIdSource`, `productId` e
+`productType`. A fase de licença lê `provider_event_id` sem saber (nem precisar
+saber) se ele veio derivado. O log de sucesso expõe `eventIdSource`, que é o sinal
+de que `order_id` mudou de lugar caso o formato de produção difira do teste.
+
+⚠️ **Limite conhecido e aceito:** dois eventos genuinamente distintos com o mesmo
+tipo e o mesmo `order_id` colidem, e o segundo é tratado como replay. Para a
+compra única do Essencial isso é o comportamento **correto** — um pedido tem uma
+aprovação. Para a renovação do Pro anual, se a Kiwify reusar o `order_id` entre
+ciclos, a renovação seria engolida. A fase de assinatura precisa reavaliar; está
+anotado no `TASKS.md`.
+
+⚠️ **O payload capturado é o do botão de teste.** O evento de produção pode diferir.
+Os extractores toleram ausência de campo, e `eventIdSource=none` no log seria o
+aviso de que a derivação não teve como acontecer.

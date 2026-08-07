@@ -282,9 +282,10 @@ export async function POST(request: Request): Promise<Response> {
     `[webhook:kiwify] gravado — tokenCarrierUsed=${auth.method} ` +
       `evento=${extraction.eventType} ` +
       `bruto=${extraction.rawEventName ?? "—"} status=${status} ` +
-      `event_id=${extraction.providerEventId !== null} ` +
+      `eventIdSource=${extraction.eventIdSource} ` +
       `order_id=${extraction.providerOrderId !== null} ` +
-      `email=${extraction.buyerEmail !== null}`,
+      `email=${extraction.buyerEmail !== null} ` +
+      `product_id=${extraction.productId !== null}`,
   );
 
   return json({ received: true }, 200);

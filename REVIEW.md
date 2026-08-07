@@ -1309,6 +1309,64 @@ Log de sucesso confirmou o caminho usado: `tokenCarrierUsed=hmac-sha256`.
 - **Liberação de licença não existe.** O handler grava o evento e para. Compra aprovada continua não virando acesso — é a Fase 4-7F.
 - **7 linhas de teste em `webhook_events`** (5 da 4-7D + `local-hmac-001` + `local-hmac-002-*`). Vale apagar antes de ligar na Kiwify de verdade, para não misturar payload real com payload inventado.
 
+### Fase 4-7F — Normalização do payload real e idempotência
+- **Status:** ✅ Implementado e validado. ⚠️ **Compra real ainda não testada** — o payload capturado é o do botão de teste.
+- **Escopo:** extractores e idempotência. Nenhuma liberação de licença.
+
+#### O payload real, finalmente
+O POST de teste da Kiwify chegou à produção, passou pela verificação HMAC da 4-7E e foi gravado. A estrutura:
+
+| Campo | Valor observado | Uso |
+|---|---|---|
+| `webhook_event_type` | `"order_approved"` | **o evento** |
+| `order_id` | uuid | `provider_order_id` |
+| `order_status` | `"paid"` | ⚠️ status de pagamento, **não** evento |
+| `payment_method` | `"credit_card"` | — |
+| `product_type` | `"membership"` | diagnóstico |
+| `Product.product_id` / `product_name` | — | diagnóstico, elo com o plano |
+| `Customer.email` / `full_name` / `cnpj` / `mobile` | — | `buyerEmail` |
+
+#### O problema que a captura expôs
+`provider_event_id` veio **NULL** — a Kiwify não manda identificador de evento. E em Postgres **NULLs não conflitam entre si** numa UNIQUE, então o índice `webhook_events_provider_event_unique` não protegia nada: cada reenvio viraria uma linha nova, sem nenhum sinal. É exatamente o buraco previsto no `PLAN-FASE-4.md` 13.1(C), agora confirmado com dado real.
+
+**Solução: chave determinística `evento:pedido`.**
+
+```
+compra_aprovada:07271940-b573-41a6-9e6a-0e504bf45916
+```
+
+Por que não chavear só pelo pedido: um mesmo pedido produz eventos diferentes ao longo do tempo — aprovada hoje, reembolsada em duas semanas. Chave só pelo pedido faria o **reembolso ser descartado como duplicata do pagamento**, e a licença nunca seria revogada. É o pior erro possível nesta parte do sistema.
+
+`event_id` explícito, se a Kiwify um dia enviar, tem prioridade — a derivação sai de cena sozinha, sem mudança de código.
+
+#### Uma correção de segurança que a captura tornou visível
+`order_status` estava na lista de caminhos de nome de evento (herança da Fase 4-7C, quando o formato era hipótese). O payload real traz `order_status: "paid"`, e `paid` é um apelido de `compra_aprovada` no mapa.
+
+Enquanto `webhook_event_type` estiver presente a prioridade resolve. Mas bastaria ele vir vazio numa notificação de boleto ou de reembolso para **um status de pagamento virar "compra aprovada"** — e, na fase seguinte, liberar licença indevida.
+
+**Removi `order_status` e `status` da lista.** Sem `webhook_event_type` legível, o certo é cair em `unknown`: o evento fica gravado, nada é liberado, e alguém olha. Verificado: `{ order_id, order_status: "paid" }` agora devolve `unknown`.
+
+Pelo mesmo raciocínio tirei `id` dos candidatos a `order_id` — num payload da Kiwify ele pode ser id de produto ou de cliente, e um `provider_order_id` errado corromperia o elo com a licença.
+
+#### Validações
+- **52/52 isoladas** (eram 28). As novas usam o payload real com dados pessoais fictícios — nenhum e-mail, CNPJ ou telefone verdadeiro entrou no repositório.
+- **7/7 HTTP** com o formato real: aprovada → 200; replay → `duplicate:true`; reembolso e chargeback do mesmo pedido → **linhas novas**; fora do escopo → `ignored`; sem tipo de evento → `unknown`.
+- Banco confirma as três chaves distintas para o mesmo pedido:
+  ```
+  compra_aprovada:47f-…    received
+  compra_reembolsada:47f-… received
+  chargeback:47f-…         received
+  ```
+- Log: `eventIdSource=derived`, `tokenCarrierUsed=hmac-sha256`.
+- `typecheck` → 0; `lint` → 0; `build` → 0, 13 rotas.
+- `licenses` e `license_events` intocadas.
+
+#### Riscos
+- ⚠️ **Limite da chave derivada:** dois eventos genuinamente distintos com o mesmo tipo e o mesmo `order_id` colidem, e o segundo é tratado como replay. Para a compra única do Essencial isso é o comportamento **correto**. Para renovação do Pro anual — se a Kiwify reusar o `order_id` — a renovação seria engolida. Anotado no `TASKS.md` para a fase de assinatura.
+- **O payload é o do botão de teste.** O evento de produção pode trazer campos a mais ou nomes diferentes. Os extractores toleram ausência, mas `eventIdSource=none` no log seria o sinal de que `order_id` mudou de lugar.
+- **13 linhas de teste em `webhook_events`**, incluindo a linha real com `provider_event_id = NULL` — a que motivou esta fase. Vale apagar antes de ligar em produção.
+- **Liberação de licença continua não existindo.** O handler grava e para.
+
 ## Checklist técnico
 - [x] O projeto está em C:\dev\doce-margem
 - [x] Não há dependência de OneDrive

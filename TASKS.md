@@ -4,8 +4,8 @@
 > Marcar `[x]` ao concluir. Adicionar novas tarefas quando surgirem.
 > Antes de iniciar uma nova fase: parar, resumir o que foi feito e aguardar aprovação.
 
-**Fase atual:** Fase 4-7E concluída — `?signature=` validado como **HMAC do corpo cru**, **14/14 testes locais**. Nenhuma licença é liberada ainda.
-**Próximo passo recomendado:** redeployar → repetir o teste da Kiwify → se ainda der 401, ler `signatureFormat` no log → **compra real de valor mínimo** → Fase 4-7F (liberação automática).
+**Fase atual:** Fase 4-7F concluída — payload real da Kiwify mapeado e idempotência resolvida com chave `evento:pedido`. **52/52 isoladas + 7/7 HTTP.** Nenhuma licença é liberada ainda.
+**Próximo passo recomendado:** limpar as linhas de teste → redeployar → **compra real de valor mínimo** para confirmar o formato de produção → Fase 4-7G (liberação automática).
 
 > 📋 **Auditoria pré-lançamento (2026-08-07): `GO-LIVE-AND-PRO-ROADMAP.md`** —
 > estado do produto, 10 bloqueadores críticos, diagnóstico do webhook, fronteira
@@ -500,7 +500,23 @@
 - [ ] ⚠️ **Compra real ainda não testada.** SHA-256 e SHA-1 hex são as convenções mais comuns, não uma certeza. Se a Kiwify usar base64, corpo canonicalizado ou outro segredo, continua dando 401 — o `signatureFormat` no log dirá qual
 - [ ] **Limpar antes de ligar na Kiwify:** 7 linhas de teste em `webhook_events` (5 da 4-7D + `local-hmac-001` e `local-hmac-002-*`)
 
-### Fase 4-7F — Liberação automática de licença (pendente)
+### Fase 4-7F — Normalização do payload real e idempotência ✅
+- [x] **Payload real da Kiwify capturado em produção** — `webhook_event_type = "order_approved"`, `order_id`, `order_status`, `payment_method`, `product_type`, `Product.*`, `Customer.*`
+- [x] `order_approved` → `compra_aprovada`; `order_refunded` → `compra_reembolsada`; `order_chargeback` → `chargeback`; vocabulário próprio dos testes mantido
+- [x] **`order_status` REMOVIDO dos caminhos de nome de evento** — vale `"paid"` no payload real e, sem `webhook_event_type`, viraria "compra aprovada" a partir de um status de pagamento
+- [x] `provider_order_id` de `payload.order_id`; `id` removido dos candidatos (pode ser id de produto ou de cliente)
+- [x] **Chave determinística `evento:pedido`** quando não há event_id — resolve o `provider_event_id NULL` que desligava a idempotência
+- [x] `event_id` explícito, se um dia vier, tem prioridade sobre a derivação
+- [x] `eventIdSource` (`provider` | `derived` | `none`) exposto para diagnóstico e log
+- [x] `buyerEmail` de `Customer.email`, normalizado; `productId`, `productName`, `productType` extraídos (sem coluna nova)
+- [x] **52/52 validações isoladas** — payload real fictício, três eventos do mesmo pedido gerando chaves distintas, replay gerando chave idêntica, entradas hostis
+- [x] **7/7 testes HTTP** com o formato real: aprovada → 200; replay → `duplicate:true`; reembolso e chargeback do mesmo pedido → linhas novas; fora do escopo → `ignored`; sem tipo de evento → `unknown`
+- [x] `typecheck` + `lint` + `build` — 13 rotas
+- [x] `licenses` e `license_events` intocadas (2 linhas cada, `provider=manual`)
+- [ ] ⚠️ **Limite conhecido:** dois eventos genuinamente distintos com mesmo tipo e mesmo `order_id` (renovação anual reusando o pedido) colidem e o segundo vira replay. Correto para a compra única; **reavaliar na fase de renovação do Pro**
+- [ ] **Limpar antes de ligar em produção:** 13 linhas de teste em `webhook_events`, incluindo a linha real com `provider_event_id = NULL` (a que motivou esta fase)
+
+### Fase 4-7G — Liberação automática de licença (pendente)
 - [ ] Cadastrar o webhook no painel da Kiwify — **ainda não existe webhook cadastrado**
 - [ ] Criar `POST /api/webhooks/kiwify` — **a rota ainda não existe**
 - [ ] **Capturar payload real da Kiwify** (webhook.site) antes de escrever código — sem isso os nomes de campo são chute

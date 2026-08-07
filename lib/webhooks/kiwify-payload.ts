@@ -6,10 +6,20 @@
  * Handler pelo mesmo motivo que a matemática de precificação vive em
  * `modules/` — para poder ser verificado isoladamente, sem subir servidor.
  *
- * ⚠️ **O formato real da Kiwify ainda não foi observado.** Os caminhos abaixo
- * são candidatos plausíveis, não documentação. É exatamente por isso que esta
- * fase existe: capturar payload real para depois escrever a liberação de
- * licença sobre fato, não sobre suposição.
+ * ✅ **Formato real observado na Fase 4-7F.** Um POST de teste da Kiwify chegou
+ * à produção e foi capturado em `webhook_events`:
+ *
+ *   webhook_event_type  "order_approved"      → evento (campo real)
+ *   order_id            uuid                  → pedido
+ *   order_status        "paid"                → status de pagamento, NÃO evento
+ *   payment_method      "credit_card"
+ *   product_type        "membership"
+ *   Product.product_id / Product.product_name
+ *   Customer.email / full_name / cnpj / mobile
+ *
+ * **Nenhum identificador de evento veio no payload** — daí a chave derivada de
+ * `deriveEventId`. Os demais caminhos abaixo continuam como compatibilidade
+ * com os formatos hipotéticos da Fase 4-7C e com os testes já escritos.
  *
  * Por isso nada aqui lança nem exige campo: **payload irreconhecível vira
  * `unknown`, não erro**. Um webhook que a gente não entendeu ainda assim precisa
@@ -30,17 +40,30 @@ export type WebhookEventType = KiwifyActionableEvent | "ignored" | "unknown";
 /** Valores aceitos por `webhook_events.status` (CHECK da migration 0003). */
 export type WebhookStatus = "received" | "processed" | "ignored" | "failed";
 
+/**
+ * De onde saiu o `providerEventId`.
+ *  - `provider` = a Kiwify mandou um identificador de evento
+ *  - `derived`  = construído por nós, `evento:pedido` (ver `deriveEventId`)
+ *  - `none`     = não deu para montar nenhum; **sem idempotência**
+ */
+export type EventIdSource = "provider" | "derived" | "none";
+
 export interface KiwifyExtraction {
   /** O que vai para `webhook_events.event_type`. */
   eventType: WebhookEventType;
   /** O nome cru encontrado, antes da normalização. `null` se nada foi achado. */
   rawEventName: string | null;
   providerEventId: string | null;
+  /** Diagnóstico: identificador veio da Kiwify ou foi derivado por nós? */
+  eventIdSource: EventIdSource;
   providerOrderId: string | null;
   /** Normalizado (`trim` + `lower`) — a busca por perfil será case-insensitive. */
   buyerEmail: string | null;
+  productId: string | null;
   productName: string | null;
-  /** `true` só para os três eventos que a Fase 4-7D vai processar. */
+  /** `membership`, `subscription`… Só diagnóstico até a fase de licença. */
+  productType: string | null;
+  /** `true` só para os três eventos que a fase de licença vai processar. */
   isActionable: boolean;
 }
 
@@ -84,25 +107,49 @@ function readFirstString(payload: unknown, paths: readonly string[]): string | n
 
 /* ─────────────────────── Caminhos candidatos ─────────────────────── */
 
+/**
+ * Nome do evento. **`webhook_event_type` é o campo real da Kiwify** (confirmado
+ * no payload capturado na Fase 4-7F); o resto é compatibilidade com os formatos
+ * hipotéticos da 4-7C.
+ *
+ * ⚠️ **`order_status` foi REMOVIDO desta lista na 4-7F.** Ele existe no payload
+ * real com valor `"paid"`, que o mapa de apelidos traduziria para
+ * `compra_aprovada`. Enquanto `webhook_event_type` estiver presente, a
+ * prioridade resolve — mas bastaria ele vir vazio numa notificação de boleto ou
+ * de reembolso para o status de pagamento virar "compra aprovada" e, na fase
+ * seguinte, liberar licença indevida. Sem `webhook_event_type` legível, o certo
+ * é cair em `unknown`: o evento fica gravado, nada é liberado, e alguém olha.
+ */
 const EVENT_NAME_PATHS = [
   "webhook_event_type",
   "event_type",
   "event",
   "type",
-  "order_status",
-  "status",
   "data.event",
   "data.event_type",
 ] as const;
 
+/**
+ * Identificador do EVENTO.
+ *
+ * ⚠️ O payload real da Kiwify **não traz nenhum destes** — por isso a derivação
+ * determinística de `deriveEventId`. Estes caminhos ficam para o caso de a
+ * Kiwify passar a enviar um identificador próprio, que sempre tem prioridade.
+ */
 const EVENT_ID_PATHS = [
   "webhook_event_id",
   "event_id",
   "webhook_id",
   "data.event_id",
-  "id",
 ] as const;
 
+/**
+ * Identificador do PEDIDO. `order_id` é o campo real da Kiwify.
+ *
+ * `id` ficou fora de propósito: num payload da Kiwify ele pode ser o id do
+ * produto ou do cliente, e um `provider_order_id` errado corromperia o elo com
+ * a licença na fase seguinte.
+ */
 const ORDER_ID_PATHS = [
   "order_id",
   "order.id",
@@ -123,6 +170,14 @@ const BUYER_EMAIL_PATHS = [
   "data.customer.email",
 ] as const;
 
+const PRODUCT_ID_PATHS = [
+  "Product.product_id",
+  "product.product_id",
+  "Product.id",
+  "product.id",
+  "product_id",
+] as const;
+
 const PRODUCT_NAME_PATHS = [
   "Product.product_name",
   "product.product_name",
@@ -131,6 +186,9 @@ const PRODUCT_NAME_PATHS = [
   "product_name",
   "data.product.name",
 ] as const;
+
+/** `membership`, `subscription`, `digital`… Só diagnóstico até a fase de licença. */
+const PRODUCT_TYPE_PATHS = ["product_type", "Product.product_type", "data.product_type"] as const;
 
 /**
  * Nomes crus → evento canônico.
@@ -141,22 +199,30 @@ const PRODUCT_NAME_PATHS = [
  * comparação normaliza antes.
  */
 const EVENT_ALIASES: Record<string, KiwifyActionableEvent> = {
-  compra_aprovada: "compra_aprovada",
+  // Confirmado no payload real da Kiwify (Fase 4-7F).
   order_approved: "compra_aprovada",
+  order_refunded: "compra_reembolsada",
+  order_chargeback: "chargeback",
+
+  // Vocabulário próprio, usado nos testes desde a Fase 4-7C.
+  compra_aprovada: "compra_aprovada",
+  compra_reembolsada: "compra_reembolsada",
+  chargeback: "chargeback",
+
+  // Variantes plausíveis, mantidas por segurança: classificar como `ignored`
+  // uma compra que devia liberar licença custa uma venda; o contrário não
+  // acontece, porque nenhum destes nomes aparece num evento que não seja o
+  // que ele diz ser.
   purchase_approved: "compra_aprovada",
   approved: "compra_aprovada",
   paid: "compra_aprovada",
 
-  compra_reembolsada: "compra_reembolsada",
-  order_refunded: "compra_reembolsada",
   purchase_refunded: "compra_reembolsada",
   refunded: "compra_reembolsada",
   refund: "compra_reembolsada",
 
-  chargeback: "chargeback",
   chargedback: "chargeback",
   charged_back: "chargeback",
-  order_chargeback: "chargeback",
 };
 
 /* ─────────────────────── API pública ─────────────────────── */
@@ -182,7 +248,12 @@ export function extractKiwifyEventType(payload: unknown): WebhookEventType {
   return canonical ?? "ignored";
 }
 
-/** Identificador do EVENTO — a chave de idempotência da migration 0003. */
+/**
+ * Identificador do EVENTO **enviado pela Kiwify**, se houver.
+ *
+ * O payload real não traz nenhum. Quem quiser a chave efetivamente usada deve
+ * chamar `extractKiwifyWebhook` e ler `providerEventId`.
+ */
 export function extractKiwifyEventId(payload: unknown): string | null {
   return readFirstString(payload, EVENT_ID_PATHS);
 }
@@ -192,15 +263,53 @@ export function extractKiwifyOrderId(payload: unknown): string | null {
   return readFirstString(payload, ORDER_ID_PATHS);
 }
 
-/** E-mail da compradora, normalizado — será a chave de busca do perfil na 4-7D. */
+/**
+ * Chave de idempotência determinística: `evento:pedido`.
+ *
+ * **Por que ela precisa existir.** A idempotência do projeto mora no índice
+ * único parcial `webhook_events_provider_event_unique`, e em Postgres **NULLs
+ * não conflitam entre si** — com `provider_event_id` nulo, cada reenvio da
+ * Kiwify viraria uma linha nova e a proteção simplesmente não existiria. O
+ * payload real não traz identificador de evento, então ou derivamos um, ou não
+ * há idempotência nenhuma. O risco estava previsto no `PLAN-FASE-4.md` 13.1(C);
+ * esta é a resposta a ele.
+ *
+ * **Por que `evento:pedido` e não só o pedido.** Um mesmo pedido produz eventos
+ * diferentes ao longo do tempo — aprovada hoje, reembolsada em duas semanas.
+ * Chavear só pelo pedido faria o reembolso ser descartado como duplicata do
+ * pagamento, que é o pior erro possível aqui: a licença nunca seria revogada.
+ *
+ * ⚠️ **Limite conhecido:** dois eventos genuinamente distintos com o mesmo tipo
+ * e o mesmo pedido (renovação de assinatura anual reusando o `order_id`, por
+ * exemplo) colidem, e o segundo é tratado como replay. Para a compra única do
+ * Essencial isso é exatamente o comportamento correto. Para o Pro anual, a fase
+ * de renovação precisa reavaliar — está anotado no `TASKS.md`.
+ */
+export function deriveEventId(eventType: WebhookEventType, orderId: string | null): string | null {
+  if (orderId === null) return null;
+  return `${eventType}:${orderId}`;
+}
+
+/** E-mail da compradora, normalizado — será a chave de busca do perfil. */
 export function extractKiwifyBuyerEmail(payload: unknown): string | null {
   const email = readFirstString(payload, BUYER_EMAIL_PATHS);
   return email === null ? null : email.toLowerCase();
 }
 
+/** Identificador do produto na Kiwify. Diagnóstico e, na fase de licença, o elo com o plano. */
+export function extractKiwifyProductId(payload: unknown): string | null {
+  return readFirstString(payload, PRODUCT_ID_PATHS);
+}
+
 /** Nome do produto comprado. Só diagnóstico nesta fase. */
 export function extractKiwifyProductName(payload: unknown): string | null {
   return readFirstString(payload, PRODUCT_NAME_PATHS);
+}
+
+/** `membership`, `subscription`, `digital`… Só diagnóstico nesta fase. */
+export function extractKiwifyProductType(payload: unknown): string | null {
+  const value = readFirstString(payload, PRODUCT_TYPE_PATHS);
+  return value === null ? null : value.toLowerCase();
 }
 
 /** Tudo de uma vez. Nunca lança: payload inesperado devolve campos em `null`. */
@@ -211,13 +320,27 @@ export function extractKiwifyWebhook(payload: unknown): KiwifyExtraction {
     eventType === "compra_reembolsada" ||
     eventType === "chargeback";
 
+  const providerOrderId = extractKiwifyOrderId(payload);
+
+  // Identificador da Kiwify tem prioridade; se ela um dia mandar um, ele passa
+  // a valer sozinho e a derivação sai de cena sem precisar de mudança aqui.
+  const explicitEventId = extractKiwifyEventId(payload);
+  const derivedEventId = deriveEventId(eventType, providerOrderId);
+  const providerEventId = explicitEventId ?? derivedEventId;
+
+  const eventIdSource: EventIdSource =
+    explicitEventId !== null ? "provider" : derivedEventId !== null ? "derived" : "none";
+
   return {
     eventType,
     rawEventName: extractKiwifyRawEventName(payload),
-    providerEventId: extractKiwifyEventId(payload),
-    providerOrderId: extractKiwifyOrderId(payload),
+    providerEventId,
+    eventIdSource,
+    providerOrderId,
     buyerEmail: extractKiwifyBuyerEmail(payload),
+    productId: extractKiwifyProductId(payload),
     productName: extractKiwifyProductName(payload),
+    productType: extractKiwifyProductType(payload),
     isActionable,
   };
 }
