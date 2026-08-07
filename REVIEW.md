@@ -1194,6 +1194,59 @@ Seria a correção automática para toda tabela futura. Recusei: concede `ALL` e
 - `npm run typecheck` → exit 0; `npm run lint` → exit 0.
 - Nenhum código, migration ou `modules/pricing` alterado.
 
+### Fase 4-7D — Validação real do webhook em produção
+- **Status:** ✅ Ajuste feito e validado localmente. ⚠️ **Falta confirmar em produção** (exige redeploy).
+- **Escopo:** só a função que coleta portadores de token e o log de 401. Nenhuma mudança de lógica de negócio.
+
+#### A hipótese H4 da auditoria se confirmou — quase
+O `GO-LIVE-AND-PRO-ROADMAP.md` listou como hipótese: *"a Kiwify usa assinatura/HMAC em vez de token simples → 401"*. O log de produção confirmou **metade**: o portador é mesmo `?signature=`, mas o valor se comporta como **token simples**, não como digest.
+
+Foi o log de 401 escrito na Fase 4-7C que entregou o diagnóstico — ele existia exatamente para isso, e funcionou: sem ele, o 401 seria um mistério sem nada gravado em lugar nenhum.
+
+#### O ajuste
+`?signature=` entrou na lista de portadores. **Tratado como token simples**: só é aceito se for exatamente igual a `KIWIFY_WEBHOOK_SECRET`, na mesma comparação por hash SHA-256 + `timingSafeEqual` dos outros três.
+
+**Isto não enfraquece nada.** Se a Kiwify um dia mandar um HMAC de verdade nesse mesmo parâmetro, ele não vai bater com o segredo e a requisição continua sendo recusada — nunca aceita "por parecer uma assinatura". O nome do parâmetro não decide nada; a comparação com o segredo decide. Verificado no teste 7: uma cadeia hexadecimal de 40 caracteres em `?signature=` devolve 401.
+
+**HMAC completo não foi implementado, de propósito.** Exigiria conhecer o algoritmo e o formato de digest que a Kiwify usa, e nenhum payload real documenta isso. Implementar por suposição a verificação de uma rota que concede licença seria construir no escuro justamente a parte que mexe em dinheiro. O corpo já é lido como texto cru antes do `JSON.parse`, então a peça necessária para HMAC está no lugar quando houver evidência.
+
+#### Log: booleanos, e um bit que responde a próxima pergunta
+O diagnóstico de 401 virou flags puras:
+
+```
+hasHeaderToken=false hasBearer=false hasQueryToken=false hasQuerySignature=true signatureLooksLikeHex=true
+```
+
+`signatureLooksLikeHex` não estava na especificação e acrescentei porque resolve a única dúvida que sobra depois de um 401: **a Kiwify mandou o token simples ou um digest?** Cadeia longa só de hexadecimais é assinatura; qualquer outra coisa é token.
+
+É seguro justamente por só aparecer no 401: se a autenticação falhou, o valor inspecionado **não** é o segredo, e a forma dele não revela nada sobre o segredo. Verificado nos dois sentidos — `assinatura-errada` → `false`; 40 hex → `true`.
+
+Auditoria dos `console.*`: **nenhum imprime token, signature, segredo ou payload**, em nenhum caminho, nem truncado.
+
+#### Testes locais — 12/12
+
+| # | Caso | Obtido |
+|---|---|:--:|
+| 1 | sem token | ✅ 401 |
+| 2 | token errado (header) | ✅ 401 |
+| 3 | `x-kiwify-token` certo | ✅ 200 |
+| 4 | `?token=` certo | ✅ 200 |
+| 5 | **`?signature=` certo** | ✅ 200 |
+| 6 | `?signature=` errado | ✅ 401 |
+| 7 | `?signature=` com cara de HMAC | ✅ 401 |
+| 8 | `Bearer` certo | ✅ 200 |
+| 9 | JSON inválido + signature certo | ✅ 400 |
+| 10 | evento desconhecido | ✅ 200 → `ignored` |
+| 11 | replay do mesmo `provider_event_id` | ✅ 200 `duplicate:true` |
+| 12 | `GET` | ✅ 405 |
+
+Banco confirma: **5 requisições com sucesso = 5 linhas**, o replay não criou a sexta, coerência `status ↔ processed_at` intacta, `user_id`/`license_id` nulos. `licenses` e `license_events` seguem com 2 linhas cada, todas `provider=manual` / `source=manual:test`.
+
+#### Riscos
+- ⚠️ **O teste do painel pode não representar o evento de produção.** Muitas plataformas assinam o evento real de um jeito e o "testar webhook" de outro. Se uma compra real der 401 com `signatureLooksLikeHex=true`, é HMAC de verdade e vira fase própria. **A prova só vem de uma compra real.**
+- **`?signature=` viaja na URL** e entra em log de proxy, CDN e histórico de acesso. É a Kiwify que escolhe o portador, não nós — mas vale saber que o segredo do webhook tem exposição maior que um header. Rotacionar o token no painel invalida o antigo, se algum dia for preciso.
+- **Ainda não confirmado em produção:** o ajuste só vale depois do redeploy.
+
 ## Checklist técnico
 - [x] O projeto está em C:\dev\doce-margem
 - [x] Não há dependência de OneDrive

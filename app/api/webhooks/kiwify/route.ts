@@ -13,10 +13,13 @@ import {
  * em `webhook_events`. Só isso.
  *
  * O que ela deliberadamente NÃO faz: criar licença, alterar `licenses`, escrever
- * em `license_events`, resolver `user_id`. A liberação automática é a Fase
- * 4-7D — e ela depende de vermos um payload real primeiro. Escrever a concessão
+ * em `license_events`, resolver `user_id`. A liberação automática é fase
+ * própria — e depende de vermos um payload real primeiro. Escrever a concessão
  * de licença sobre suposição de formato seria construir a parte que mexe em
  * dinheiro em cima de chute.
+ *
+ * **Fase 4-7D:** acrescentado `?signature=` aos portadores de token aceitos,
+ * depois de a Kiwify tomar 401 em produção mandando o segredo por ali.
  *
  * Exportar só `POST` faz o Next responder **405** a GET/PUT/DELETE sozinho, com
  * o header `Allow` correto — não é preciso escrever um GET só para recusá-lo.
@@ -48,12 +51,23 @@ function secretsMatch(candidate: string, secret: string): boolean {
 /**
  * Onde o segredo pode vir.
  *
- * ⚠️ **A forma real de autenticação da Kiwify ainda não foi observada.** As três
- * abaixo são as combinações previstas; se a Kiwify usar outra (o parâmetro
- * `?signature=` com HMAC do corpo é a hipótese mais provável), a requisição vai
- * receber 401 e **nada será capturado**. Para que isso não vire um mistério
- * silencioso, o 401 registra no log do servidor quais portadores estavam
- * presentes — sem nunca imprimir o valor de nenhum.
+ * Os três primeiros portadores foram previstos na Fase 4-7C. O quarto veio de
+ * **observação em produção** (Fase 4-7D): o teste disparado pelo painel da
+ * Kiwify chegou à Vercel com o segredo em `?signature=` e tomou 401, porque o
+ * handler não olhava esse parâmetro.
+ *
+ * ⚠️ **`signature` é tratado aqui como token simples, não como HMAC.** Só é
+ * aceito se for **exatamente igual** a `KIWIFY_WEBHOOK_SECRET`. Isso não é um
+ * enfraquecimento: se a Kiwify um dia mandar um HMAC de verdade nesse mesmo
+ * parâmetro, ele não vai bater com o segredo e a requisição continua sendo
+ * recusada com 401 — nunca aceita "por parecer uma assinatura". O nome do
+ * parâmetro não decide nada; a comparação com o segredo decide.
+ *
+ * HMAC completo **não** foi implementado de propósito: exigiria conhecer o
+ * algoritmo e o formato de digest usados pela Kiwify, e nenhum payload real
+ * documentado confirma isso ainda. Implementar por suposição a verificação de
+ * uma rota que concede licença seria construir no escuro a parte que mexe em
+ * dinheiro. Fica para quando houver evidência — ver `REVIEW.md` (Fase 4-7D).
  */
 function collectTokenCandidates(request: Request): string[] {
   const url = new URL(request.url);
@@ -71,19 +85,39 @@ function collectTokenCandidates(request: Request): string[] {
   const queryToken = url.searchParams.get("token");
   if (queryToken) candidates.push(queryToken.trim());
 
+  const querySignature = url.searchParams.get("signature");
+  if (querySignature) candidates.push(querySignature.trim());
+
   return candidates;
 }
 
-/** Diagnóstico de 401: quais portadores vieram, nunca o que vinha neles. */
+/**
+ * Diagnóstico de 401: **só booleanos**.
+ *
+ * Nunca imprime token, signature nem segredo — em nenhum caminho, nem truncado.
+ * `signatureLooksLikeHex` existe para responder à única pergunta que sobra
+ * depois de um 401: a Kiwify mandou o token simples ou um digest? Cadeia longa
+ * só de hexadecimais é assinatura; qualquer outra coisa é token.
+ *
+ * Esse bit é seguro justamente por só aparecer no 401: se a autenticação
+ * falhou, o valor inspecionado **não** é o segredo, e a forma dele não revela
+ * nada sobre o segredo.
+ */
 function describeCarriers(request: Request): string {
   const url = new URL(request.url);
-  const present: string[] = [];
-  if (request.headers.get("x-kiwify-token")) present.push("x-kiwify-token");
-  if (request.headers.get("authorization")) present.push("authorization");
-  if (url.searchParams.get("token")) present.push("?token");
-  // Não é aceito como token, mas saber que veio identifica o mecanismo real.
-  if (url.searchParams.get("signature")) present.push("?signature(HMAC?)");
-  return present.length === 0 ? "nenhum" : present.join(", ");
+  const signature = url.searchParams.get("signature");
+
+  const flags = {
+    hasHeaderToken: Boolean(request.headers.get("x-kiwify-token")),
+    hasBearer: Boolean(request.headers.get("authorization")),
+    hasQueryToken: Boolean(url.searchParams.get("token")),
+    hasQuerySignature: Boolean(signature),
+    signatureLooksLikeHex: signature !== null && /^[0-9a-f]{32,128}$/i.test(signature.trim()),
+  };
+
+  return Object.entries(flags)
+    .map(([key, value]) => `${key}=${value}`)
+    .join(" ");
 }
 
 /* ─────────────────────── Respostas ─────────────────────── */

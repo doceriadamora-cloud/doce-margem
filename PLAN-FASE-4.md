@@ -663,6 +663,24 @@ corpo cru enviado em query string (`?signature=`). O código deve ser escrito pa
 a que for observada — não para a que for suposta. Por isso 13.10 vem antes da
 implementação.
 
+> ✅ **Observado em produção na Fase 4-7D.** A Kiwify manda o segredo em
+> **`?signature=`** — o portador que a hipótese previa — mas o valor funciona
+> como **token simples**, não como digest. O handler passou a aceitar esse
+> parâmetro, comparando-o com `KIWIFY_WEBHOOK_SECRET` na mesma verificação em
+> tempo constante dos outros três portadores.
+>
+> **HMAC continua não implementado, por decisão.** O nome do parâmetro não
+> autoriza nada: um digest verdadeiro simplesmente não bate com o segredo e
+> continua tomando 401 (verificado). Implementar a verificação por suposição de
+> algoritmo, numa rota que concede licença, é o tipo de chute que este capítulo
+> existe para evitar.
+>
+> ⚠️ **Ressalva importante:** o que foi observado é o **teste do painel**. Muitas
+> plataformas assinam o evento de produção de forma diferente do botão de teste.
+> Se uma compra real devolver 401 com `signatureLooksLikeHex=true` no log, aí é
+> HMAC de verdade e vira fase própria — com o corpo cru, que o handler já lê
+> antes do `JSON.parse` justamente para isso.
+
 ### Códigos de resposta (mais importante do que parece)
 
 O código define se o provedor reenvia. Errar aqui produz reenvio infinito ou

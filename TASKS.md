@@ -4,13 +4,13 @@
 > Marcar `[x]` ao concluir. Adicionar novas tarefas quando surgirem.
 > Antes de iniciar uma nova fase: parar, resumir o que foi feito e aguardar aprovação.
 
-**Fase atual:** Fase 4-7C concluída e validada — webhook em modo captura funcionando de ponta a ponta, **13/13 testes locais**. Nenhuma licença é liberada ainda.
-**Próximo passo recomendado:** rodar o diagnóstico do webhook (`GO-LIVE-AND-PRO-ROADMAP.md`, seção 3) → capturar payload real → Fase 4-7F (liberação automática).
+**Fase atual:** Fase 4-7D concluída — `?signature=` aceito, **12/12 testes locais**. O 401 da Kiwify em produção está explicado e corrigido. Nenhuma licença é liberada ainda.
+**Próximo passo recomendado:** redeployar → repetir o teste da Kiwify (deve virar 200) → **compra real de valor mínimo** para capturar o payload de produção → Fase 4-7E (liberação automática).
 
 > 📋 **Auditoria pré-lançamento (2026-08-07): `GO-LIVE-AND-PRO-ROADMAP.md`** —
 > estado do produto, 10 bloqueadores críticos, diagnóstico do webhook, fronteira
 > Essencial × Pro, copy pública, prazos e checklist de lançamento.
-> **Bloqueador nº 1: compra aprovada não libera licença** (Fase 4-7F não existe).
+> **Bloqueador nº 1: compra aprovada não libera licença** (Fase 4-7E não existe).
 
 ## Fase 0 — Setup e documentação ✅
 - [x] Criar projeto em C:\dev\doce-margem
@@ -471,7 +471,21 @@
 - [ ] **Conferir:** a consulta 5.4 procura perfis sem linha em `user_access_flags` — se houver, o bloqueio administrativo dessas contas falharia em silêncio
 - [ ] Corrigir os comentários falsos sobre `service_role` em `0002` (linha 366) e `0003` (linha 342) — exige alterar migrations antigas, decisão em aberto
 
-### Fase 4-7D — Liberação automática de licença (pendente)
+### Fase 4-7D — Validação real do webhook em produção ✅
+- [x] **Causa do 401 identificada em produção:** a Kiwify manda o segredo em `?signature=`, e o handler só olhava `x-kiwify-token`, `Authorization: Bearer` e `?token=`
+- [x] `?signature=` acrescentado aos portadores aceitos — tratado como **token simples**, aceito só se for exatamente igual a `KIWIFY_WEBHOOK_SECRET`
+- [x] **HMAC não implementado**, de propósito: exigiria conhecer algoritmo e formato de digest da Kiwify, e nenhum payload real documenta isso. O nome do parâmetro não decide nada; a comparação com o segredo decide
+- [x] Log de 401 convertido para **booleanos puros** — `hasHeaderToken`, `hasBearer`, `hasQueryToken`, `hasQuerySignature`, `signatureLooksLikeHex`
+- [x] `signatureLooksLikeHex` distingue token simples de digest sem vazar nada — só aparece no 401, quando o valor inspecionado comprovadamente **não** é o segredo
+- [x] Nenhum `console.*` do handler imprime token, signature, segredo ou payload
+- [x] **12/12 testes locais**, incluindo `?signature=` certo → 200, errado → 401, e com cara de HMAC → 401
+- [x] Replay do mesmo `provider_event_id` → 200 `duplicate:true`, **5 requisições com sucesso = 5 linhas**
+- [x] `licenses` e `license_events` intocadas (2 linhas cada, `provider=manual`)
+- [x] `typecheck` + `lint` + `build` — 13 rotas
+- [ ] **Confirmar em produção:** redeployar e disparar o teste da Kiwify de novo — deve virar 200 e gravar
+- [ ] ⚠️ **Confirmar com compra real:** o teste do painel pode usar autenticação diferente do evento de produção. Se um evento real der 401 com `signatureLooksLikeHex=true`, aí sim é HMAC e precisa de fase própria
+
+### Fase 4-7E — Liberação automática de licença (pendente)
 - [ ] Cadastrar o webhook no painel da Kiwify — **ainda não existe webhook cadastrado**
 - [ ] Criar `POST /api/webhooks/kiwify` — **a rota ainda não existe**
 - [ ] **Capturar payload real da Kiwify** (webhook.site) antes de escrever código — sem isso os nomes de campo são chute
