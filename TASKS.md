@@ -4,8 +4,8 @@
 > Marcar `[x]` ao concluir. Adicionar novas tarefas quando surgirem.
 > Antes de iniciar uma nova fase: parar, resumir o que foi feito e aguardar aprovação.
 
-**Fase atual:** Fase 4-7F concluída — payload real da Kiwify mapeado e idempotência resolvida com chave `evento:pedido`. **52/52 isoladas + 7/7 HTTP.** Nenhuma licença é liberada ainda.
-**Próximo passo recomendado:** limpar as linhas de teste → redeployar → **compra real de valor mínimo** para confirmar o formato de produção → Fase 4-7G (liberação automática).
+**Fase atual:** Fase 4-7G concluída — **compra aprovada libera licença Essencial**, 33/33 contra o Supabase real. Reembolso e chargeback ainda não revogam.
+**Próximo passo recomendado:** ⛔ **configurar SMTP próprio no Supabase** (sem ele, quem compra sem ter conta não é liberado) → limpar dados de teste → compra real → Fase 4-7H (revogação).
 
 > 📋 **Auditoria pré-lançamento (2026-08-07): `GO-LIVE-AND-PRO-ROADMAP.md`** —
 > estado do produto, 10 bloqueadores críticos, diagnóstico do webhook, fronteira
@@ -516,7 +516,26 @@
 - [ ] ⚠️ **Limite conhecido:** dois eventos genuinamente distintos com mesmo tipo e mesmo `order_id` (renovação anual reusando o pedido) colidem e o segundo vira replay. Correto para a compra única; **reavaliar na fase de renovação do Pro**
 - [ ] **Limpar antes de ligar em produção:** 13 linhas de teste em `webhook_events`, incluindo a linha real com `provider_event_id = NULL` (a que motivou esta fase)
 
-### Fase 4-7G — Liberação automática de licença (pendente)
+### Fase 4-7G — Compra aprovada libera licença Essencial ✅ (com 1 bloqueador)
+- [x] `lib/webhooks/kiwify-processor.ts` — regra de negócio separada do Route Handler, `server-only`
+- [x] **Só `compra_aprovada` concede.** Reembolso e chargeback são gravados e ficam `received` — revogação é fase própria
+- [x] Compradora **já cadastrada**: perfil localizado por e-mail (`ilike` com curingas escapados — `_` é caractere legítimo em e-mail)
+- [x] Licença `one_time` / `active` / `expires_at = NULL` / `provider = 'kiwify'` — valores conforme os CHECK das migrations
+- [x] `license_events` com `event_type = 'granted'`, `source = 'webhook:kiwify'`, payload **só de referências** (sem PII duplicada)
+- [x] `webhook_events` fechado com `status='processed'`, `processed_at`, `user_id`, `license_id`
+- [x] **Idempotência em duas camadas:** índice único de `webhook_events` barra o replay antes de qualquer trabalho; unicidade `(provider, provider_order_id)` de `licenses` barra a segunda licença mesmo com `event_id` novo
+- [x] **Recuperação:** reenvio de linha que ficou `received` é reprocessado, em vez de descartado como duplicata
+- [x] Payload sem e-mail ou sem `order_id` → `failed` com código curto, **200** (reenviar não conserta)
+- [x] **33/33 testes locais** contra o Supabase real
+- [x] `has_essential_access(uid)` → `true`; usuária bloqueada → `false`
+- [x] Service role **não aparece** no bundle do cliente; só o Route Handler importa `admin.ts`
+- [x] `typecheck` + `lint` + `build` — 13 rotas
+- [ ] ⛔ **BLOQUEADOR: `inviteUserByEmail` não funciona hoje.** Erros reais: `email_address_invalid` e `over_email_send_rate_limit`. **Compra de quem ainda não tem conta fica registrada como `failed` e não libera.** Exige SMTP próprio no Supabase — ver `REVIEW.md`
+- [ ] ⛔ **Bug na migration 0002 descoberto:** o trigger `license_events_immutable` bloqueia o `ON DELETE SET NULL` da FK, então **usuária com evento de licença não pode ser excluída** (impacto LGPD). Isolado com teste A/B/C. Correção exige migration
+- [ ] **Compra real ainda não testada de ponta a ponta**
+- [ ] **Limpar dados de teste** — SQL no `REVIEW.md` (service role não tem DELETE em `licenses`, `license_events` nem `webhook_events`, por decisão da 4-7C-fix)
+
+### Fase 4-7H — Reembolso e chargeback (pendente)
 - [ ] Cadastrar o webhook no painel da Kiwify — **ainda não existe webhook cadastrado**
 - [ ] Criar `POST /api/webhooks/kiwify` — **a rota ainda não existe**
 - [ ] **Capturar payload real da Kiwify** (webhook.site) antes de escrever código — sem isso os nomes de campo são chute

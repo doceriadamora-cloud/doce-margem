@@ -5,6 +5,7 @@ import {
   resolveInitialStatus,
   type KiwifyExtraction,
 } from "@/lib/webhooks/kiwify-payload";
+import { processKiwifyWebhook } from "@/lib/webhooks/kiwify-processor";
 
 /**
  * Webhook da Kiwify — **modo captura** (Fase 4-7C).
@@ -240,53 +241,62 @@ export async function POST(request: Request): Promise<Response> {
   const extraction: KiwifyExtraction = extractKiwifyWebhook(payload);
   const status = resolveInitialStatus(extraction);
 
-  // 5. Gravar.
+  // 5. Gravar e, se for compra aprovada, conceder a licença. A regra de negócio
+  //    mora em `lib/webhooks/kiwify-processor.ts`; aqui só se traduz o
+  //    resultado em código HTTP.
   const supabase = createSupabaseAdminClient();
   if (supabase === null) {
     console.error("[webhook:kiwify] service role não configurada — requisição recusada");
     return json({ error: "not_configured" }, 500);
   }
 
-  const { error } = await supabase.from("webhook_events").insert({
-    provider: "kiwify",
-    event_type: extraction.eventType,
-    provider_event_id: extraction.providerEventId,
-    provider_order_id: extraction.providerOrderId,
-    // `user_id` e `license_id` ficam nulos de propósito: resolver a compradora
-    // é trabalho da Fase 4-7D, depois de sabermos onde o e-mail realmente vem.
+  const outcome = await processKiwifyWebhook({
+    supabase,
     payload,
-    status,
-    // O CHECK `webhook_events_processed_at_coherent` (migration 0003) exige esta
-    // coerência: `received` sem carimbo, qualquer outro estado com carimbo.
-    processed_at: status === "received" ? null : new Date().toISOString(),
+    extraction,
+    initialStatus: status,
   });
 
-  if (error !== null) {
-    // 23505 = unique_violation. É o índice parcial
-    // `webhook_events_provider_event_unique` fazendo o trabalho dele: reenvio do
-    // mesmo evento. Responder 2xx é obrigatório — um 4xx aqui faria a Kiwify
-    // reenviar para sempre.
-    if (error.code === "23505") {
-      return json({ received: true, duplicate: true }, 200);
-    }
-    // Sem `error.message` na resposta: pode conter nome de coluna e detalhe de
-    // constraint. 500 é o código certo — aqui o reenvio da Kiwify É a recuperação.
-    console.error(`[webhook:kiwify] falha ao gravar (${error.code ?? "sem código"})`);
-    return json({ error: "storage_failed" }, 500);
-  }
-
-  // Log sem dado pessoal e sem payload: só o suficiente para acompanhar a
-  // captura. `payload` cru fica no banco, que é onde se pode consultá-lo com
-  // controle de acesso.
+  // Log sem dado pessoal e sem payload: só booleanos e classificações. O corpo
+  // cru fica no banco, que é onde se pode consultá-lo com controle de acesso.
   console.info(
-    `[webhook:kiwify] gravado — tokenCarrierUsed=${auth.method} ` +
-      `evento=${extraction.eventType} ` +
-      `bruto=${extraction.rawEventName ?? "—"} status=${status} ` +
+    `[webhook:kiwify] ${outcome.kind} — tokenCarrierUsed=${auth.method} ` +
+      `evento=${extraction.eventType} bruto=${extraction.rawEventName ?? "—"} ` +
       `eventIdSource=${extraction.eventIdSource} ` +
       `order_id=${extraction.providerOrderId !== null} ` +
       `email=${extraction.buyerEmail !== null} ` +
-      `product_id=${extraction.productId !== null}`,
+      `product_id=${extraction.productId !== null}` +
+      (outcome.kind === "granted"
+        ? ` userCreated=${outcome.userCreated} licenseCreated=${outcome.licenseCreated}`
+        : "") +
+      (outcome.kind === "rejected" ? ` reason=${outcome.reason}` : "") +
+      (outcome.kind === "storage_error" ? ` code=${outcome.code}` : ""),
   );
 
-  return json({ received: true }, 200);
+  switch (outcome.kind) {
+    case "granted":
+    case "recorded":
+      return json({ received: true }, 200);
+
+    case "duplicate":
+      // 2xx é obrigatório: um 4xx faria a Kiwify reenviar para sempre.
+      return json({ received: true, duplicate: true }, 200);
+
+    case "rejected":
+      // Payload aceito mas inutilizável (sem e-mail, sem pedido). Ficou
+      // registrado como `failed` para alguém ver. **200 de propósito:**
+      // reenviar não vai fazer o campo aparecer, e um 4xx só produziria
+      // repetição infinita do mesmo payload incompleto.
+      return json({ received: true, processed: false }, 200);
+
+    case "storage_error":
+      // Aqui o reenvio da Kiwify É a recuperação — SMTP fora do ar, banco
+      // indisponível, convite recusado. Sem detalhe na resposta.
+      return json({ error: "storage_failed" }, 500);
+  }
+
+  // Inalcançável enquanto a união estiver completa. Se um resultado novo
+  // aparecer e alguém esquecer deste switch, 500 é o lado seguro para errar:
+  // faz a Kiwify reenviar, em vez de dar a compra por processada em silêncio.
+  return json({ error: "storage_failed" }, 500);
 }

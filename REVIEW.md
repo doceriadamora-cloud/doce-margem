@@ -1367,6 +1367,95 @@ Pelo mesmo raciocínio tirei `id` dos candidatos a `order_id` — num payload da
 - **13 linhas de teste em `webhook_events`**, incluindo a linha real com `provider_event_id = NULL` — a que motivou esta fase. Vale apagar antes de ligar em produção.
 - **Liberação de licença continua não existindo.** O handler grava e para.
 
+### Fase 4-7G — Compra aprovada libera licença Essencial
+- **Status:** ✅ Caminho principal funcionando, **33/33** contra o Supabase real. ⛔ **Dois bloqueadores encontrados**, ambos fora do código desta fase.
+- **Escopo:** só concessão. Reembolso e chargeback continuam sem revogar.
+
+#### O fluxo
+1. Autenticar (HMAC ou token) → 2. gravar `webhook_events` → 3. se `compra_aprovada`: resolver compradora → 4. criar/reaproveitar licença → 5. `license_events` → 6. fechar a linha como `processed`.
+
+A regra de negócio foi para `lib/webhooks/kiwify-processor.ts`, com `server-only`. O Route Handler ficou só com HTTP: autenticar, ler corpo, traduzir resultado em código. Mesma separação que mantém a matemática em `modules/pricing`.
+
+**Valores gravados**, todos conferidos contra os CHECK das migrations: `product_type = 'one_time'`, `status = 'active'`, `expires_at = NULL` (obrigatório para compra única), `provider = 'kiwify'`, `event_type = 'granted'`, `source = 'webhook:kiwify'`.
+
+#### Idempotência em duas camadas
+- **Camada 1 — `webhook_events`:** o insert acontece **antes** de qualquer trabalho de licença. Replay esbarra no índice único e nunca chega a criar licença.
+- **Camada 2 — `licenses`:** a unicidade `(provider, provider_order_id)` segura mesmo quando a camada 1 é contornada. Testado enviando o mesmo pedido com um `webhook_event_id` explícito diferente: o webhook passou, a licença **não** duplicou, e `license_events` também não.
+
+**E uma terceira propriedade, que é recuperação e não bloqueio:** quando o insert colide, a linha existente é inspecionada. Se ainda está `received` — sinal de que a entrega anterior morreu no meio — o processamento **continua** sobre ela. Sem isso, uma falha entre gravar o webhook e conceder a licença deixaria a compra registrada e nunca liberada, e o reenvio da Kiwify, que é a chance natural de consertar, seria descartado como duplicata.
+
+#### Detalhes de segurança
+- **`ilike` com curingas escapados.** `_` é caractere legítimo em e-mail e é curinga em `LIKE`: sem escapar, `maria_silva@x.com` casaria com `mariaXsilva@x.com` — e casar o perfil errado numa rotina que concede licença é o pior defeito imaginável aqui.
+- **`license_events.payload` guarda só referências** (`webhook_event_id`, `provider_event_id`, `provider_order_id`, `product_id`). Os dados pessoais já estão em `webhook_events.payload`; duplicá-los espalharia PII por duas tabelas com políticas de retenção diferentes. Verificado: o e-mail de teste não aparece no payload de auditoria.
+- **Auditoria só quando a licença nasce.** `license_events` é append-only e não tem unicidade, então quem controla duplicação é essa condição.
+- **Service role não vaza:** `grep` em `.next/static/` não encontra nada, e só o Route Handler importa `admin.ts`.
+- **Logs:** só booleanos e códigos curtos. Nunca token, assinatura, chave, CPF, telefone, payload ou e-mail completo.
+
+#### ⛔ Bloqueador 1 — convite por e-mail não funciona
+Compradora **sem conta** não é liberada. `inviteUserByEmail` devolveu, em produção:
+
+```
+invite_failed:email_address_invalid
+invite_failed:over_email_send_rate_limit
+```
+
+O segundo confirma o que a auditoria de go-live já apontava: **o SMTP padrão do Supabase tem limite de poucos envios por hora e não serve para produção.** Na terceira venda da mesma hora, o convite falha.
+
+**O que o código faz quando isso acontece** — e é o comportamento certo: marca `webhook_events` como `failed` com o código do erro, responde **500** para a Kiwify reenviar, e **não cria conta órfã nem licença solta**. A compra fica registrada e visível; nada se perde em silêncio.
+
+**Por que não improvisei um contorno.** `createUser` sem convite criaria uma conta que a compradora não consegue acessar — o app ainda não tem tela de recuperação de senha, então ela teria pago e ficaria presa. Preferi falhar de forma visível a criar uma armadilha.
+
+**Correção:** configurar SMTP próprio no Supabase (Resend, SendGrid, SES). É configuração, não código.
+
+#### ⛔ Bloqueador 2 — usuária com evento de licença não pode ser excluída
+Descoberto ao tentar limpar os dados de teste. Isolado com três casos:
+
+| Caso | `deleteUser` |
+|---|---|
+| A — usuária sem `license_events` | ✅ ok |
+| B — usuária com licença, sem eventos | ✅ ok |
+| C — usuária **com `license_events`** | ❌ `Database error deleting user` |
+
+**Causa:** `license_events.user_id` tem `ON DELETE SET NULL`, e `SET NULL` é um **UPDATE**. O trigger `license_events_immutable` da migration 0002 bloqueia UPDATE para **todos**, inclusive `service_role`. A FK tenta anonimizar o registro e a própria proteção o impede.
+
+A intenção da 0002 estava certa (a evidência deve sobreviver à exclusão da conta); a implementação transforma "anonimizar" em "impedir". **Impacto: LGPD** — pedido de exclusão de conta não pode ser atendido por nenhum caminho automático.
+
+**Correção sugerida** (migration futura, fora do escopo desta fase): permitir UPDATE quando ele apenas anula `user_id`/`license_id`, mantendo o bloqueio para alteração de conteúdo.
+
+#### Testes — 33/33
+Contra o Supabase real, com compradora fictícia em `@example.com` (domínio reservado RFC 2606): concessão completa; auditoria; fechamento do webhook; `has_essential_access = true`; bloqueio derrubando o acesso; replay sem duplicar; mesmo pedido com `event_id` novo sem duplicar; pedido novo criando segunda licença; payload sem e-mail → `failed/sem_email`; sem `order_id` → não libera; `billet_created`, `order_refunded` e `order_chargeback` sem tocar em licença; reembolso permanecendo `received`.
+
+#### ⚠️ Dados de teste que ficaram no banco
+Não consegui limpar: `service_role` **não tem DELETE** em `licenses`, `license_events` nem `webhook_events` — decisão deliberada da 4-7C-fix, aqui confirmada funcionando. Rodar no SQL Editor, nesta ordem:
+
+```sql
+-- 1. eventos primeiro: é o que destrava a exclusão das contas (bloqueador 2)
+delete from public.license_events
+where source = 'probe'
+   or license_id in (
+     select id from public.licenses
+     where provider_order_id like '47g-%' or provider_order_id like 'probe-%'
+   );
+
+-- 2. licenças de teste
+delete from public.licenses
+where provider_order_id like '47g-%' or provider_order_id like 'probe-%';
+
+-- 3. webhooks de teste
+delete from public.webhook_events
+where payload ->> '_teste_claude_4_7c' is not null or provider_event_id is null;
+
+-- 4. contas de teste (agora possível, sem license_events pendurado)
+delete from auth.users where email like '%@example.com';
+```
+
+#### Riscos restantes
+- **Compra real nunca testada de ponta a ponta.** Tudo foi exercitado com payload sintético no formato capturado.
+- **Compradora sem conta continua sem liberação** até o SMTP ser resolvido — é o bloqueador comercial nº 1 da fase.
+- **Reembolso e chargeback não revogam.** Quem pedir reembolso hoje recebe o dinheiro **e mantém a licença vitalícia**.
+- **Reativação silenciosa:** uma `compra_aprovada` para um pedido cuja licença esteja revogada volta a marcá-la `active`. Correto se o pagamento realmente voltou a valer; a checar quando a revogação existir.
+- **Duas contas de teste `@example.com`** ficaram no Auth até o SQL acima ser rodado.
+
 ## Checklist técnico
 - [x] O projeto está em C:\dev\doce-margem
 - [x] Não há dependência de OneDrive

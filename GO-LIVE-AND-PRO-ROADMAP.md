@@ -103,7 +103,7 @@ verificar**, e por isso pesam mais do que o tamanho delas sugere:
 
 | # | Bloqueador | Por quê |
 |---|---|---|
-| C1 | **Compra aprovada não libera licença** | A Fase 4-7D não existe. Hoje: cliente paga, o webhook registra o evento, e **nada acontece**. Você concede à mão ou o cliente fica sem acesso. |
+| C1 | ~~**Compra aprovada não libera licença**~~ | ✅ **Resolvido na Fase 4-7G** para quem **já tem conta**: perfil localizado por e-mail, licença `one_time` ativa, auditoria e webhook fechados. ⛔ **Quem ainda não tem conta continua sem liberação** — ver C9. |
 | C2 | **Preço não definido** | `/precos` diz "Preço de lançamento em breve" e o CTA depende de `NEXT_PUBLIC_BUY_ESSENTIAL_URL`. Sem preço não há oferta. |
 | C3 | **Webhook não confirmado em produção** | ⚠️ Parcial: a rota responde e a Fase 4-7E implementou a verificação HMAC que o teste real exigia. **Falta uma compra real fechar o ciclo.** |
 | C4 | ~~**Payload real da Kiwify não capturado**~~ | ✅ **Resolvido na Fase 4-7F.** Capturado em produção: `webhook_event_type = "order_approved"`, `order_id`, `Product.*`, `Customer.*`. Extractores mapeados sobre fato. Falta só confirmar que a **compra real** usa o mesmo formato do teste. |
@@ -111,7 +111,7 @@ verificar**, e por isso pesam mais do que o tamanho delas sugere:
 | C6 | **Reembolso e chargeback não revogam** | Cliente pede reembolso, recebe o dinheiro **e mantém acesso vitalício**. Prejuízo direto e problema com a Kiwify. |
 | C7 | **Compra antes do cadastro sem decisão** | `licenses.user_id → profiles.id → auth.users.id`. Não existe licença para e-mail sem conta — **nem com service role**. Quem comprar sem ter conta fica em limbo. |
 | C8 | **Fluxo compra → cadastro → acesso nunca testado** | Nem em produção, nem local. É o único fluxo que o cliente vai percorrer. |
-| C9 | **Confirmação de e-mail sem SMTP próprio** | O SMTP padrão do Supabase tem limite de poucos e-mails por hora e não é para produção. Se o e-mail não chega, **o cliente pagou e não consegue entrar**. |
+| C9 | **Confirmação de e-mail sem SMTP próprio** | ⬆️ **Agora é o bloqueador nº 1, confirmado com erro real.** A Fase 4-7G tentou `inviteUserByEmail` e recebeu `over_email_send_rate_limit` e `email_address_invalid`. **Quem compra sem ter conta não é liberado** — a compra fica registrada como `failed`. Corrigir é configuração (Resend/SendGrid/SES), não código. |
 | C10 | **`NEXT_PUBLIC_APP_URL` apontando para localhost** | Se estiver assim na Vercel, o `emailRedirectTo` do cadastro manda o cliente para `localhost:3000` — link de confirmação quebrado para todo mundo. |
 
 ### 🟡 Importantes — dá para lançar, mas dói rápido
@@ -811,6 +811,7 @@ Considerando **~4 h úteis por dia**.
 | S12 | **Open redirect no callback** | 🟢 fechado | `/auth/callback` já valida que `next` começa com `/` e não com `//` |
 | S13 | **Enumeração de e-mail** | 🟢 tratado | mensagem genérica no login; webhook não conta se o e-mail existe |
 | S14 | **Dado pessoal em `webhook_events.payload`** | 🟡 atenção | LGPD: `DELETE` permitido a papéis administrativos. Falta política escrita de retenção |
+| S18 | **Conta com evento de licença não pode ser excluída** | 🔴 **aberto** | Descoberto na 4-7G e isolado com teste A/B/C: `license_events.user_id` usa `ON DELETE SET NULL`, que é um UPDATE, e o trigger `license_events_immutable` bloqueia UPDATE para todos. **Pedido de exclusão (LGPD) não tem caminho automático.** Correção exige migration |
 | S15 | **Perda de dados locais** | 🟡 produto | `localStorage` some com limpeza de navegador. Backup existe; **a comunicação precisa ser explícita** |
 | S16 | **Rollback de banco é manual** | 🟡 operacional | migrations sem `down`. Aplicar direto em produção sem staging é o padrão atual |
 | S17 | **`service_role` sem grant em tabela nova** | 🟡 recorrente | por decisão, não há `alter default privileges`. **Toda tabela nova precisa do grant explícito** |

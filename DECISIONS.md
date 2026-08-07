@@ -979,3 +979,84 @@ anotado no `TASKS.md`.
 ⚠️ **O payload capturado é o do botão de teste.** O evento de produção pode diferir.
 Os extractores toleram ausência de campo, e `eventIdSource=none` no log seria o
 aviso de que a derivação não teve como acontecer.
+
+---
+
+## 2026-08-07 — Convidar, nunca criar conta silenciosa; e falhar visível em vez de improvisar
+
+### Decisão
+Quando chega uma compra aprovada de um e-mail sem conta, o sistema usa
+**`inviteUserByEmail`** — e **só** ele. Se o convite falhar, a compra é marcada
+como `failed` em `webhook_events`, o handler devolve 500 (para a Kiwify
+reenviar) e **nenhuma conta é criada**.
+
+`createUser` como alternativa está **descartado** enquanto o app não tiver tela
+de recuperação de senha.
+
+Decisões acessórias, tomadas junto:
+- **Busca de perfil por e-mail escapa curingas de `LIKE`** antes do `ilike`.
+- **`license_events.payload` guarda só referências**, nunca o corpo do webhook.
+- **Auditoria só é inserida quando a licença nasce**, não a cada reprocessamento.
+
+### Contexto
+Fase 4-7G. O caminho da compradora já cadastrada funciona: 33/33 testes contra o
+Supabase real. O caminho de quem ainda não tem conta esbarrou em erros reais do
+`inviteUserByEmail`: `email_address_invalid` e `over_email_send_rate_limit`.
+
+O segundo é o que importa: **o SMTP padrão do Supabase permite poucos envios por
+hora**. Na terceira venda da mesma hora, o convite falha.
+
+### Motivo
+
+**Por que não cair para `createUser` quando o convite falha.** Seria o contorno
+óbvio: cria a conta, prende a licença nela, e a compradora "depois resolve". Mas
+o app não tem tela de recuperação de senha. Ela teria pago, teria uma conta
+existindo em seu nome, e **nenhum caminho para entrar** — nem o cadastro, que
+recusa e-mail já registrado. Trocaríamos uma falha visível (compra registrada
+como `failed`, esperando ação) por uma armadilha silenciosa (compra "concluída",
+cliente sem acesso e sem explicação). A primeira aparece num relatório; a segunda
+aparece num pedido de reembolso.
+
+**Por que 500 e não 200 no convite falhado.** O 500 faz a Kiwify reenviar, e o
+reenvio é a recuperação real: assim que o SMTP voltar ao ar ou o limite zerar, a
+mesma compra é processada e a licença sai. Um 200 daria a compra por encerrada.
+
+**Por que escapar curingas na busca por e-mail.** `_` é caractere legítimo em
+e-mail e curinga em `LIKE`: sem escapar, `maria_silva@x.com` casaria com
+`mariaXsilva@x.com`. Numa rotina que decide de quem é a licença, casar o perfil
+errado é o pior defeito possível — concede acesso a uma pessoa e nega a quem
+pagou.
+
+**Por que a auditoria não repete o payload.** Os dados pessoais já estão em
+`webhook_events.payload`. Duplicá-los em `license_events` espalharia PII por duas
+tabelas com políticas de retenção diferentes, e um pedido de exclusão passaria a
+exigir varrer as duas. Referências bastam para reconstruir o contexto.
+
+### Impacto
+**Comercial, e é sério:** enquanto o SMTP não for configurado, **quem compra sem
+ter conta não recebe acesso**. A compra não se perde — fica em `webhook_events`
+com `status = 'failed'` e o código do erro — mas exige ação manual. Como o funil
+manda a compradora do checkout direto para a compra, esse é provavelmente o caso
+**mais comum**, não a exceção. Corrigir é configuração (Resend, SendGrid, SES),
+não código.
+
+Técnico: `lib/webhooks/kiwify-processor.ts` concentra a regra e o Route Handler
+fica só com HTTP. Idempotência em duas camadas — índice único de `webhook_events`
+antes de qualquer trabalho, e unicidade `(provider, provider_order_id)` de
+`licenses` como rede. Linha que ficou `received` é reprocessada no reenvio, em
+vez de descartada como duplicata.
+
+### Achado colateral que precisa de correção própria
+Ao tentar limpar os dados de teste, `deleteUser` falhou. Isolado com três casos
+(sem eventos → ok; com licença → ok; **com `license_events` → falha**):
+
+`license_events.user_id` usa `ON DELETE SET NULL`, e `SET NULL` é um **UPDATE**.
+O trigger `license_events_immutable` da migration 0002 bloqueia UPDATE para
+todos, inclusive `service_role`. A FK tenta anonimizar o registro e a própria
+proteção o impede.
+
+A intenção da 0002 estava certa — a evidência deve sobreviver à exclusão da conta
+— mas a implementação transforma "anonimizar" em "impedir". **Consequência: um
+pedido de exclusão de conta (LGPD) não tem caminho automático.** A correção é uma
+migration que permita o UPDATE quando ele apenas anula `user_id`/`license_id`,
+mantendo o bloqueio para alteração de conteúdo. Fora do escopo da 4-7G.
