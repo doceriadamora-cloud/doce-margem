@@ -1060,3 +1060,79 @@ A intenção da 0002 estava certa — a evidência deve sobreviver à exclusão 
 pedido de exclusão de conta (LGPD) não tem caminho automático.** A correção é uma
 migration que permita o UPDATE quando ele apenas anula `user_id`/`license_id`,
 mantendo o bloqueio para alteração de conteúdo. Fora do escopo da 4-7G.
+
+---
+
+## 2026-08-07 — O fragment obriga um client de navegador; a senha continua no servidor
+
+### Decisão
+O aceite de convite ganhou rota própria, **`/auth/accept-invite`**, com um Client
+Component que lê os tokens do fragment da URL. Junto:
+
+- **`services/supabase/client.ts`** — primeiro client de navegador do projeto,
+  com chave anônima e `detectSessionInUrl: false`.
+- **O fragment é apagado antes do primeiro `await`.**
+- **A senha é definida por Server Action**, nunca por `updateUser` no cliente, e
+  a sessão é revalidada com `getUser()` antes da troca.
+- **`/auth/accept-invite` nunca recebe guarda de acesso.**
+- **`InviteHashRescue`** em `/login` reencaminha convites que caírem lá.
+- `inviteUserByEmail` passou a enviar `redirectTo` apontando para a rota nova.
+
+### Contexto
+Com o SMTP do Resend configurado, o convite passou a ser entregue — resolvendo o
+bloqueador nº 1 da Fase 4-7G. Mas o "Accept invitation" abria
+`/login#access_token=…` e mostrava o formulário de login comum: sem senha para
+digitar, com o token na URL. A compradora tinha pago e ficava presa.
+
+### Motivo
+
+**Por que um client de navegador, depois de o projeto inteiro ser server-side.**
+Não houve escolha. O Supabase entrega os tokens do convite no **fragment**, e
+fragment **nunca é enviado ao servidor** — é a definição do que ele é no HTTP.
+Nenhum Server Component consegue lê-lo. Só JavaScript de navegador enxerga
+aquilo. O client usa a chave anônima e grava a sessão em **cookie**, não em
+`localStorage`: com o storage padrão do `supabase-js`, a sessão ficaria presa no
+navegador e as rotas protegidas continuariam recusando a compradora.
+
+**Por que apagar o fragment antes de qualquer `await`.** Enquanto o token está na
+barra de endereço, ele viaja em `Referer` para qualquer recurso externo carregado
+no meio, fica no histórico do navegador e aparece em print de tela ou
+compartilhamento de link. A criação da sessão leva centenas de milissegundos —
+tempo suficiente. Apagar primeiro custa uma linha e fecha os três.
+
+**Por que a senha continua indo por Server Action.** Seria mais curto chamar
+`updateUser` direto no cliente, já que a sessão está lá. Mas isso quebraria a
+regra que o login já segue — senha vai por `FormData` direto ao servidor, sem
+passar por estado de cliente — e perderia a revalidação com **`getUser()`**.
+`getSession()` só lê o cookie e é forjável; sem revalidar, um cookie fabricado
+permitiria trocar a senha de outra pessoa. Numa rotina de definição de senha,
+esse é o defeito mais grave possível.
+
+**Por que `detectSessionInUrl: false`.** A detecção automática do `supabase-js`
+competiria com a leitura manual do hash. Duas rotinas disputando o mesmo fragment
+produzem uma corrida cujo vencedor muda a cada carregamento — o tipo de bug que
+funciona em teste e falha em produção. Leitura explícita é determinística.
+
+**Por que a rota não pode ter guarda.** Quem chega ali ainda não tem sessão: é
+justamente o que a página vai criar. Um `requireAuthenticatedAccess` trancaria a
+porta na cara de quem acabou de comprar — o mesmo erro que a Fase 4-5A já tinha
+evitado em `/acesso-bloqueado`, e pelo mesmo raciocínio.
+
+### Impacto
+Produto: **quem compra sem ter conta agora tem caminho completo** até o acesso —
+compra, e-mail, senha, licença já vinculada.
+
+Configuração obrigatória, e ambas falham em silêncio se esquecidas:
+1. **`/auth/accept-invite` em Redirect URLs** no painel do Supabase. Sem isso o
+   `redirectTo` é ignorado e o convite volta ao Site URL. O `InviteHashRescue`
+   cobre, mas é rede de segurança, não o caminho desejado.
+2. **`NEXT_PUBLIC_APP_URL` na Vercel** com o domínio real — o `redirectTo` é
+   montado a partir dela; vazia, nenhum é enviado.
+
+⚠️ **O convite chegou em spam** no teste real. SPF, DKIM e DMARC do domínio
+precisam ser configurados no Resend — e-mail em spam é, na prática, quase tão
+ruim quanto e-mail não entregue.
+
+⚠️ **A compra real de ponta a ponta continua sem teste.** Comprar, receber,
+criar senha e entrar é o único percurso que fecha o ciclo, e nenhuma validação
+sintética substitui.

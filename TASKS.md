@@ -4,8 +4,8 @@
 > Marcar `[x]` ao concluir. Adicionar novas tarefas quando surgirem.
 > Antes de iniciar uma nova fase: parar, resumir o que foi feito e aguardar aprovação.
 
-**Fase atual:** Fase 4-7G concluída — **compra aprovada libera licença Essencial**, 33/33 contra o Supabase real. Reembolso e chargeback ainda não revogam.
-**Próximo passo recomendado:** ⛔ **configurar SMTP próprio no Supabase** (sem ele, quem compra sem ter conta não é liberado) → limpar dados de teste → compra real → Fase 4-7H (revogação).
+**Fase atual:** Fase 4-7G + aceite de convite concluídos — compra aprovada libera licença **e** quem não tinha conta consegue criar senha. Reembolso e chargeback ainda não revogam.
+**Próximo passo recomendado:** adicionar `/auth/accept-invite` em Redirect URLs no Supabase → ajustar SPF/DKIM (e-mail caiu em spam) → **compra real de ponta a ponta** → Fase 4-7H (revogação).
 
 > 📋 **Auditoria pré-lançamento (2026-08-07): `GO-LIVE-AND-PRO-ROADMAP.md`** —
 > estado do produto, 10 bloqueadores críticos, diagnóstico do webhook, fronteira
@@ -534,6 +534,25 @@
 - [ ] ⛔ **Bug na migration 0002 descoberto:** o trigger `license_events_immutable` bloqueia o `ON DELETE SET NULL` da FK, então **usuária com evento de licença não pode ser excluída** (impacto LGPD). Isolado com teste A/B/C. Correção exige migration
 - [ ] **Compra real ainda não testada de ponta a ponta**
 - [ ] **Limpar dados de teste** — SQL no `REVIEW.md` (service role não tem DELETE em `licenses`, `license_events` nem `webhook_events`, por decisão da 4-7C-fix)
+
+### Fase 4-7G-convite — Aceite de convite do Supabase ✅
+- [x] **SMTP próprio com Resend validado em produção** — convite chega (remetente `Doce Margem <noreply@doceriadamora.com.br>`); ⚠️ caiu em spam, ver riscos
+- [x] **Bloqueador 1 da 4-7G resolvido:** quem compra sem ter conta agora tem caminho até o acesso
+- [x] `services/supabase/client.ts` — **primeiro client de navegador do projeto**; fragment não chega ao servidor, então não havia alternativa
+- [x] `app/auth/accept-invite/page.tsx` + `components/auth/AcceptInviteClient.tsx` — lê o hash, cria a sessão, oferece a criação de senha
+- [x] **Hash apagado antes de qualquer `await`** — fecha `Referer`, histórico e print de tela de uma vez
+- [x] Senha trocada por **Server Action** (`setInvitedPasswordAction`) — nunca passa por estado de cliente, como no login
+- [x] Sessão revalidada com `getUser()` antes da troca, nunca `getSession()`
+- [x] `components/auth/InviteHashRescue.tsx` — convite que cair em `/login` é reencaminhado com o fragment preservado
+- [x] `inviteUserByEmail` passou a mandar `redirectTo` → `${NEXT_PUBLIC_APP_URL}/auth/accept-invite`
+- [x] `/auth/accept-invite` **sem guarda de acesso** — quem chega ainda não tem sessão; é ela que vai criar
+- [x] Testado em **Chrome headless**: sem hash, hash de erro, token falso e hash lixo → todos com mensagem amigável, nenhum quebra
+- [x] **URL limpa verificada via CDP**, não inferida: `/auth/accept-invite#access_token=…` e `/login#access_token=…` terminam ambos em `/auth/accept-invite` sem token
+- [x] Nenhum `console.*` nos arquivos novos; service role fora do bundle do cliente
+- [x] `typecheck` + `lint` + `build` — 14 rotas
+- [ ] ⚠️ **Configurar no painel do Supabase:** `https://docemargem.doceriadamora.com.br/auth/accept-invite` em **Redirect URLs**, senão `redirectTo` é ignorado em silêncio
+- [ ] ⚠️ **E-mail caiu em spam** — configurar SPF/DKIM/DMARC do domínio no Resend
+- [ ] **Compra real de ponta a ponta ainda não testada** (comprar → e-mail → criar senha → acessar)
 
 ### Fase 4-7H — Reembolso e chargeback (pendente)
 - [ ] Cadastrar o webhook no painel da Kiwify — **ainda não existe webhook cadastrado**

@@ -111,7 +111,7 @@ verificar**, e por isso pesam mais do que o tamanho delas sugere:
 | C6 | **Reembolso e chargeback não revogam** | Cliente pede reembolso, recebe o dinheiro **e mantém acesso vitalício**. Prejuízo direto e problema com a Kiwify. |
 | C7 | **Compra antes do cadastro sem decisão** | `licenses.user_id → profiles.id → auth.users.id`. Não existe licença para e-mail sem conta — **nem com service role**. Quem comprar sem ter conta fica em limbo. |
 | C8 | **Fluxo compra → cadastro → acesso nunca testado** | Nem em produção, nem local. É o único fluxo que o cliente vai percorrer. |
-| C9 | **Confirmação de e-mail sem SMTP próprio** | ⬆️ **Agora é o bloqueador nº 1, confirmado com erro real.** A Fase 4-7G tentou `inviteUserByEmail` e recebeu `over_email_send_rate_limit` e `email_address_invalid`. **Quem compra sem ter conta não é liberado** — a compra fica registrada como `failed`. Corrigir é configuração (Resend/SendGrid/SES), não código. |
+| C9 | ~~**Confirmação de e-mail sem SMTP próprio**~~ | ✅ **Resolvido:** SMTP do Resend configurado e validado — o convite chega. O app passou a consumir o token do fragment em `/auth/accept-invite`, e quem compra sem ter conta consegue criar senha. ⚠️ **Restam duas configurações:** `/auth/accept-invite` em Redirect URLs, e SPF/DKIM/DMARC (o e-mail caiu em spam). |
 | C10 | **`NEXT_PUBLIC_APP_URL` apontando para localhost** | Se estiver assim na Vercel, o `emailRedirectTo` do cadastro manda o cliente para `localhost:3000` — link de confirmação quebrado para todo mundo. |
 
 ### 🟡 Importantes — dá para lançar, mas dói rápido
@@ -735,6 +735,8 @@ Considerando **~4 h úteis por dia**.
 - [ ] **Redeploy feito depois** de mexer nas variáveis
 
 ### Supabase
+- [ ] **Redirect URLs inclui `https://DOMINIO/auth/accept-invite`** — sem isso o convite de compra cai no Site URL e o `redirectTo` é ignorado em silêncio
+- [ ] SPF, DKIM e DMARC do domínio configurados no Resend (o convite caiu em spam no teste)
 - [ ] Migrations 0001–0004 aplicadas
 - [ ] RLS habilitada em `profiles`, `user_access_flags`, `licenses`,
       `license_events`, `webhook_events`

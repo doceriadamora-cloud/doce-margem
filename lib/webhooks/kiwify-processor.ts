@@ -121,7 +121,18 @@ async function resolveBuyer(supabase: SupabaseClient, email: string): Promise<Us
     return { userId: existing.id, created: false, error: null };
   }
 
-  const { data, error } = await supabase.auth.admin.inviteUserByEmail(email);
+  // `redirectTo` manda o "Accept invitation" para a tela que sabe consumir o
+  // token do fragment. Sem ele, o Supabase usa o Site URL padrão e a compradora
+  // cai no login com `#access_token=…` na barra, sem nada que leia aquilo.
+  //
+  // A URL **precisa estar em Redirect URLs no painel do Supabase**, senão o
+  // parâmetro é ignorado em silêncio. Sem `NEXT_PUBLIC_APP_URL` configurada,
+  // não se inventa um domínio: deixa o padrão do painel decidir.
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL?.trim();
+  const { data, error } = await supabase.auth.admin.inviteUserByEmail(
+    email,
+    appUrl ? { redirectTo: `${appUrl.replace(/\/$/, "")}/auth/accept-invite` } : undefined,
+  );
   if (error === null && data.user !== null) {
     return { userId: data.user.id, created: true, error: null };
   }

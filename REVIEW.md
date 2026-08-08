@@ -1456,6 +1456,63 @@ delete from auth.users where email like '%@example.com';
 - **Reativação silenciosa:** uma `compra_aprovada` para um pedido cuja licença esteja revogada volta a marcá-la `active`. Correto se o pagamento realmente voltou a valer; a checar quando a revogação existir.
 - **Duas contas de teste `@example.com`** ficaram no Auth até o SQL acima ser rodado.
 
+### Fase 4-7G-convite — Aceite de convite do Supabase
+- **Status:** ✅ Implementado e verificado em navegador real. **Bloqueador 1 da 4-7G resolvido.**
+- **Branch:** `feature/4-7g-license-grant`. Sem push, sem merge.
+
+#### O que estava quebrado
+Com o SMTP do Resend configurado, o convite passou a chegar. Mas o "Accept invitation" abria `/login#access_token=…` e mostrava **o formulário de login comum** — sem senha para digitar, com o token pendurado na URL. A compradora tinha pago e ficava presa.
+
+Causa: **o fragment da URL nunca é enviado ao servidor.** Nenhum Server Component consegue lê-lo. Todo o app até aqui era server-side, e por isso não havia quem consumisse aquilo.
+
+#### O fluxo agora
+1. Convite → `redirectTo` aponta para **`/auth/accept-invite`**
+2. Client Component lê `access_token` / `refresh_token` / `type` do fragment
+3. **Apaga o fragment antes de qualquer `await`**
+4. `setSession` grava a sessão **em cookie** (não `localStorage`) — é o que faz o servidor passar a enxergar a usuária
+5. Formulário de senha → **Server Action** → `updateUser`
+6. `redirect("/conta")`
+
+#### Decisões que valem registro
+- **Hash apagado antes do primeiro `await`.** Se ficasse na barra durante a criação da sessão, o token viajaria em `Referer` para qualquer recurso externo carregado no meio, ficaria no histórico e apareceria em print de tela. Apagar primeiro fecha os três e não custa nada.
+- **Senha por Server Action, não por `updateUser` no cliente.** Mantém a regra que o login já seguia: a senha vai por `FormData` direto ao servidor, sem passar por estado de cliente. E permite revalidar a sessão com **`getUser()`** antes de trocar — não `getSession()`, que só lê o cookie e é forjável. Sem essa revalidação, um cookie fabricado permitiria trocar a senha de outra pessoa.
+- **`detectSessionInUrl: false`** no client de navegador. A detecção automática competiria com a leitura manual do hash, e duas rotinas disputando o mesmo fragment produzem uma corrida cujo vencedor muda a cada carregamento. Leitura explícita é determinística e testável.
+- **`/auth/accept-invite` sem guarda de acesso.** Quem chega ainda não tem sessão — é ela que a rota vai criar. Um `requireAuthenticatedAccess` aqui trancaria a porta na cara de quem acabou de comprar; mesmo erro que a Fase 4-5A evitou em `/acesso-bloqueado`.
+- **`InviteHashRescue` em `/login`.** Convites já enviados apontam para lá, e o Site URL do painel volta a mandar gente para `/login` se `redirectTo` não estiver em Redirect URLs. Usa `window.location.replace` em vez do router do Next por dois motivos: o fragment sobrevive à navegação, e a entrada some do histórico. Só dispara quando há de fato token ou erro de convite — um `#secao` qualquer não vira redirecionamento.
+- **Mensagens sem eco do erro do Supabase**, que vem em inglês e pode conter detalhe interno.
+
+#### Testes em navegador real (Chrome headless)
+| Caso | Resultado |
+|---|---|
+| sem hash | ✅ "Este link não trouxe as informações de acesso" |
+| hash de erro (`otp_expired`) | ✅ "Este convite expirou ou já foi utilizado" |
+| token falso | ✅ "Não foi possível validar este convite" |
+| hash lixo (`#qualquer-coisa`) | ✅ mensagem amigável, **não quebra** |
+
+**URL limpa — verificado por CDP, não inferido:**
+
+| Entrada | URL final |
+|---|---|
+| `/auth/accept-invite#access_token=…&refresh_token=…` | `/auth/accept-invite` |
+| `/login#access_token=…&refresh_token=…` | `/auth/accept-invite` |
+
+Servidor: `/login` 200, `/cadastro` 200, `/auth/accept-invite` 200 sem sessão, `/conta` e `/ingredientes` seguem redirecionando para `/login`.
+
+`grep`: nenhum `console.*` nos arquivos novos, nenhum token em log, service role fora de `.next/static/`.
+
+#### ⚠️ Configuração pendente no painel
+1. **Supabase → Authentication → URL Configuration → Redirect URLs:** adicionar
+   `https://docemargem.doceriadamora.com.br/auth/accept-invite`.
+   **Sem isso o `redirectTo` é ignorado em silêncio** e o convite volta a cair no Site URL. O `InviteHashRescue` cobre esse caso, mas é rede de segurança, não o caminho desejado.
+2. **`NEXT_PUBLIC_APP_URL` na Vercel** precisa ser o domínio real — o `redirectTo` é montado a partir dela. Se estiver vazia, nenhum `redirectTo` é enviado.
+3. **SPF / DKIM / DMARC no Resend** — o convite chegou, mas **caiu em spam**. Quem comprou e não procurar no lixo eletrônico não encontra o link.
+
+#### Riscos
+- **Compra real de ponta a ponta ainda não testada** — comprar, receber o e-mail, criar senha, entrar. É o único teste que fecha o ciclo.
+- **E-mail em spam** é, na prática, quase tão ruim quanto e-mail não entregue.
+- **Convite expira.** Quem demorar precisa de um novo, e não há como pedir sozinha — depende de suporte. Uma tela de "reenviar convite" resolveria; fora do escopo.
+- **Reembolso e chargeback continuam sem revogar.**
+
 ## Checklist técnico
 - [x] O projeto está em C:\dev\doce-margem
 - [x] Não há dependência de OneDrive

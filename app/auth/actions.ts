@@ -158,6 +158,60 @@ export async function signInAction(
   redirect("/conta");
 }
 
+/**
+ * Define a senha de quem chegou por convite — Fase 4-7G-convite.
+ *
+ * Roda **depois** de `AcceptInviteClient` ter criado a sessão a partir do hash.
+ * A senha vai por `FormData` direto para o servidor, como no login: nunca passa
+ * por estado de cliente nosso, nunca aparece em log.
+ *
+ * A sessão é revalidada com `getUser()` antes da troca — e não `getSession()`,
+ * que só lê o cookie e é forjável. Sem isso, um cookie fabricado permitiria
+ * trocar a senha de outra pessoa, que é o pior defeito que esta função poderia
+ * ter.
+ */
+export async function setInvitedPasswordAction(
+  _prevState: AuthFormState,
+  formData: FormData,
+): Promise<AuthFormState> {
+  const password = formData.get("password");
+  const confirmation = formData.get("passwordConfirm");
+
+  if (typeof password !== "string" || password === "") {
+    return { status: "error", message: "Informe uma senha." };
+  }
+  if (password.length < 6) {
+    return { status: "error", message: "A senha precisa ter pelo menos 6 caracteres." };
+  }
+  if (password !== confirmation) {
+    return { status: "error", message: "As duas senhas não são iguais." };
+  }
+
+  const supabase = await createSupabaseServerClient();
+  if (supabase === null) {
+    return { status: "error", message: SUPABASE_OFF_MESSAGE };
+  }
+
+  const { data, error: sessionError } = await supabase.auth.getUser();
+  if (sessionError !== null || data.user === null) {
+    return {
+      status: "error",
+      message:
+        "Seu convite expirou antes de você salvar a senha. Abra o link do e-mail de novo, ou peça um novo convite.",
+    };
+  }
+
+  const { error } = await supabase.auth.updateUser({ password });
+  if (error !== null) {
+    return {
+      status: "error",
+      message: "Não foi possível salvar a senha. Tente outra, com pelo menos 6 caracteres.",
+    };
+  }
+
+  redirect("/conta");
+}
+
 /** Encerra a sessão e volta para a home. */
 export async function signOutAction(): Promise<void> {
   const supabase = await createSupabaseServerClient();
