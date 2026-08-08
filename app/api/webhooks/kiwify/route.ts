@@ -267,7 +267,8 @@ export async function POST(request: Request): Promise<Response> {
       `email=${extraction.buyerEmail !== null} ` +
       `product_id=${extraction.productId !== null}` +
       (outcome.kind === "granted"
-        ? ` userCreated=${outcome.userCreated} licenseCreated=${outcome.licenseCreated}`
+        ? ` userCreated=${outcome.userCreated} licenseCreated=${outcome.licenseCreated}` +
+          ` auditCreated=${outcome.auditCreated}`
         : "") +
       (outcome.kind === "rejected" ? ` reason=${outcome.reason}` : "") +
       (outcome.kind === "storage_error" ? ` code=${outcome.code}` : ""),

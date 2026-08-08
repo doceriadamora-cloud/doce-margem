@@ -4,8 +4,8 @@
 > Marcar `[x]` ao concluir. Adicionar novas tarefas quando surgirem.
 > Antes de iniciar uma nova fase: parar, resumir o que foi feito e aguardar aprovação.
 
-**Fase atual:** Fase 4-7G + aceite de convite concluídos — compra aprovada libera licença **e** quem não tinha conta consegue criar senha. Reembolso e chargeback ainda não revogam.
-**Próximo passo recomendado:** adicionar `/auth/accept-invite` em Redirect URLs no Supabase → ajustar SPF/DKIM (e-mail caiu em spam) → **compra real de ponta a ponta** → Fase 4-7H (revogação).
+**Fase atual:** Fase 4-7G revisada e fechada na branch `feature/4-7g-license-grant`. Configuração externa (Resend, SMTP, Redirect URL, envs) validada. Reembolso e chargeback ainda não revogam.
+**Próximo passo recomendado:** **compra real de valor mínimo em produção**, de ponta a ponta → depois Fase 4-7H (revogação). A branch está pronta para merge controlado; os achados 🟡 da revisão não bloqueiam o teste.
 
 > 📋 **Auditoria pré-lançamento (2026-08-07): `GO-LIVE-AND-PRO-ROADMAP.md`** —
 > estado do produto, 10 bloqueadores críticos, diagnóstico do webhook, fronteira
@@ -550,9 +550,26 @@
 - [x] **URL limpa verificada via CDP**, não inferida: `/auth/accept-invite#access_token=…` e `/login#access_token=…` terminam ambos em `/auth/accept-invite` sem token
 - [x] Nenhum `console.*` nos arquivos novos; service role fora do bundle do cliente
 - [x] `typecheck` + `lint` + `build` — 14 rotas
-- [ ] ⚠️ **Configurar no painel do Supabase:** `https://docemargem.doceriadamora.com.br/auth/accept-invite` em **Redirect URLs**, senão `redirectTo` é ignorado em silêncio
-- [ ] ⚠️ **E-mail caiu em spam** — configurar SPF/DKIM/DMARC do domínio no Resend
+- [x] **Resend configurado e verificado**; SMTP do Supabase apontando para `smtp.resend.com` com remetente `Doce Margem <noreply@doceriadamora.com.br>`
+- [x] **Convite entregue de verdade** no Gmail (caiu em spam, marcado como "não é spam")
+- [x] **Redirect URL cadastrada** no Supabase: `https://docemargem.doceriadamora.com.br/auth/accept-invite`
+- [x] `NEXT_PUBLIC_APP_URL` na Vercel = `https://docemargem.doceriadamora.com.br`
+- [x] **Dados de teste da 4-7G limpos** do Supabase
+- [ ] ⚠️ **Entregabilidade:** SPF/DKIM/DMARC do domínio no Resend — não bloqueia tecnicamente, mas e-mail em spam custa vendas
 - [ ] **Compra real de ponta a ponta ainda não testada** (comprar → e-mail → criar senha → acessar)
+- [ ] Sobraram **2 linhas `failed`** em `webhook_events` (`compra_aprovada:47g-…-C`), dos testes de payload sem e-mail
+
+### Fase 4-7G — Revisão final pós-correções externas ✅
+- [x] Configuração externa confirmada: Resend, SMTP, Redirect URL, `NEXT_PUBLIC_APP_URL`, limpeza do banco
+- [x] `typecheck` + `lint` + `build` — 14 rotas, tudo verde
+- [x] Banco conferido: 2 licenças e 2 eventos, ambos `manual:test`; **nenhum resíduo `kiwify`**
+- [x] ✅ **Corrigido:** o `insert` em `license_events` agora é checado. Falha → webhook vira `failed` com código curto e resposta **500**, nunca `processed` sem auditoria
+- [x] `ensureGrantAudited` consulta antes de inserir — a condição antiga (`if (license.created)`) **restauraria o defeito no reprocessamento**, quando a licença já existe
+- [x] `failed` entrou nos estados reprocessáveis — sem isso, marcar `failed` criaria beco sem saída e o reenvio da Kiwify viraria "duplicate"
+- [x] `auditCreated` no log de sucesso
+- [x] **30/30 isolados** (stub com falhas programáveis) + **33/33 ponta a ponta** contra o Supabase real
+- [ ] 🟡 **Achado da revisão:** quem abre o convite e fecha antes de definir a senha fica com sessão válida **sem senha** — navega normalmente, mas não consegue voltar depois. Precisa de novo convite ou de tela de recuperação de senha
+- [ ] 🟡 **Achado da revisão:** `InviteHashRescue` reencaminha qualquer hash com token, inclusive de recuperação de senha. Benigno hoje (o destino também define senha), mas revisar quando existir fluxo de recuperação
 
 ### Fase 4-7H — Reembolso e chargeback (pendente)
 - [ ] Cadastrar o webhook no painel da Kiwify — **ainda não existe webhook cadastrado**

@@ -33,8 +33,8 @@ export type ProcessOutcome =
   | { kind: "recorded" }
   /** Já processado antes — replay. */
   | { kind: "duplicate" }
-  /** Licença Essencial concedida (ou reaproveitada). */
-  | { kind: "granted"; userCreated: boolean; licenseCreated: boolean }
+  /** Licença Essencial concedida (ou reaproveitada) **e auditada**. */
+  | { kind: "granted"; userCreated: boolean; licenseCreated: boolean; auditCreated: boolean }
   /** Payload aceito mas inutilizável. Registrado como `failed`; reenviar não conserta. */
   | { kind: "rejected"; reason: string }
   /** Falha de infraestrutura. Reenviar **é** a recuperação. */
@@ -57,6 +57,24 @@ interface PostgrestErrorish {
 }
 
 const UNIQUE_VIOLATION = "23505";
+
+/**
+ * Estados de `webhook_events` que um reenvio deve **reprocessar**, em vez de
+ * descartar como duplicata.
+ *
+ * `received` = a entrega anterior morreu no meio, antes de concluir.
+ * `failed`   = ela chegou ao fim e não deu certo — banco indisponível, convite
+ *              recusado, auditoria que não gravou.
+ *
+ * Incluir `failed` é o que faz o reenvio da Kiwify ser recuperação de verdade.
+ * Sem isso, marcar uma falha transitória como `failed` criaria um beco sem
+ * saída: a próxima entrega bateria na constraint, seria tratada como replay, e
+ * a compra ficaria travada num erro que já tinha passado.
+ *
+ * `processed` e `ignored` ficam de fora: são estados finais, e reprocessá-los
+ * só criaria trabalho e risco.
+ */
+const REPROCESSABLE_STATUSES = new Set(["received", "failed"]);
 
 /**
  * Escapa curingas de `LIKE` antes de uma busca por e-mail.
@@ -232,6 +250,80 @@ async function grantEssentialLicense(
   return { licenseId: (inserted.data as { id: string }).id, created: true, error: null };
 }
 
+/* ─────────────────────── Auditoria ─────────────────────── */
+
+interface AuditResolution {
+  ok: boolean;
+  inserted: boolean;
+  error: string | null;
+}
+
+/**
+ * Garante que existe um evento `granted` para esta licença.
+ *
+ * **Por que consultar antes de inserir, em vez de inserir só quando a licença
+ * nasce.** A condição óbvia seria `if (license.created)`. Ela funciona na
+ * primeira entrega e falha exatamente quando mais importa: se a auditoria
+ * quebrar e a Kiwify reenviar, na segunda passagem a licença **já existe**,
+ * `created` é `false`, o insert seria pulado — e o webhook fecharia como
+ * `processed` sem registro nenhum. O reprocessamento restauraria em silêncio o
+ * defeito que ele deveria consertar.
+ *
+ * Consultar por `granted` desta licença torna a auditoria idempotente por
+ * estado, não por sorte de caminho.
+ *
+ * `license_events` não tem unicidade, então duas entregas simultâneas poderiam
+ * inserir dois `granted`. É aceito: auditoria duplicada se explica lendo os
+ * carimbos de tempo; auditoria ausente não se explica de jeito nenhum.
+ */
+async function ensureGrantAudited(
+  supabase: SupabaseClient,
+  params: {
+    licenseId: string;
+    userId: string;
+    webhookEventId: string;
+    providerEventId: string | null;
+    providerOrderId: string;
+    productId: string | null;
+  },
+): Promise<AuditResolution> {
+  const existing = await supabase
+    .from("license_events")
+    .select("id")
+    .eq("license_id", params.licenseId)
+    .eq("event_type", "granted")
+    .limit(1)
+    .maybeSingle();
+
+  if (existing.error !== null) {
+    return { ok: false, inserted: false, error: `audit_lookup:${existing.error.code ?? "?"}` };
+  }
+  if (existing.data !== null) {
+    return { ok: true, inserted: false, error: null };
+  }
+
+  // `payload` guarda REFERÊNCIAS, nunca o corpo do webhook: os dados pessoais já
+  // estão em `webhook_events.payload`, e duplicá-los espalharia PII por duas
+  // tabelas com políticas de retenção diferentes.
+  const { error } = await supabase.from("license_events").insert({
+    license_id: params.licenseId,
+    user_id: params.userId,
+    event_type: "granted",
+    source: "webhook:kiwify",
+    payload: {
+      webhook_event_id: params.webhookEventId,
+      provider_event_id: params.providerEventId,
+      provider_order_id: params.providerOrderId,
+      product_id: params.productId,
+    },
+  });
+
+  if (error !== null) {
+    return { ok: false, inserted: false, error: `audit_insert:${error.code ?? "?"}` };
+  }
+  return { ok: true, inserted: true, error: null };
+}
+
 /* ─────────────────────── Encerramento da linha de webhook ─────────────────────── */
 
 /** Marca a linha como concluída. O CHECK da 0003 exige `processed_at` fora de `received`. */
@@ -314,7 +406,7 @@ export async function processKiwifyWebhook(params: {
       .maybeSingle();
 
     const row = existing.data as WebhookRow | null;
-    if (row === null || row.status !== "received") {
+    if (row === null || !REPROCESSABLE_STATUSES.has(row.status)) {
       return { kind: "duplicate" };
     }
     webhookRow = row;
@@ -357,26 +449,33 @@ export async function processKiwifyWebhook(params: {
     return { kind: "storage_error", code: license.error ?? "licenca_nao_criada" };
   }
 
-  // Auditoria — só quando a licença nasceu agora. Reprocessar não deve inflar o
-  // histórico com "concedida" repetido: `license_events` é append-only e não
-  // tem unicidade, então quem controla a duplicação é esta condição.
+  // Auditoria ANTES de dar a compra por processada.
   //
-  // `payload` guarda referências, NÃO o corpo do webhook: os dados pessoais já
-  // estão em `webhook_events.payload`, e duplicá-los aqui espalharia PII por
-  // duas tabelas com políticas de retenção diferentes.
-  if (license.created) {
-    await supabase.from("license_events").insert({
-      license_id: license.licenseId,
-      user_id: buyer.userId,
-      event_type: "granted",
-      source: "webhook:kiwify",
-      payload: {
-        webhook_event_id: webhookRow.id,
-        provider_event_id: extraction.providerEventId,
-        provider_order_id: extraction.providerOrderId,
-        product_id: extraction.productId,
-      },
+  // A licença já existe neste ponto — não dá para inverter, porque
+  // `license_events.license_id` referencia `licenses`. Sem função no banco não
+  // há transação única, então a janela entre "licença ativa" e "concessão
+  // auditada" existe. O que **não** pode existir é essa janela se fechar em
+  // silêncio: se a auditoria falhar, a linha vira `failed` com o código do erro
+  // e a resposta é 500, para a Kiwify reenviar e o reprocessamento concluir.
+  const audit = await ensureGrantAudited(supabase, {
+    licenseId: license.licenseId,
+    userId: buyer.userId,
+    webhookEventId: webhookRow.id,
+    providerEventId: extraction.providerEventId,
+    providerOrderId: extraction.providerOrderId,
+    productId: extraction.productId,
+  });
+
+  if (!audit.ok) {
+    await closeWebhookRow(supabase, webhookRow.id, {
+      status: "failed",
+      userId: buyer.userId,
+      // Grava a licença mesmo em falha: é o que permite achar depressa a
+      // concessão que ficou sem registro.
+      licenseId: license.licenseId,
+      errorMessage: audit.error ?? "auditoria_falhou",
     });
+    return { kind: "storage_error", code: audit.error ?? "auditoria_falhou" };
   }
 
   await closeWebhookRow(supabase, webhookRow.id, {
@@ -385,5 +484,10 @@ export async function processKiwifyWebhook(params: {
     licenseId: license.licenseId,
   });
 
-  return { kind: "granted", userCreated: buyer.created, licenseCreated: license.created };
+  return {
+    kind: "granted",
+    userCreated: buyer.created,
+    licenseCreated: license.created,
+    auditCreated: audit.inserted,
+  };
 }

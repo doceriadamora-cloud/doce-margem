@@ -111,7 +111,7 @@ verificar**, e por isso pesam mais do que o tamanho delas sugere:
 | C6 | **Reembolso e chargeback não revogam** | Cliente pede reembolso, recebe o dinheiro **e mantém acesso vitalício**. Prejuízo direto e problema com a Kiwify. |
 | C7 | **Compra antes do cadastro sem decisão** | `licenses.user_id → profiles.id → auth.users.id`. Não existe licença para e-mail sem conta — **nem com service role**. Quem comprar sem ter conta fica em limbo. |
 | C8 | **Fluxo compra → cadastro → acesso nunca testado** | Nem em produção, nem local. É o único fluxo que o cliente vai percorrer. |
-| C9 | ~~**Confirmação de e-mail sem SMTP próprio**~~ | ✅ **Resolvido:** SMTP do Resend configurado e validado — o convite chega. O app passou a consumir o token do fragment em `/auth/accept-invite`, e quem compra sem ter conta consegue criar senha. ⚠️ **Restam duas configurações:** `/auth/accept-invite` em Redirect URLs, e SPF/DKIM/DMARC (o e-mail caiu em spam). |
+| C9 | ~~**Confirmação de e-mail sem SMTP próprio**~~ | ✅ **Fechado.** Resend verificado, SMTP do Supabase configurado, convite entregue no Gmail, Redirect URL cadastrada e `NEXT_PUBLIC_APP_URL` correta. O app consome o token do fragment em `/auth/accept-invite`. Resta só entregabilidade (SPF/DKIM/DMARC) — o e-mail caiu em spam, o que custa vendas mas não bloqueia. |
 | C10 | **`NEXT_PUBLIC_APP_URL` apontando para localhost** | Se estiver assim na Vercel, o `emailRedirectTo` do cadastro manda o cliente para `localhost:3000` — link de confirmação quebrado para todo mundo. |
 
 ### 🟡 Importantes — dá para lançar, mas dói rápido
@@ -735,7 +735,8 @@ Considerando **~4 h úteis por dia**.
 - [ ] **Redeploy feito depois** de mexer nas variáveis
 
 ### Supabase
-- [ ] **Redirect URLs inclui `https://DOMINIO/auth/accept-invite`** — sem isso o convite de compra cai no Site URL e o `redirectTo` é ignorado em silêncio
+- [x] **Redirect URLs inclui `https://docemargem.doceriadamora.com.br/auth/accept-invite`** ✅
+- [x] SMTP próprio (Resend) configurado e convite entregue ✅
 - [ ] SPF, DKIM e DMARC do domínio configurados no Resend (o convite caiu em spam no teste)
 - [ ] Migrations 0001–0004 aplicadas
 - [ ] RLS habilitada em `profiles`, `user_access_flags`, `licenses`,
@@ -813,6 +814,7 @@ Considerando **~4 h úteis por dia**.
 | S12 | **Open redirect no callback** | 🟢 fechado | `/auth/callback` já valida que `next` começa com `/` e não com `//` |
 | S13 | **Enumeração de e-mail** | 🟢 tratado | mensagem genérica no login; webhook não conta se o e-mail existe |
 | S14 | **Dado pessoal em `webhook_events.payload`** | 🟡 atenção | LGPD: `DELETE` permitido a papéis administrativos. Falta política escrita de retenção |
+| S19 | **Licença concedida sem registro de auditoria** | 🟢 fechado | A 4-7G ignorava o erro do `insert` em `license_events`. Corrigido: falha vira `failed` + 500, o reenvio cura, e a auditoria é idempotente por estado (consulta antes de inserir). Janela entre licença e auditoria continua existindo — mas nunca se fecha em silêncio |
 | S18 | **Conta com evento de licença não pode ser excluída** | 🔴 **aberto** | Descoberto na 4-7G e isolado com teste A/B/C: `license_events.user_id` usa `ON DELETE SET NULL`, que é um UPDATE, e o trigger `license_events_immutable` bloqueia UPDATE para todos. **Pedido de exclusão (LGPD) não tem caminho automático.** Correção exige migration |
 | S15 | **Perda de dados locais** | 🟡 produto | `localStorage` some com limpeza de navegador. Backup existe; **a comunicação precisa ser explícita** |
 | S16 | **Rollback de banco é manual** | 🟡 operacional | migrations sem `down`. Aplicar direto em produção sem staging é o padrão atual |

@@ -1513,6 +1513,94 @@ Servidor: `/login` 200, `/cadastro` 200, `/auth/accept-invite` 200 sem sessão, 
 - **Convite expira.** Quem demorar precisa de um novo, e não há como pedir sozinha — depende de suporte. Uma tela de "reenviar convite" resolveria; fora do escopo.
 - **Reembolso e chargeback continuam sem revogar.**
 
+### Fase 4-7G — Revisão final (pós-correções externas)
+- **Status:** ✅ Branch `feature/4-7g-license-grant` **pronta para merge controlado**. Sem push, sem merge.
+- **Escopo desta revisão:** só documentação. Nenhuma linha de código alterada.
+
+#### Configuração externa — confirmada
+| Item | Estado |
+|---|---|
+| Resend verificado | ✅ |
+| SMTP do Supabase (`smtp.resend.com`, remetente `Doce Margem <noreply@doceriadamora.com.br>`) | ✅ |
+| Convite entregue no Gmail | ✅ (caiu em spam, marcado como "não é spam") |
+| Redirect URL `https://docemargem.doceriadamora.com.br/auth/accept-invite` | ✅ |
+| `NEXT_PUBLIC_APP_URL` na Vercel | ✅ domínio real |
+| Dados de teste limpos | ✅ |
+
+**Isso encerra os dois bloqueadores que a 4-7G tinha aberto.** O convite era o nº 1; sem ele, quem comprasse sem ter conta não era liberado.
+
+Banco conferido: `licenses` e `license_events` com 2 linhas cada, **todas `manual:test`** — nenhum resíduo `kiwify`. Sobraram **2 linhas em `webhook_events`** com status `failed` (`compra_aprovada:47g-…-C`), dos testes de payload sem e-mail. Inofensivas; se quiser zerar, `delete from public.webhook_events where provider_event_id like 'compra_aprovada:47g-%'`.
+
+#### Três achados da revisão de código
+Nenhum bloqueia o teste controlado, mas os três são reais e ficam registrados:
+
+**1. ✅ CORRIGIDO — o `insert` em `license_events` não checava erro.** Ver a seção "Fase 4-7G-auditoria" abaixo.
+
+**2. 🟡 Sessão válida sem senha definida.** Quem abre o convite e fecha a aba antes de salvar a senha fica com sessão ativa: navega normalmente naquele navegador, mas **não consegue voltar depois** — não tem senha, e o app não tem recuperação. Precisaria de novo convite. Uma tela de "definir senha" acessível a partir de `/conta` fecharia isso.
+
+**3. 🟡 `InviteHashRescue` reencaminha qualquer hash com token**, inclusive de recuperação de senha (`type=recovery`). Benigno hoje, porque o destino também é uma tela de definir senha — mas vira comportamento errado no dia em que existir um fluxo próprio de recuperação.
+
+#### Validações
+- `npm run typecheck` → exit 0; `npm run lint` → exit 0; `npm run build` → exit 0, **14 rotas**.
+
+#### Prontidão da branch
+**Pronta para merge controlado e um teste de compra real de valor mínimo.** O caminho principal está validado com 33/33 contra o Supabase real, o aceite de convite foi verificado em navegador real (inclusive a limpeza do token da URL, por CDP), e a configuração externa está completa.
+
+O que ainda não foi provado: **o percurso real de ponta a ponta** — comprar, receber o e-mail, criar a senha, entrar e usar. Nenhuma validação sintética substitui esse.
+
+#### Riscos restantes
+- **Reembolso e chargeback não revogam.** Quem pedir reembolso hoje recebe o dinheiro **e mantém a licença vitalícia**. É o maior risco financeiro aberto.
+- **Entregabilidade:** SPF/DKIM/DMARC pendentes. Não bloqueia tecnicamente — o e-mail chega — mas cair em spam custa vendas de quem não procura no lixo eletrônico.
+- **Exclusão de conta continua impossível** para quem tem `license_events` (bug do trigger da migration 0002, registrado na 4-7G). Impacto LGPD.
+- **Convite expira** e não há como pedir outro sozinha; depende de suporte.
+
+### Fase 4-7G-auditoria — concessão sem registro não passa mais
+- **Status:** ✅ Corrigido e validado. **30/30 isolados + 33/33 ponta a ponta.**
+- **Escopo:** `lib/webhooks/kiwify-processor.ts` e o log do Route Handler. Nada mais.
+
+#### O risco
+O `insert` em `license_events` era a **única escrita do fluxo cujo erro era ignorado**. Se falhasse, a licença ficava ativa, o webhook era marcado `processed`, e a concessão existia sem registro nenhum.
+
+Isso importa porque `license_events` existe para responder **"por que esta pessoa ganhou acesso, e quando"** — a pergunta de uma disputa de chargeback. Uma auditoria com buracos que ninguém sabe que tem é pior que auditoria nenhuma: dá confiança falsa exatamente quando se precisa dela.
+
+#### A correção, e as duas armadilhas no caminho
+Auditoria passou a ser verificada antes de fechar a compra: falha → `webhook_events` vira `failed` com código curto, resposta **500**, e a Kiwify reenvia.
+
+**Armadilha 1 — a condição óbvia estava errada.** O código auditava com `if (license.created)`. Trocar só o tratamento de erro manteria um buraco: se a auditoria quebrasse e a Kiwify reenviasse, na segunda passagem a licença **já existe**, `created` é `false`, o insert seria pulado — e o webhook fecharia como `processed` sem registro. **O reprocessamento restauraria em silêncio o defeito que deveria consertar.**
+
+Por isso `ensureGrantAudited` **consulta antes de inserir**: pergunta se existe `granted` para aquela licença. Idempotência por estado, não por sorte de caminho.
+
+**Armadilha 2 — marcar `failed` criaria beco sem saída.** O reprocessamento só acontecia em linhas `received`. Marcar `failed` faria o reenvio seguinte bater na constraint, virar "duplicate", e a compra ficar travada num erro que já tinha passado. `failed` entrou nos estados reprocessáveis — é o que faz o reenvio ser recuperação de verdade.
+
+#### O que ficou fora do alcance
+A licença é criada **antes** da auditoria, e não dá para inverter: `license_events.license_id` referencia `licenses`. Sem função no banco não há transação única, então a janela entre "licença ativa" e "concessão auditada" existe.
+
+O que a correção garante não é ausência de janela — é que **ela nunca se fecha em silêncio**: enquanto a auditoria não gravar, a linha fica `failed`, com o `license_id` preenchido para achar rápido a concessão pendente, e a Kiwify continua reenviando até completar.
+
+#### Testes
+**30/30 isolados**, com um Supabase falso de falhas programáveis — o único jeito honesto de exercitar o caminho de erro:
+
+| Caso | Resultado |
+|---|---|
+| auditoria ok → `processed` | ✅ |
+| **`insert` de auditoria falha** | ✅ `storage_error`, webhook `failed`, zero auditoria |
+| **`select` de auditoria falha** | ✅ `storage_error`, webhook `failed` |
+| **reenvio depois da falha cura** | ✅ vira `granted`, auditoria gravada, licença não duplica |
+| replay de `processed` | ✅ `duplicate`, nada duplicado |
+| reprocessar com auditoria existente | ✅ `auditCreated=false`, segue com 1 registro |
+| sem e-mail / sem `order_id` | ✅ `rejected`, nenhuma licença |
+| reembolso / chargeback | ✅ `recorded`, licença e auditoria intactas |
+
+**33/33 ponta a ponta** contra o Supabase real — o stub não valida as consultas do PostgREST, e a consulta nova de auditoria nunca tinha rodado de verdade. Log confirma os dois caminhos: `licenseCreated=true auditCreated=true` na concessão, `licenseCreated=false auditCreated=false` no reprocessamento.
+
+`error_message` verificado: `audit_insert:42501` — código curto, sem payload, e-mail, token ou segredo.
+
+#### Validações
+`typecheck` → 0; `lint` → 0; `build` → 0, 14 rotas.
+
+#### Dados de teste criados nesta rodada
+Uma conta `@example.com`, 2 licenças `kiwify`, 2 `license_events` e ~8 `webhook_events`. Mesma limitação de sempre: `service_role` não tem DELETE nessas tabelas. SQL de limpeza na seção da Fase 4-7G.
+
 ## Checklist técnico
 - [x] O projeto está em C:\dev\doce-margem
 - [x] Não há dependência de OneDrive
