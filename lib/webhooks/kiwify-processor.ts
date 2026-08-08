@@ -1,7 +1,8 @@
 import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { KiwifyExtraction, WebhookStatus } from "./kiwify-payload";
+import { classifyProduct } from "./kiwify-payload";
+import type { EssentialProductConfig, KiwifyExtraction, WebhookStatus } from "./kiwify-payload";
 
 /**
  * Processamento de webhook da Kiwify — Fase 4-7G.
@@ -31,6 +32,8 @@ import type { KiwifyExtraction, WebhookStatus } from "./kiwify-payload";
 export type ProcessOutcome =
   /** Gravado, sem ação de licença (evento fora do escopo desta fase). */
   | { kind: "recorded" }
+  /** Reconhecido e **deliberadamente não processado**: teste da Kiwify ou outro produto. */
+  | { kind: "skipped"; reason: "payload_de_teste" | "outro_produto" }
   /** Já processado antes — replay. */
   | { kind: "duplicate" }
   /** Licença Essencial concedida (ou reaproveitada) **e auditada**. */
@@ -111,6 +114,25 @@ const REPROCESSABLE_STATUSES = new Set(["received", "failed"]);
  */
 function escapeLikeWildcards(value: string): string {
   return value.replace(/[\\%_]/g, (char) => `\\${char}`);
+}
+
+/**
+ * Identificação do produto vendido, lida do ambiente.
+ *
+ * `KIWIFY_ESSENTIAL_PRODUCT_ID` é o caminho principal — estável, não muda quando
+ * alguém edita a oferta no painel. `KIWIFY_ESSENTIAL_PRODUCT_NAME` é reserva,
+ * usada só quando o payload não traz o id.
+ *
+ * Nenhuma das duas configurada → `classifyProduct` devolve `not_configured`, e
+ * **compra aprovada falha fechada**. É deliberado: sem saber que produto foi
+ * vendido, liberar licença é apostar que só existe uma oferta na conta da
+ * Kiwify — e essa aposta se perde no dia em que houver a segunda.
+ */
+function readEssentialProductConfig(): EssentialProductConfig {
+  return {
+    productId: process.env.KIWIFY_ESSENTIAL_PRODUCT_ID?.trim() || null,
+    productName: process.env.KIWIFY_ESSENTIAL_PRODUCT_NAME?.trim() || null,
+  };
 }
 
 /* ─────────────────────── Identidade da compradora ─────────────────────── */
@@ -591,14 +613,57 @@ export async function processKiwifyWebhook(params: {
     return { kind: "storage_error", code: "sem linha" };
   }
 
+  // Qualquer evento fora dos três acionáveis fica só registrado.
+  if (!extraction.isActionable) {
+    return { kind: "recorded" };
+  }
+
+  // ── Portaria: teste da Kiwify e produtos de terceiros param aqui ──
+  //
+  // O botão "Testar Webhook" manda um `order_approved` completo, com
+  // `johndoe@example.com`. Sem esta checagem o handler tenta convidar esse
+  // e-mail e a linha fica `failed` — foi o que aconteceu em produção.
+  if (extraction.isTestPayload) {
+    await closeWebhookRow(supabase, webhookRow.id, { status: "ignored" });
+    return { kind: "skipped", reason: "payload_de_teste" };
+  }
+
+  const product = classifyProduct(extraction, readEssentialProductConfig());
+
+  // Produto comprovadamente de outra oferta: ignorar em silêncio, sem erro.
+  // Acontece de propósito quando o webhook está cadastrado como "todos os
+  // produtos que sou produtor" — situação normal, não falha.
+  if (product === "mismatch") {
+    await closeWebhookRow(supabase, webhookRow.id, { status: "ignored" });
+    return { kind: "skipped", reason: "outro_produto" };
+  }
+
   // Reembolso e chargeback tiram acesso (Fase 4-7H).
+  //
+  // ⚠️ Revogação segue adiante com `unknown` e `not_configured`, ao contrário da
+  // concessão. A busca da licença é por `provider_order_id`, que já limita o
+  // alcance ao que este app vendeu — um reembolso de outro produto simplesmente
+  // não acha licença. Exigir produto identificado aqui inverteria a direção do
+  // erro: um campo de produto malformado deixaria de revogar quem foi
+  // reembolsado, e ficar sem revogar é pior que revogar à toa.
   if (extraction.eventType === "compra_reembolsada" || extraction.eventType === "chargeback") {
     return revokeAndClose(supabase, extraction.eventType, { webhookRow, extraction });
   }
 
-  // Qualquer outro evento fica só registrado.
-  if (extraction.eventType !== "compra_aprovada") {
-    return { kind: "recorded" };
+  // Daqui para baixo é compra aprovada, e aí o produto precisa estar provado.
+  if (product === "not_configured") {
+    await closeWebhookRow(supabase, webhookRow.id, {
+      status: "failed",
+      errorMessage: "product_config_missing",
+    });
+    return { kind: "storage_error", code: "product_config_missing" };
+  }
+  if (product === "unknown") {
+    await closeWebhookRow(supabase, webhookRow.id, {
+      status: "failed",
+      errorMessage: "produto_nao_identificado",
+    });
+    return { kind: "rejected", reason: "produto_nao_identificado" };
   }
 
   // Sem e-mail não há a quem conceder; sem pedido não há como amarrar a licença

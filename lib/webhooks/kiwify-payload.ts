@@ -65,6 +65,24 @@ export interface KiwifyExtraction {
   productType: string | null;
   /** `true` só para os três eventos que a fase de licença vai processar. */
   isActionable: boolean;
+  /** `true` quando o payload tem marcas do "Testar Webhook" da Kiwify. */
+  isTestPayload: boolean;
+}
+
+/**
+ * O produto do payload é o Doce Margem Essencial?
+ *
+ *  - `match`          → é o nosso produto; pode processar
+ *  - `mismatch`       → é outro produto do mesmo produtor; ignorar
+ *  - `unknown`        → o payload não trouxe identificação de produto
+ *  - `not_configured` → nenhuma env de produto foi definida no ambiente
+ */
+export type ProductMatch = "match" | "mismatch" | "unknown" | "not_configured";
+
+/** Identificação do produto vendido, lida do ambiente. */
+export interface EssentialProductConfig {
+  productId: string | null;
+  productName: string | null;
 }
 
 /* ─────────────────────── Leitura defensiva ─────────────────────── */
@@ -312,6 +330,87 @@ export function extractKiwifyProductType(payload: unknown): string | null {
   return value === null ? null : value.toLowerCase();
 }
 
+/* ─────────────────────── Payload de teste ─────────────────────── */
+
+/**
+ * O payload veio do botão "Testar Webhook" da Kiwify?
+ *
+ * Motivo de existir: o teste do painel chega como `order_approved` completo, com
+ * `order_id`, e-mail e produto. Sem esta checagem, o handler tenta convidar
+ * `johndoe@example.com`, falha, e a linha fica `failed` — foi exatamente o que
+ * aconteceu em produção.
+ *
+ * ⚠️ **A direção do erro importa aqui.** Classificar uma compra real como teste
+ * é muito pior que o contrário: a compradora paga e não recebe nada. Por isso os
+ * sinais são estreitos e literais, não heurísticos:
+ *
+ *  - **`@example.com`** é domínio reservado pela RFC 2606. **Nenhum cliente real
+ *    consegue ter um e-mail assim** — não existe caixa postal nesse domínio.
+ *    Sozinho, já é conclusivo.
+ *  - `"Example product"` e `"Example field"/"Example value"` são as strings
+ *    literais que a Kiwify usa no payload de teste. Comparação exata, sem
+ *    "contém" — um produto chamado "Exemplo de bolo" não pode cair aqui.
+ */
+export function isKiwifyTestPayload(payload: unknown): boolean {
+  const email = readFirstString(payload, BUYER_EMAIL_PATHS);
+  if (email !== null && email.toLowerCase().endsWith("@example.com")) return true;
+
+  const productName = readFirstString(payload, PRODUCT_NAME_PATHS);
+  if (productName !== null && productName.trim().toLowerCase() === "example product") return true;
+
+  // custom_fields de exemplo — objeto ou lista, a Kiwify já usou as duas formas.
+  const custom = readPath(payload, "custom_fields");
+  if (custom !== undefined && custom !== null) {
+    const texto = JSON.stringify(custom).toLowerCase();
+    if (texto.includes('"example field"') || texto.includes('"example value"')) return true;
+  }
+
+  return false;
+}
+
+/* ─────────────────────── Validação de produto ─────────────────────── */
+
+/**
+ * O produto do payload é o que este app vende?
+ *
+ * Existe por causa de um risco concreto: se o webhook estiver cadastrado na
+ * Kiwify como "todos os produtos que sou produtor", **a venda de qualquer outro
+ * produto chegaria aqui e liberaria licença do Doce Margem**. O identificador do
+ * produto é a única coisa no payload que separa uma compra nossa das outras.
+ *
+ * `productId` tem prioridade: é estável, enquanto o nome muda quando alguém
+ * edita a oferta no painel. O nome é reserva para o caso de a Kiwify não enviar
+ * o id — e a comparação é frouxa de propósito (`trim` + minúsculas), porque
+ * exigir igualdade exata de um texto digitado à mão recusaria compra legítima
+ * por causa de um espaço.
+ */
+export function classifyProduct(
+  extraction: Pick<KiwifyExtraction, "productId" | "productName">,
+  config: EssentialProductConfig,
+): ProductMatch {
+  const configuredId = config.productId?.trim();
+  const configuredName = config.productName?.trim();
+
+  if (!configuredId && !configuredName) return "not_configured";
+
+  if (configuredId) {
+    if (extraction.productId !== null) {
+      return extraction.productId.trim() === configuredId ? "match" : "mismatch";
+    }
+    // Sem id no payload: só o nome pode decidir. Sem nome configurado, não dá.
+    if (!configuredName) return "unknown";
+  }
+
+  if (configuredName) {
+    if (extraction.productName === null) return "unknown";
+    return extraction.productName.trim().toLowerCase() === configuredName.toLowerCase()
+      ? "match"
+      : "mismatch";
+  }
+
+  return "unknown";
+}
+
 /** Tudo de uma vez. Nunca lança: payload inesperado devolve campos em `null`. */
 export function extractKiwifyWebhook(payload: unknown): KiwifyExtraction {
   const eventType = extractKiwifyEventType(payload);
@@ -342,6 +441,7 @@ export function extractKiwifyWebhook(payload: unknown): KiwifyExtraction {
     productName: extractKiwifyProductName(payload),
     productType: extractKiwifyProductType(payload),
     isActionable,
+    isTestPayload: isKiwifyTestPayload(payload),
   };
 }
 

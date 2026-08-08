@@ -274,6 +274,9 @@ export async function POST(request: Request): Promise<Response> {
         ? ` motivo=${outcome.reason} jaRevogada=${outcome.alreadyRevoked}` +
           ` auditCreated=${outcome.auditCreated}`
         : "") +
+      (outcome.kind === "skipped"
+        ? ` motivo=${outcome.reason} isTestPayload=${extraction.isTestPayload}`
+        : "") +
       (outcome.kind === "rejected" ? ` reason=${outcome.reason}` : "") +
       (outcome.kind === "storage_error" ? ` code=${outcome.code}` : ""),
   );
@@ -283,6 +286,12 @@ export async function POST(request: Request): Promise<Response> {
     case "revoked":
     case "recorded":
       return json({ received: true }, 200);
+
+    case "skipped":
+      // Teste do painel ou produto de outra oferta. **200 de propósito:** não é
+      // erro, e um 4xx faria a Kiwify reenviar para sempre algo que nunca vai
+      // ser processado.
+      return json({ received: true, processed: false }, 200);
 
     case "duplicate":
       // 2xx é obrigatório: um 4xx faria a Kiwify reenviar para sempre.

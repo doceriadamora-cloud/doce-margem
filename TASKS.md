@@ -4,8 +4,8 @@
 > Marcar `[x]` ao concluir. Adicionar novas tarefas quando surgirem.
 > Antes de iniciar uma nova fase: parar, resumir o que foi feito e aguardar aprovação.
 
-**Fase atual:** Fase 4-7H concluída na branch `feature/4-7g-license-grant`. **O ciclo comercial fecha:** compra libera, reembolso e chargeback revogam, tudo auditado.
-**Próximo passo recomendado:** **compra real de valor mínimo em produção**, de ponta a ponta, incluindo um reembolso de teste. É a última validação que falta antes de abrir venda.
+**Fase atual:** Fase 4-7I concluída em `main`. Compra libera, reembolso e chargeback revogam, e agora **só o produto certo é processado** — teste do painel e outras ofertas são ignorados.
+**Próximo passo recomendado:** ⛔ **`KIWIFY_ESSENTIAL_PRODUCT_ID` na Vercel** (sem ela nenhuma compra libera) → depois **compra real de valor mínimo**, de ponta a ponta, com reembolso de teste.
 
 > 📋 **Auditoria pré-lançamento (2026-08-07): `GO-LIVE-AND-PRO-ROADMAP.md`** —
 > estado do produto, 10 bloqueadores críticos, diagnóstico do webhook, fronteira
@@ -587,7 +587,21 @@
 - [ ] **Compra real de ponta a ponta antes de abrir venda** — comprar, receber, criar senha, acessar, reembolsar, confirmar perda de acesso
 - [ ] Sobraram dados de teste no Supabase (contas `@example.com` não excluíveis por causa do bug do trigger da 0002)
 
-### Fase 4-7I — Cancelamento e expiração (pendente)
+### Fase 4-7I — Filtrar teste da Kiwify e validar produto ✅
+- [x] **Payload do botão "Testar Webhook" não libera mais nada** — era o que produzia `failed:invite_failed` em produção
+- [x] Detecção por sinais **literais e estreitos**: `@example.com` (domínio reservado RFC 2606 — nenhum cliente real pode ter), `"Example product"` exato, `custom_fields` com `"Example field"/"Example value"`
+- [x] Validação de produto antes de conceder: `KIWIFY_ESSENTIAL_PRODUCT_ID` como principal, `KIWIFY_ESSENTIAL_PRODUCT_NAME` como reserva
+- [x] **Produto de outra oferta → `ignored` + 200**, sem usuária, sem licença, sem auditoria. Fecha o risco de webhook "todos os produtos que sou produtor"
+- [x] **Env ausente → `product_config_missing`, falha fechada** em compra real
+- [x] Sem identificação de produto no payload → `produto_nao_identificado`, não libera
+- [x] Revogação segue mesmo sem produto identificado — a busca por `provider_order_id` já limita o alcance, e não revogar é pior que revogar à toa
+- [x] `.env.example` documenta as duas variáveis novas
+- [x] **95/95 isolados** + **19/19 ponta a ponta**, com o payload real do botão de teste da Kiwify
+- [x] `typecheck` + `lint` + `build` — 14 rotas
+- [ ] ⛔ **Adicionar `KIWIFY_ESSENTIAL_PRODUCT_ID` na Vercel antes da primeira venda.** Sem ela, compra real falha fechada e não libera
+- [ ] **Compra real de ponta a ponta ainda não foi feita**
+
+### Fase 4-7J — Cancelamento e expiração (pendente)
 - [ ] Cadastrar o webhook no painel da Kiwify — **ainda não existe webhook cadastrado**
 - [ ] Criar `POST /api/webhooks/kiwify` — **a rota ainda não existe**
 - [ ] **Capturar payload real da Kiwify** (webhook.site) antes de escrever código — sem isso os nomes de campo são chute

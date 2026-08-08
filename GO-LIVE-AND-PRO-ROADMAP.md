@@ -725,6 +725,7 @@ Considerando **~4 h úteis por dia**.
 ## 8. Checklist do dia do lançamento
 
 ### Vercel
+- [ ] ⛔ **`KIWIFY_ESSENTIAL_PRODUCT_ID` definida** — sem ela nenhuma compra libera licença (`product_config_missing`, falha fechada por decisão)
 - [ ] Deployment de **Production** aponta para o commit mais recente de `main`
 - [ ] `NEXT_PUBLIC_SUPABASE_URL` e `NEXT_PUBLIC_SUPABASE_ANON_KEY` preenchidas
 - [ ] `SUPABASE_SERVICE_ROLE_KEY` preenchida — **sem** prefixo `NEXT_PUBLIC_`
@@ -815,6 +816,8 @@ Considerando **~4 h úteis por dia**.
 | S13 | **Enumeração de e-mail** | 🟢 tratado | mensagem genérica no login; webhook não conta se o e-mail existe |
 | S14 | **Dado pessoal em `webhook_events.payload`** | 🟡 atenção | LGPD: `DELETE` permitido a papéis administrativos. Falta política escrita de retenção |
 | S19 | **Licença concedida sem registro de auditoria** | 🟢 fechado | A 4-7G ignorava o erro do `insert` em `license_events`. Corrigido: falha vira `failed` + 500, o reenvio cura, e a auditoria é idempotente por estado (consulta antes de inserir). Janela entre licença e auditoria continua existindo — mas nunca se fecha em silêncio |
+| S20 | **Venda de outro produto liberar o Doce Margem** | 🟢 fechado | Webhook cadastrado como "todos os produtos que sou produtor" faria qualquer venda sua liberar licença aqui. Fase 4-7I valida `Product.product_id` contra `KIWIFY_ESSENTIAL_PRODUCT_ID`; produto diferente vira `ignored`, env ausente falha fechada |
+| S21 | **Teste do painel da Kiwify liberar licença** | 🟢 fechado | O botão "Testar Webhook" manda `order_approved` completo. Detectado por sinais literais (`@example.com` é reservado pela RFC 2606, `"Example product"` exato) e ignorado sem criar conta, licença ou auditoria |
 | S18 | **Conta com evento de licença não pode ser excluída** | 🔴 **aberto** | Descoberto na 4-7G e isolado com teste A/B/C: `license_events.user_id` usa `ON DELETE SET NULL`, que é um UPDATE, e o trigger `license_events_immutable` bloqueia UPDATE para todos. **Pedido de exclusão (LGPD) não tem caminho automático.** Correção exige migration |
 | S15 | **Perda de dados locais** | 🟡 produto | `localStorage` some com limpeza de navegador. Backup existe; **a comunicação precisa ser explícita** |
 | S16 | **Rollback de banco é manual** | 🟡 operacional | migrations sem `down`. Aplicar direto em produção sem staging é o padrão atual |

@@ -1171,3 +1171,40 @@ Auditoria: uma licença revogada acumula `granted` + `refunded` (ou `chargeback`
 Comercial: **o ciclo fecha.** Compra libera, devolução revoga, tudo registrado. O que falta antes de abrir venda é o percurso real — comprar, receber, criar senha, acessar, reembolsar, confirmar a perda de acesso.
 
 ⚠️ **`cancelled` e `expired` não são tratados.** A Kiwify pode enviá-los; hoje caem em `ignored` e não revogam. Para compra única vitalícia raramente importa; vira relevante quando existir o Pro anual.
+
+---
+
+## 2026-08-07 — O produto é a única coisa que separa a nossa venda das outras
+
+### Decisão
+Antes de conceder licença, o webhook valida que o payload corresponde ao produto vendido por este app:
+
+- **`KIWIFY_ESSENTIAL_PRODUCT_ID`** é o identificador principal; **`KIWIFY_ESSENTIAL_PRODUCT_NAME`** é reserva, usada só quando o payload não traz o id.
+- **Nenhuma das duas configurada → compra aprovada falha fechada** (`product_config_missing`).
+- **Produto de outra oferta → `ignored` + 200**, sem usuária, sem licença, sem auditoria.
+- **Payload do botão "Testar Webhook" → `ignored` + 200**, detectado por sinais literais.
+- **Revogação não exige produto identificado** — só é pulada quando o produto é *comprovadamente* outro.
+
+Ordem das checagens: teste → produto → e-mail/pedido.
+
+### Contexto
+Fase 4-7I. O botão de teste da Kiwify disparou em produção, o handler tratou como compra real, tentou convidar `johndoe@example.com` e a linha ficou `failed`. O sintoma era chato; o risco atrás dele, não.
+
+### Motivo
+
+**Por que validar produto é sobre dinheiro, não sobre limpeza.** Se o webhook estiver cadastrado na Kiwify como *"todos os produtos que sou produtor"* — configuração comum e fácil de escolher sem pensar — a venda de **qualquer outra oferta** chega neste endpoint com `order_approved` legítimo, assinatura válida e e-mail real. Sem conferir o produto, cada uma dessas vendas libera uma licença do Doce Margem de graça. O identificador do produto é a única coisa no payload que distingue uma compra nossa das outras.
+
+**Por que falhar fechado sem env.** Liberar quando não se sabe qual produto foi vendido é apostar que existe uma só oferta na conta da Kiwify. A aposta se perde exatamente no dia em que houver a segunda — e o prejuízo aparece antes do aviso. Falhar fechado custa uma variável de ambiente esquecida; falhar aberto custa licenças distribuídas sem venda.
+
+**Por que os sinais de teste são literais, não heurísticos.** A direção do erro é assimétrica: classificar compra real como teste faz a compradora pagar e não receber nada. Por isso nada de "parece teste". `@example.com` é reservado pela RFC 2606 — **não existe caixa postal nesse domínio**, então nenhum cliente real pode ter esse e-mail; sozinho, é conclusivo. `"Example product"` é comparação exata, não "contém": um produto chamado "Exemplo de bolo" não pode cair ali.
+
+A régua se mostrou estreita o suficiente para incomodar do jeito certo: **os fixtures de teste do próprio projeto usavam `@example.com` e passaram a ser ignorados**, obrigando a trocar o domínio das compradoras fictícias.
+
+**Por que a revogação não exige produto identificado.** A instrução era validar em todos os eventos. Seguir literalmente inverteria a direção do erro: concessão incerta deve negar, mas **revogação incerta deve revogar**. Não revogar deixa acesso com quem tomou o dinheiro de volta. E a proteção já existe por outro caminho — a busca da licença é por `provider_order_id`, que limita o alcance ao que este app vendeu; um reembolso de outro produto simplesmente não acha licença. Para evitar ruído, `mismatch` (produto comprovadamente diferente) também pula a revogação; só `unknown` e `not_configured` seguem adiante.
+
+**Por que teste vem antes de produto.** Sem a env configurada — o estado de hoje — checar produto primeiro faria o botão de teste virar `failed:product_config_missing` em vez de um `ignored` limpo. E "isso é uma venda nossa?" é logicamente anterior a "conseguimos processá-la?": reclamar de e-mail ausente num evento que nem é nosso é diagnóstico enganoso.
+
+### Impacto
+**Bloqueia a primeira venda até uma ação manual:** `KIWIFY_ESSENTIAL_PRODUCT_ID` precisa estar na Vercel. Sem ela, toda compra real vira `product_config_missing` e não libera. É o comportamento desejado, mas é uma armadilha se ninguém souber — daí o destaque no `.env.example`, no `TASKS.md` e no checklist de lançamento.
+
+`KIWIFY_ESSENTIAL_PRODUCT_NAME` é frágil por natureza: renomear a oferta no painel sem atualizar a env quebra a liberação silenciosamente. Serve como reserva, nunca como escolha principal.

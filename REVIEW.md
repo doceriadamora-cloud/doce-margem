@@ -1652,6 +1652,67 @@ Duas asserções antigas (9 e 10) falharam na primeira rodada porque afirmavam o
 - **Exclusão de conta continua impossível** para quem tem `license_events` (bug do trigger da 0002). Impacto LGPD, e agora atinge mais contas, já que toda compra gera evento.
 - **Dados de teste acumulados** no Supabase: contas `@example.com` que não saem por causa do mesmo bug, mais licenças e `webhook_events` sem DELETE para `service_role`.
 
+### Fase 4-7I — Filtrar teste da Kiwify e validar produto
+- **Status:** ✅ Implementado e validado. **95/95 isolados + 19/19 ponta a ponta.**
+- **Escopo:** `lib/webhooks/kiwify-payload.ts`, `lib/webhooks/kiwify-processor.ts`, log do Route Handler, `.env.example`.
+
+#### O que aconteceu em produção
+O botão "Testar Webhook" da Kiwify mandou um `order_approved` completo — com `order_id`, e-mail e produto — e o handler tentou processar como compra real. Convidou `johndoe@example.com`, falhou, e a linha ficou `failed:invite_failed:AuthRetryableFetchError`.
+
+O sintoma era chato. **O risco por trás era grave:** se o webhook estiver cadastrado na Kiwify como *"todos os produtos que sou produtor"*, a venda de **qualquer outra oferta** chegaria aqui e liberaria licença do Doce Margem. O identificador do produto é a única coisa no payload que separa uma compra nossa das outras — e ninguém estava olhando para ele.
+
+#### Como o teste é detectado
+Sinais **literais e estreitos**, não heurísticos:
+
+| Sinal | Por que é seguro |
+|---|---|
+| e-mail termina em `@example.com` | domínio reservado pela **RFC 2606** — não existe caixa postal nele. Nenhum cliente real pode ter esse e-mail. Sozinho já é conclusivo |
+| `product_name === "Example product"` | comparação **exata**, não "contém". "Exemplo de bolo" não cai aqui — testado |
+| `custom_fields` com `"Example field"` / `"Example value"` | strings literais do payload de teste |
+
+**A direção do erro guiou o desenho.** Classificar compra real como teste é muito pior que o contrário: a compradora paga e não recebe nada. Por isso nada de "parece teste" — só marcas que um cliente real não consegue produzir.
+
+Prova de que a régua é estreita o bastante para incomodar: **meus próprios fixtures de teste usavam `@example.com`** e passaram a ser ignorados. Precisei trocar o domínio das compradoras fictícias para `@teste-docemargem.com.br`. A detecção pegou exatamente o que devia.
+
+#### Como o produto é validado
+`KIWIFY_ESSENTIAL_PRODUCT_ID` é o caminho principal — estável, não muda quando alguém edita a oferta no painel. `KIWIFY_ESSENTIAL_PRODUCT_NAME` é reserva, usada só quando o payload não traz o id; a comparação ignora maiúsculas e espaços nas pontas, porque exigir igualdade exata de texto digitado à mão recusaria compra legítima por um espaço.
+
+| Situação | Concessão | Revogação |
+|---|---|---|
+| produto bate | processa | processa |
+| produto **é outro** | `ignored` + 200 | `ignored` + 200 |
+| payload sem identificação | `failed:produto_nao_identificado` | **processa mesmo assim** |
+| nenhuma env configurada | `failed:product_config_missing` | **processa mesmo assim** |
+
+#### Uma assimetria deliberada, e o porquê
+A instrução era validar produto em **todos** os eventos. Segui na concessão e **não** na revogação, porque a direção do erro se inverte:
+
+- **Concessão** incerta → não liberar. Errar liberando dá acesso a quem não comprou.
+- **Revogação** incerta → revogar. Errar não revogando deixa acesso com quem foi reembolsado.
+
+A busca da licença é por `provider_order_id`, que **já limita o alcance ao que este app vendeu** — um reembolso de outro produto simplesmente não acha licença. Exigir produto identificado ali faria um campo malformado deixar de revogar quem tomou o dinheiro de volta.
+
+O ruído que a validação evitaria — reembolsos de outras ofertas virando `failed` — continua evitado: `mismatch` (produto **comprovadamente** diferente) ignora a revogação também. Só `unknown` e `not_configured` seguem adiante.
+
+#### Ordem das checagens
+Teste → produto → e-mail/pedido. "Isso é uma venda nossa?" vem antes de "conseguimos processá-la?". Duas asserções antigas falharam por causa disso (reclamavam de e-mail ausente onde agora o produto é reclamado primeiro) — as asserções é que estavam desatualizadas; ajustei os payloads para exercitar cada checagem.
+
+#### Testes
+**95/95 isolados** (30 casos novos) e **19/19 ponta a ponta** contra o Supabase real, usando o payload real do botão de teste: teste ignorado sem criar conta `johndoe@example.com`; outro produto ignorado; replay de ignorado não duplica; produto certo libera; reembolso e chargeback revogam; sem produto não libera.
+
+`typecheck` → 0; `lint` → 0; `build` → 0, 14 rotas.
+
+#### ⛔ Antes da primeira venda
+**Adicionar `KIWIFY_ESSENTIAL_PRODUCT_ID` na Vercel.** Sem ela, compra real falha fechada com `product_config_missing` e **não libera nada**. É deliberado — sem saber que produto foi vendido, liberar licença é apostar que só existe uma oferta na conta da Kiwify, e essa aposta se perde no dia em que houver a segunda.
+
+O valor sai de `Product.product_id` num payload real (o teste do painel serve: ele traz o id do produto fictício, mas a estrutura mostra onde olhar) ou da URL do produto no painel da Kiwify.
+
+#### Riscos restantes
+- **Compra real de ponta a ponta continua sem teste.**
+- **`KIWIFY_ESSENTIAL_PRODUCT_NAME` é frágil por natureza:** renomear a oferta no painel sem atualizar a env quebra a liberação silenciosamente. Sempre prefira o ID.
+- **`cancelled` e `expired` não revogam** — caem em `ignored`.
+- Exclusão de conta com `license_events` continua impossível (bug do trigger da 0002).
+
 ## Checklist técnico
 - [x] O projeto está em C:\dev\doce-margem
 - [x] Não há dependência de OneDrive
