@@ -4,13 +4,13 @@
 > Marcar `[x]` ao concluir. Adicionar novas tarefas quando surgirem.
 > Antes de iniciar uma nova fase: parar, resumir o que foi feito e aguardar aprovação.
 
-**Fase atual:** Fase 4-7I concluída em `main`. Compra libera, reembolso e chargeback revogam, e agora **só o produto certo é processado** — teste do painel e outras ofertas são ignorados.
-**Próximo passo recomendado:** ⛔ **`KIWIFY_ESSENTIAL_PRODUCT_ID` na Vercel** (sem ela nenhuma compra libera) → depois **compra real de valor mínimo**, de ponta a ponta, com reembolso de teste.
+**Fase atual:** validação final do ciclo real em produção concluída. Compra e reembolso reais do Doce Margem Essencial foram processados; convite, senha, acesso e bloqueio foram observados de ponta a ponta.
+**Próximo passo recomendado:** revisar copy, checkout, domínio, suporte e política de reembolso antes de abrir oficialmente a venda.
 
 > 📋 **Auditoria pré-lançamento (2026-08-07): `GO-LIVE-AND-PRO-ROADMAP.md`** —
 > estado do produto, 10 bloqueadores críticos, diagnóstico do webhook, fronteira
 > Essencial × Pro, copy pública, prazos e checklist de lançamento.
-> **Bloqueador nº 1: compra aprovada não libera licença** (Fase 4-7E não existe).
+> **Estado atual:** o ciclo compra → acesso → reembolso → bloqueio está validado em produção. A venda oficial ainda não foi aberta.
 
 ## Fase 0 — Setup e documentação ✅
 - [x] Criar projeto em C:\dev\doce-margem
@@ -482,8 +482,8 @@
 - [x] Replay do mesmo `provider_event_id` → 200 `duplicate:true`, **5 requisições com sucesso = 5 linhas**
 - [x] `licenses` e `license_events` intocadas (2 linhas cada, `provider=manual`)
 - [x] `typecheck` + `lint` + `build` — 13 rotas
-- [ ] **Confirmar em produção:** redeployar e disparar o teste da Kiwify de novo — deve virar 200 e gravar
-- [ ] ⚠️ **Confirmar com compra real:** o teste do painel pode usar autenticação diferente do evento de produção. Se um evento real der 401 com `signatureLooksLikeHex=true`, aí sim é HMAC e precisa de fase própria
+- [x] **Confirmado em produção:** o botão de teste retornou 200 e foi ignorado com segurança
+- [x] **Confirmado com compra real:** compra e reembolso da Kiwify retornaram 200 e foram processados
 
 ### Fase 4-7E — Validação da assinatura real (HMAC) ✅
 - [x] **Hipótese da 4-7D refutada pelo teste real:** `signatureLooksLikeHex=true` no log de produção prova que `signature` é **assinatura, não token simples**
@@ -497,8 +497,8 @@
 - [x] **14/14 testes locais**, incluindo HMAC de outro corpo → 401 (replay cruzado) e `signature` = segredo → 401
 - [x] `typecheck` + `lint` + `build` — 13 rotas
 - [x] `licenses` e `license_events` intocadas (2 linhas cada, `provider=manual`)
-- [ ] ⚠️ **Compra real ainda não testada.** SHA-256 e SHA-1 hex são as convenções mais comuns, não uma certeza. Se a Kiwify usar base64, corpo canonicalizado ou outro segredo, continua dando 401 — o `signatureFormat` no log dirá qual
-- [ ] **Limpar antes de ligar na Kiwify:** 7 linhas de teste em `webhook_events` (5 da 4-7D + `local-hmac-001` e `local-hmac-002-*`)
+- [x] **Assinatura confirmada com eventos reais:** compra e reembolso retornaram 200 em produção
+- [x] **Dados antigos limpos:** webhooks `failed`/`ignored` removidos; ao final ficaram somente os `processed` da compra e do reembolso reais
 
 ### Fase 4-7F — Normalização do payload real e idempotência ✅
 - [x] **Payload real da Kiwify capturado em produção** — `webhook_event_type = "order_approved"`, `order_id`, `order_status`, `payment_method`, `product_type`, `Product.*`, `Customer.*`
@@ -514,9 +514,9 @@
 - [x] `typecheck` + `lint` + `build` — 13 rotas
 - [x] `licenses` e `license_events` intocadas (2 linhas cada, `provider=manual`)
 - [ ] ⚠️ **Limite conhecido:** dois eventos genuinamente distintos com mesmo tipo e mesmo `order_id` (renovação anual reusando o pedido) colidem e o segundo vira replay. Correto para a compra única; **reavaliar na fase de renovação do Pro**
-- [ ] **Limpar antes de ligar em produção:** 13 linhas de teste em `webhook_events`, incluindo a linha real com `provider_event_id = NULL` (a que motivou esta fase)
+- [x] **Limpeza concluída:** webhooks antigos `failed`/`ignored` removidos; banco final preserva somente a auditoria `processed` da compra e do reembolso reais
 
-### Fase 4-7G — Compra aprovada libera licença Essencial ✅ (com 1 bloqueador)
+### Fase 4-7G — Compra aprovada libera licença Essencial ✅
 - [x] `lib/webhooks/kiwify-processor.ts` — regra de negócio separada do Route Handler, `server-only`
 - [x] **Só `compra_aprovada` concede.** Reembolso e chargeback são gravados e ficam `received` — revogação é fase própria
 - [x] Compradora **já cadastrada**: perfil localizado por e-mail (`ilike` com curingas escapados — `_` é caractere legítimo em e-mail)
@@ -530,10 +530,10 @@
 - [x] `has_essential_access(uid)` → `true`; usuária bloqueada → `false`
 - [x] Service role **não aparece** no bundle do cliente; só o Route Handler importa `admin.ts`
 - [x] `typecheck` + `lint` + `build` — 13 rotas
-- [ ] ⛔ **BLOQUEADOR: `inviteUserByEmail` não funciona hoje.** Erros reais: `email_address_invalid` e `over_email_send_rate_limit`. **Compra de quem ainda não tem conta fica registrada como `failed` e não libera.** Exige SMTP próprio no Supabase — ver `REVIEW.md`
+- [x] **Bloqueador do convite resolvido:** Resend/Supabase SMTP entregou o convite e a compradora real criou a senha
 - [ ] ⛔ **Bug na migration 0002 descoberto:** o trigger `license_events_immutable` bloqueia o `ON DELETE SET NULL` da FK, então **usuária com evento de licença não pode ser excluída** (impacto LGPD). Isolado com teste A/B/C. Correção exige migration
-- [ ] **Compra real ainda não testada de ponta a ponta**
-- [ ] **Limpar dados de teste** — SQL no `REVIEW.md` (service role não tem DELETE em `licenses`, `license_events` nem `webhook_events`, por decisão da 4-7C-fix)
+- [x] **Compra real validada de ponta a ponta**
+- [x] **Dados operacionais de teste limpos:** licenças manuais e webhooks antigos `failed`/`ignored` removidos; perfis antigos permanecem sem licença ativa
 
 ### Fase 4-7G-convite — Aceite de convite do Supabase ✅
 - [x] **SMTP próprio com Resend validado em produção** — convite chega (remetente `Doce Margem <noreply@doceriadamora.com.br>`); ⚠️ caiu em spam, ver riscos
@@ -556,8 +556,8 @@
 - [x] `NEXT_PUBLIC_APP_URL` na Vercel = `https://docemargem.doceriadamora.com.br`
 - [x] **Dados de teste da 4-7G limpos** do Supabase
 - [ ] ⚠️ **Entregabilidade:** SPF/DKIM/DMARC do domínio no Resend — não bloqueia tecnicamente, mas e-mail em spam custa vendas
-- [ ] **Compra real de ponta a ponta ainda não testada** (comprar → e-mail → criar senha → acessar)
-- [ ] Sobraram **2 linhas `failed`** em `webhook_events` (`compra_aprovada:47g-…-C`), dos testes de payload sem e-mail
+- [x] **Compra real de ponta a ponta validada** (comprar → e-mail → criar senha → acessar)
+- [x] As linhas antigas `failed`/`ignored` foram removidas após a validação real
 
 ### Fase 4-7G — Revisão final pós-correções externas ✅
 - [x] Configuração externa confirmada: Resend, SMTP, Redirect URL, `NEXT_PUBLIC_APP_URL`, limpeza do banco
@@ -584,8 +584,8 @@
 - [x] **65/65 isolados** + **24/24 ponta a ponta** contra o Supabase real
 - [x] `has_essential_access` verificado indo para `false` após reembolso e após chargeback
 - [x] `typecheck` + `lint` + `build` — 14 rotas
-- [ ] **Compra real de ponta a ponta antes de abrir venda** — comprar, receber, criar senha, acessar, reembolsar, confirmar perda de acesso
-- [ ] Sobraram dados de teste no Supabase (contas `@example.com` não excluíveis por causa do bug do trigger da 0002)
+- [x] **Compra real de ponta a ponta validada em produção** — compra, convite, senha, acesso, reembolso e perda de acesso confirmados
+- [ ] Perfis antigos de teste permanecem no Supabase, mas sem licença ativa; licenças manuais e webhooks antigos `failed`/`ignored` foram removidos
 
 ### Fase 4-7I — Filtrar teste da Kiwify e validar produto ✅
 - [x] **Payload do botão "Testar Webhook" não libera mais nada** — era o que produzia `failed:invite_failed` em produção
@@ -598,8 +598,34 @@
 - [x] `.env.example` documenta as duas variáveis novas
 - [x] **95/95 isolados** + **19/19 ponta a ponta**, com o payload real do botão de teste da Kiwify
 - [x] `typecheck` + `lint` + `build` — 14 rotas
-- [ ] ⛔ **Adicionar `KIWIFY_ESSENTIAL_PRODUCT_ID` na Vercel antes da primeira venda.** Sem ela, compra real falha fechada e não libera
-- [ ] **Compra real de ponta a ponta ainda não foi feita**
+- [x] **Identificação do produto validada em produção:** a compra real do Doce Margem Essencial foi aceita e processada; o ID continua sendo a configuração principal recomendada
+- [x] **Compra real de ponta a ponta concluída**
+
+### Validação final do ciclo real em produção ✅
+- [x] Botão **“Testar Webhook”** da Kiwify retornou 200 e foi ignorado com segurança
+- [x] Compra real do produto Doce Margem Essencial retornou 200
+- [x] Webhook `compra_aprovada` ficou `processed`
+- [x] Usuária criada
+- [x] Convite entregue via Resend/Supabase SMTP
+- [x] Compradora criou a senha
+- [x] Licença Kiwify ficou `active`
+- [x] `license_events` registrou `granted`
+- [x] Acesso confirmado em `/conta`, `/ingredientes`, `/receitas`, `/precificacao` e `/configuracoes`
+- [x] Reembolso real da Kiwify disparou webhook
+- [x] Webhook `compra_reembolsada` ficou `processed`
+- [x] Licença mudou para `refunded`
+- [x] `license_events` registrou `refunded`
+- [x] Usuária perdeu o acesso e caiu em `/acesso-bloqueado`
+- [x] Licenças manuais de teste removidas
+- [x] Webhooks antigos `failed`/`ignored` removidos
+- [x] Estado final do banco contém somente os eventos `processed` de auditoria da compra e do reembolso reais
+
+#### Pendências conhecidas após o teste
+- [ ] Melhorar entregabilidade do convite, que ainda pode cair em spam
+- [ ] Tratar os perfis antigos de teste; hoje permanecem sem licença ativa
+- [ ] Executar chargeback manual ponta a ponta; o código usa o mesmo mecanismo de revogação do reembolso já validado
+- [ ] Abrir oficialmente a venda do app
+- [ ] Antes da venda aberta, revisar copy, checkout, domínio, suporte e política de reembolso
 
 ### Fase 4-7J — Cancelamento e expiração (pendente)
 - [ ] Cadastrar o webhook no painel da Kiwify — **ainda não existe webhook cadastrado**

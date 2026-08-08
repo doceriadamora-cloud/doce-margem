@@ -1243,12 +1243,12 @@ Auditoria dos `console.*`: **nenhum imprime token, signature, segredo ou payload
 Banco confirma: **5 requisições com sucesso = 5 linhas**, o replay não criou a sexta, coerência `status ↔ processed_at` intacta, `user_id`/`license_id` nulos. `licenses` e `license_events` seguem com 2 linhas cada, todas `provider=manual` / `source=manual:test`.
 
 #### Riscos
-- ⚠️ **O teste do painel pode não representar o evento de produção.** Muitas plataformas assinam o evento real de um jeito e o "testar webhook" de outro. Se uma compra real der 401 com `signatureLooksLikeHex=true`, é HMAC de verdade e vira fase própria. **A prova só vem de uma compra real.**
+- ~~⚠️ **O teste do painel pode não representar o evento de produção.**~~ ✅ A compra e o reembolso reais retornaram 200 na validação de 2026-08-08.
 - **`?signature=` viaja na URL** e entra em log de proxy, CDN e histórico de acesso. É a Kiwify que escolhe o portador, não nós — mas vale saber que o segredo do webhook tem exposição maior que um header. Rotacionar o token no painel invalida o antigo, se algum dia for preciso.
-- **Ainda não confirmado em produção:** o ajuste só vale depois do redeploy.
+- ~~**Ainda não confirmado em produção.**~~ ✅ Confirmado por eventos reais após o redeploy.
 
 ### Fase 4-7E — Validação da assinatura real (HMAC)
-- **Status:** ✅ Implementado e validado localmente. ⚠️ **Compra real ainda não testada** — e essa é a única prova que conta.
+- **Status:** ✅ Implementado, validado localmente e posteriormente confirmado por compra e reembolso reais em produção.
 - **Escopo:** só a autenticação do handler. Nenhuma liberação de licença, `licenses` e `license_events` intocadas.
 
 #### A conclusão da 4-7D estava errada, e o log escrito nela é que provou
@@ -1303,14 +1303,14 @@ Log de sucesso confirmou o caminho usado: `tokenCarrierUsed=hmac-sha256`.
 
 `signatureFormat` classifica a **forma** — `hex-64(sha256?)`, `hex-40(sha1?)`, `base64-N`, `other`, `none` — nunca o valor. `grep` confirma: nenhum `console.*` imprime token, signature, segredo, payload, e-mail ou qualquer dado pessoal.
 
-#### O que ainda não está provado
-- **Nenhuma compra real foi testada.** SHA-256 e SHA-1 em hex são as duas convenções mais comuns, não uma certeza. Se a Kiwify usar base64, um corpo canonicalizado, ou um segredo diferente do token do painel, o resultado continua sendo 401.
+#### O que ainda não estava provado nesta fase
+- ~~**Nenhuma compra real foi testada.**~~ ✅ Compra e reembolso reais foram autenticados e processados em 2026-08-08.
 - **É justamente para isso que `signatureFormat` existe.** Se o próximo teste falhar, o log dirá se o digest é hex-64, hex-40, base64 ou outra coisa — e aí a correção é uma linha, não uma investigação.
 - **Liberação de licença não existe.** O handler grava o evento e para. Compra aprovada continua não virando acesso — é a Fase 4-7F.
-- **7 linhas de teste em `webhook_events`** (5 da 4-7D + `local-hmac-001` + `local-hmac-002-*`). Vale apagar antes de ligar na Kiwify de verdade, para não misturar payload real com payload inventado.
+- ~~**7 linhas de teste em `webhook_events`.**~~ ✅ Webhooks antigos `failed`/`ignored` removidos na limpeza final.
 
 ### Fase 4-7F — Normalização do payload real e idempotência
-- **Status:** ✅ Implementado e validado. ⚠️ **Compra real ainda não testada** — o payload capturado é o do botão de teste.
+- **Status:** ✅ Implementado e validado; formato e processamento posteriormente confirmados por compra e reembolso reais.
 - **Escopo:** extractores e idempotência. Nenhuma liberação de licença.
 
 #### O payload real, finalmente
@@ -1449,12 +1449,12 @@ where payload ->> '_teste_claude_4_7c' is not null or provider_event_id is null;
 delete from auth.users where email like '%@example.com';
 ```
 
-#### Riscos restantes
-- **Compra real nunca testada de ponta a ponta.** Tudo foi exercitado com payload sintético no formato capturado.
-- **Compradora sem conta continua sem liberação** até o SMTP ser resolvido — é o bloqueador comercial nº 1 da fase.
-- **Reembolso e chargeback não revogam.** Quem pedir reembolso hoje recebe o dinheiro **e mantém a licença vitalícia**.
-- **Reativação silenciosa:** uma `compra_aprovada` para um pedido cuja licença esteja revogada volta a marcá-la `active`. Correto se o pagamento realmente voltou a valer; a checar quando a revogação existir.
-- **Duas contas de teste `@example.com`** ficaram no Auth até o SQL acima ser rodado.
+#### Riscos registrados naquele momento — situação posterior
+- ~~**Compra real nunca testada de ponta a ponta.**~~ ✅ Validada em 2026-08-08.
+- ~~**Compradora sem conta continua sem liberação.**~~ ✅ Convite via Resend/Supabase SMTP validado com compradora real.
+- ~~**Reembolso não revoga.**~~ ✅ Reembolso real mudou a licença para `refunded` e derrubou o acesso. Chargeback usa o mesmo mecanismo, mas ainda não foi testado manualmente de ponta a ponta.
+- ~~**Reativação silenciosa após dinheiro devolvido.**~~ ✅ Bloqueada na Fase 4-7H.
+- **Perfis antigos de teste** permanecem, mas sem licença ativa.
 
 ### Fase 4-7G-convite — Aceite de convite do Supabase
 - **Status:** ✅ Implementado e verificado em navegador real. **Bloqueador 1 da 4-7G resolvido.**
@@ -1500,18 +1500,16 @@ Servidor: `/login` 200, `/cadastro` 200, `/auth/accept-invite` 200 sem sessão, 
 
 `grep`: nenhum `console.*` nos arquivos novos, nenhum token em log, service role fora de `.next/static/`.
 
-#### ⚠️ Configuração pendente no painel
-1. **Supabase → Authentication → URL Configuration → Redirect URLs:** adicionar
-   `https://docemargem.doceriadamora.com.br/auth/accept-invite`.
-   **Sem isso o `redirectTo` é ignorado em silêncio** e o convite volta a cair no Site URL. O `InviteHashRescue` cobre esse caso, mas é rede de segurança, não o caminho desejado.
-2. **`NEXT_PUBLIC_APP_URL` na Vercel** precisa ser o domínio real — o `redirectTo` é montado a partir dela. Se estiver vazia, nenhum `redirectTo` é enviado.
-3. **SPF / DKIM / DMARC no Resend** — o convite chegou, mas **caiu em spam**. Quem comprou e não procurar no lixo eletrônico não encontra o link.
+#### Configuração externa — situação posterior
+1. ✅ **Redirect URL** de `/auth/accept-invite` configurada no Supabase e validada no fluxo real.
+2. ✅ **`NEXT_PUBLIC_APP_URL`** apontando para o domínio real, validada pelo convite.
+3. ⚠️ **Entregabilidade do Resend:** o convite ainda pode cair em spam.
 
 #### Riscos
-- **Compra real de ponta a ponta ainda não testada** — comprar, receber o e-mail, criar senha, entrar. É o único teste que fecha o ciclo.
+- ~~**Compra real de ponta a ponta ainda não testada.**~~ ✅ Ciclo validado em produção em 2026-08-08.
 - **E-mail em spam** é, na prática, quase tão ruim quanto e-mail não entregue.
 - **Convite expira.** Quem demorar precisa de um novo, e não há como pedir sozinha — depende de suporte. Uma tela de "reenviar convite" resolveria; fora do escopo.
-- **Reembolso e chargeback continuam sem revogar.**
+- ~~**Reembolso e chargeback continuam sem revogar.**~~ ✅ Revogação implementada; reembolso validado com evento real. Chargeback ainda não foi exercitado manualmente de ponta a ponta.
 
 ### Fase 4-7G — Revisão final (pós-correções externas)
 - **Status:** ✅ Branch `feature/4-7g-license-grant` **pronta para merge controlado**. Sem push, sem merge.
@@ -1646,11 +1644,11 @@ Duas asserções antigas (9 e 10) falharam na primeira rodada porque afirmavam o
 `typecheck` → 0; `lint` → 0; `build` → 0, 14 rotas.
 
 #### Riscos restantes
-- **Compra real de ponta a ponta continua sem teste** — agora incluindo o reembolso. É a última validação antes de abrir venda.
+- ~~**Compra real de ponta a ponta continua sem teste.**~~ ✅ Compra e reembolso reais validados em 2026-08-08.
 - **`cancelled` e `expired` não são tratados.** A Kiwify pode enviá-los; hoje caem em `ignored` e não revogam. Para compra única vitalícia isso raramente importa, mas vira relevante no Pro anual.
 - **Assinatura recorrente não tem renovação.** Fora de escopo até o Pro existir.
 - **Exclusão de conta continua impossível** para quem tem `license_events` (bug do trigger da 0002). Impacto LGPD, e agora atinge mais contas, já que toda compra gera evento.
-- **Dados de teste acumulados** no Supabase: contas `@example.com` que não saem por causa do mesmo bug, mais licenças e `webhook_events` sem DELETE para `service_role`.
+- **Perfis antigos de teste** continuam no Supabase por causa do mesmo bug, mas sem licença ativa. As licenças manuais de teste e os webhooks antigos `failed`/`ignored` foram removidos na validação final de produção.
 
 ### Fase 4-7I — Filtrar teste da Kiwify e validar produto
 - **Status:** ✅ Implementado e validado. **95/95 isolados + 19/19 ponta a ponta.**
@@ -1708,10 +1706,40 @@ Teste → produto → e-mail/pedido. "Isso é uma venda nossa?" vem antes de "co
 O valor sai de `Product.product_id` num payload real (o teste do painel serve: ele traz o id do produto fictício, mas a estrutura mostra onde olhar) ou da URL do produto no painel da Kiwify.
 
 #### Riscos restantes
-- **Compra real de ponta a ponta continua sem teste.**
+- ~~**Compra real de ponta a ponta continua sem teste.**~~ ✅ Resolvido pela validação final de produção de 2026-08-08, registrada abaixo.
 - **`KIWIFY_ESSENTIAL_PRODUCT_NAME` é frágil por natureza:** renomear a oferta no painel sem atualizar a env quebra a liberação silenciosamente. Sempre prefira o ID.
 - **`cancelled` e `expired` não revogam** — caem em `ignored`.
 - Exclusão de conta com `license_events` continua impossível (bug do trigger da 0002).
+
+### Validação final — ciclo real em produção (2026-08-08)
+- **Status:** ✅ Ciclo comercial real validado de ponta a ponta em produção, da compra ao reembolso e bloqueio do acesso.
+- **Produto testado:** Doce Margem Essencial, com pagamento e reembolso reais pela Kiwify.
+
+#### Resultado observado
+1. O botão **“Testar Webhook”** da Kiwify retornou HTTP 200 e foi ignorado com segurança.
+2. A compra real do produto **Doce Margem Essencial** retornou HTTP 200.
+3. O webhook `compra_aprovada` ficou com status `processed`.
+4. A usuária compradora foi criada.
+5. O convite chegou por meio do Resend configurado como SMTP do Supabase.
+6. A compradora criou a senha pelo fluxo de convite.
+7. A licença Kiwify ficou com status `active`.
+8. `license_events` registrou o evento `granted`.
+9. A usuária acessou `/conta`, `/ingredientes`, `/receitas`, `/precificacao` e `/configuracoes`.
+10. Um reembolso real na Kiwify disparou o webhook correspondente.
+11. O webhook `compra_reembolsada` ficou com status `processed`.
+12. A licença mudou para `refunded`.
+13. `license_events` registrou o evento `refunded`.
+14. A usuária perdeu o acesso e foi redirecionada para `/acesso-bloqueado`.
+15. As licenças manuais usadas nos testes foram removidas.
+16. Os webhooks antigos com status `failed`/`ignored` foram removidos.
+17. O estado final do banco ficou somente com os eventos `processed` de auditoria da compra e do reembolso reais.
+
+#### Pendências conhecidas após a validação
+- O e-mail de convite ainda pode cair em spam.
+- Perfis antigos de teste continuam existindo, porém sem licença ativa.
+- Chargeback não foi testado manualmente de ponta a ponta; ele usa o mesmo mecanismo de revogação já validado pelo reembolso.
+- O app ainda não está com venda aberta oficialmente.
+- Antes da abertura oficial, revisar copy, checkout, domínio, suporte e política de reembolso.
 
 ## Checklist técnico
 - [x] O projeto está em C:\dev\doce-margem
@@ -1721,11 +1749,11 @@ O valor sai de `Product.product_id` num payload real (o teste do painel serve: e
 - [ ] A interface simples não assusta iniciantes
 - [ ] O modo avançado preserva recursos profissionais
 - [x] Não existe plano mensal _(nada de mensal documentado)_
-- [ ] Compra única tem acesso controlado
-- [ ] Reembolso revoga acesso
+- [x] Compra única tem acesso controlado _(validado com compra real em produção)_
+- [x] Reembolso revoga acesso _(validado com reembolso real em produção)_
 - [x] Plano Pro é anual _(modelo definido no README)_
-- [ ] Permissões não dependem apenas do frontend
-- [ ] Webhooks estão protegidos
+- [x] Permissões não dependem apenas do frontend _(a licença `refunded` bloqueou as rotas na requisição seguinte)_
+- [x] Webhooks estão protegidos _(teste do painel ignorado; compra e reembolso reais autenticados e processados)_
 - [ ] Admin está protegido
 - [x] Build passa _(Fase 2-8 validada; revalidar antes de deploy na Fase 8)_
 

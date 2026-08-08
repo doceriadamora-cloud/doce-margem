@@ -9,6 +9,39 @@
 > disso, está marcado como **[não verificável daqui]** com a checagem que você
 > pode fazer em cinco minutos.
 
+## Atualização final de produção — 2026-08-08
+
+> Esta atualização registra evidência observada em produção e substitui as
+> marcações antigas de “compra real ainda não testada” ao longo deste documento.
+
+### Ciclo comercial real validado
+
+1. O botão **“Testar Webhook”** da Kiwify retornou HTTP 200 e foi ignorado com segurança.
+2. A compra real do produto **Doce Margem Essencial** retornou HTTP 200.
+3. O webhook `compra_aprovada` terminou como `processed`.
+4. A usuária foi criada.
+5. O convite foi entregue via Resend/Supabase SMTP.
+6. A compradora criou a senha.
+7. A licença Kiwify ficou `active`.
+8. `license_events` registrou `granted`.
+9. A usuária acessou `/conta`, `/ingredientes`, `/receitas`, `/precificacao` e `/configuracoes`.
+10. O reembolso real feito na Kiwify disparou o webhook.
+11. O webhook `compra_reembolsada` terminou como `processed`.
+12. A licença mudou para `refunded`.
+13. `license_events` registrou `refunded`.
+14. A usuária perdeu o acesso e foi redirecionada para `/acesso-bloqueado`.
+15. As licenças manuais de teste foram removidas.
+16. Os webhooks antigos `failed`/`ignored` foram removidos.
+17. O banco ficou, ao final, somente com os eventos `processed` de auditoria da compra e do reembolso reais.
+
+### Pendências conhecidas antes da venda aberta
+
+- O convite ainda pode cair em spam.
+- Perfis antigos de teste permanecem, mas sem licença ativa.
+- Chargeback não foi testado manualmente de ponta a ponta, embora use o mesmo mecanismo de revogação validado pelo reembolso.
+- A venda oficial do app ainda não foi aberta.
+- Antes de abrir a venda, revisar copy, checkout, domínio, suporte e política de reembolso.
+
 ---
 
 ## 1. Estado atual do produto
@@ -29,20 +62,15 @@ privilégio, em duas barreiras independentes.
 
 ### 1.2 O que está em produção
 
-**[não verificável daqui]** — e há um sinal de alerta:
+O ciclo crítico está comprovadamente em produção: o endpoint recebeu o teste do
+painel, a compra real e o reembolso real da Kiwify, respondendo HTTP 200 nos três
+casos. A compra criou usuária e licença, o convite permitiu definir senha e as
+rotas protegidas abriram; o reembolso revogou a licença e enviou a usuária para
+`/acesso-bloqueado`.
 
-- O código **está no GitHub** (`origin/main`, commit `c446993` traz o handler) e a
-  árvore local está limpa e sincronizada.
-- **Não há `.vercel/`, `vercel.json`, nem workflow de CI no repositório.** Isso
-  não prova ausência de deploy (a integração GitHub↔Vercel não deixa arquivo), mas
-  também não confirma nenhum.
-- **`NEXT_PUBLIC_APP_URL` continua `http://localhost:3000`** no ambiente local.
-
-👉 **Checagem de 30 segundos:** abra `https://SEU-DOMINIO/api/webhooks/kiwify` no
-navegador.
-- **405** → a rota existe naquele deploy. Ótimo.
-- **404** → o deploy não tem a rota, e é aí que a investigação da seção 3 começa.
-- **erro de DNS / não carrega** → não há deploy nesse domínio.
+A presença do deploy e a integração Kiwify → app → Supabase → Resend deixaram de
+ser inferência. Isso **não significa venda aberta**: a revisão comercial de copy,
+checkout, domínio, suporte e política de reembolso continua pendente.
 
 ### 1.3 O que roda local
 
@@ -59,17 +87,15 @@ navegador perde os dados**, e a rede de segurança é o backup manual em
 | Ação | Estado |
 |---|---|
 | Aplicar migrations 0001–0004 | ✅ feito |
-| Preencher `KIWIFY_WEBHOOK_SECRET` | ❌ **vazia no `.env.local`**; na Vercel, [não verificável daqui] |
+| Validar autenticação do webhook da Kiwify | ✅ compra e reembolso reais retornaram 200 e foram processados |
 | Definir o preço do Essencial | ❌ `/precos` mostra "Preço de lançamento em breve" |
-| Cadastrar a URL do webhook na Kiwify | ❌ em investigação (seção 3) |
-| Configurar SMTP próprio no Supabase | ❌ [não verificável daqui] — o SMTP padrão tem limite baixíssimo e **não serve para produção** |
-| Conceder licença quando alguém compra | ⚠️ **hoje só por SQL manual** |
+| Cadastrar a URL e os eventos do webhook na Kiwify | ✅ compra e reembolso reais chegaram ao app |
+| Configurar SMTP próprio no Supabase | ✅ Resend/Supabase SMTP entregou o convite; entregabilidade/spam ainda exige atenção |
+| Conceder e revogar licença automaticamente | ✅ validado com compra e reembolso reais |
+| Abrir a venda oficial | ❌ revisar copy, checkout, domínio, suporte e política de reembolso antes |
 
 ### 1.5 Não implementado
 
-- **Fase 4-7D — liberação automática de licença.** O webhook grava o evento e
-  **não faz mais nada**. Compra aprovada não vira acesso.
-- **Reembolso e chargeback** não revogam nada automaticamente.
 - **Fase 3 — modo avançado na interface.** O motor tem sub-receitas, medidas
   caseiras, fator de correção e perda desde a Fase 1B; **nenhum aparece na tela.**
 - **Fase 7 — admin.** Sem ela, todo problema de licença se resolve com SQL na mão.
@@ -87,11 +113,10 @@ verificar**, e por isso pesam mais do que o tamanho delas sugere:
    2-2. Tudo foi validado por SSR, HTTP e lógica isolada. Formulário, foco,
    teclado numérico no celular, mensagem de erro — nada disso foi visto
    funcionando.
-2. **O caminho autenticado nunca rodou ponta a ponta** (Fase 4-3B). A confirmação
-   de e-mail está ligada e não houve acesso à caixa de entrada. Ou seja: **login →
-   licença → tela liberada nunca foi observado**, só deduzido.
-3. **Duas contas de teste ficaram no Auth** (Fase 4-1C) e entram em qualquer
-   contagem de duplicidade de e-mail.
+2. ~~**O caminho autenticado nunca rodou ponta a ponta.**~~ ✅ Validado em
+   produção: convite → criação de senha → licença ativa → acesso às cinco rotas
+   protegidas → reembolso → bloqueio.
+3. **Perfis antigos de teste permanecem**, mas sem licença ativa.
 4. **Invariantes de licença no banco** (Fase 4-2B) nunca foram exercitadas contra
    escrita real.
 
@@ -103,16 +128,16 @@ verificar**, e por isso pesam mais do que o tamanho delas sugere:
 
 | # | Bloqueador | Por quê |
 |---|---|---|
-| C1 | ~~**Compra aprovada não libera licença**~~ | ✅ **Resolvido na Fase 4-7G** para quem **já tem conta**: perfil localizado por e-mail, licença `one_time` ativa, auditoria e webhook fechados. ⛔ **Quem ainda não tem conta continua sem liberação** — ver C9. |
+| C1 | ~~**Compra aprovada não libera licença**~~ | ✅ **Resolvido e validado em produção.** Compra real sem conta prévia criou usuária, entregou convite, ativou licença e liberou acesso. |
 | C2 | **Preço não definido** | `/precos` diz "Preço de lançamento em breve" e o CTA depende de `NEXT_PUBLIC_BUY_ESSENTIAL_URL`. Sem preço não há oferta. |
-| C3 | **Webhook não confirmado em produção** | ⚠️ Parcial: a rota responde e a Fase 4-7E implementou a verificação HMAC que o teste real exigia. **Falta uma compra real fechar o ciclo.** |
-| C4 | ~~**Payload real da Kiwify não capturado**~~ | ✅ **Resolvido na Fase 4-7F.** Capturado em produção: `webhook_event_type = "order_approved"`, `order_id`, `Product.*`, `Customer.*`. Extractores mapeados sobre fato. Falta só confirmar que a **compra real** usa o mesmo formato do teste. |
-| C5 | **`KIWIFY_WEBHOOK_SECRET` vazia** | Handler responde 500 e não grava nada. Falha fechada correta — e webhook morto. |
+| C3 | ~~**Webhook não confirmado em produção**~~ | ✅ **Resolvido.** Teste do painel, compra real e reembolso real retornaram 200; compra e reembolso ficaram `processed`. |
+| C4 | ~~**Payload real da Kiwify não capturado**~~ | ✅ **Resolvido e confirmado.** Compra e reembolso reais foram normalizados e processados em produção. |
+| C5 | ~~**Autenticação real do webhook não comprovada**~~ | ✅ **Resolvido.** Compra e reembolso reais da Kiwify foram autenticados e processados em produção. |
 | C6 | ~~**Reembolso e chargeback não revogam**~~ | ✅ **Resolvido na Fase 4-7H.** `order_refunded` → `refunded`, `order_chargeback` → `chargeback`, ambos auditados, e o acesso cai na requisição seguinte (verificado: `has_essential_access` vai para `false`). Aprovação posterior ao reembolso **não reativa**. |
-| C7 | **Compra antes do cadastro sem decisão** | `licenses.user_id → profiles.id → auth.users.id`. Não existe licença para e-mail sem conta — **nem com service role**. Quem comprar sem ter conta fica em limbo. |
-| C8 | **Fluxo compra → cadastro → acesso nunca testado** | Nem em produção, nem local. É o único fluxo que o cliente vai percorrer. |
+| C7 | ~~**Compra antes do cadastro sem decisão**~~ | ✅ **Resolvido pelo convite.** A compra real criou a usuária, entregou convite e permitiu criar senha antes do acesso. |
+| C8 | ~~**Fluxo compra → cadastro → acesso nunca testado**~~ | ✅ **Resolvido em produção.** Compra → convite → senha → acesso → reembolso → bloqueio foi observado de ponta a ponta. |
 | C9 | ~~**Confirmação de e-mail sem SMTP próprio**~~ | ✅ **Fechado.** Resend verificado, SMTP do Supabase configurado, convite entregue no Gmail, Redirect URL cadastrada e `NEXT_PUBLIC_APP_URL` correta. O app consome o token do fragment em `/auth/accept-invite`. Resta só entregabilidade (SPF/DKIM/DMARC) — o e-mail caiu em spam, o que custa vendas mas não bloqueia. |
-| C10 | **`NEXT_PUBLIC_APP_URL` apontando para localhost** | Se estiver assim na Vercel, o `emailRedirectTo` do cadastro manda o cliente para `localhost:3000` — link de confirmação quebrado para todo mundo. |
+| C10 | ~~**Redirect do convite não comprovado no domínio real**~~ | ✅ **Resolvido no fluxo real.** A compradora recebeu o convite, criou a senha e acessou o app. O domínio ainda deve passar por revisão comercial antes da venda aberta. |
 
 ### 🟡 Importantes — dá para lançar, mas dói rápido
 
@@ -236,8 +261,8 @@ não de segurança.
 > `hasQuerySignature=true signatureLooksLikeHex=true` — digest, não token.
 > A Fase 4-7E implementou a verificação HMAC do corpo cru (SHA-256, depois
 > SHA-1, em hex) e **removeu** a leitura de `signature` como token simples.
-> **Falta confirmar com compra real:** se ainda der 401, o `signatureFormat` no
-> log identifica o formato verdadeiro. Detalhes no `REVIEW.md` (Fase 4-7E).
+> **Confirmação posterior:** compra e reembolso reais retornaram 200 e foram
+> processados. Detalhes no `REVIEW.md` (validação final de 2026-08-08).
 
 O texto original fica abaixo como registro do raciocínio:
 
@@ -672,6 +697,15 @@ Considerando **~4 h úteis por dia**.
   devia.
 - **Pronto quando:** reembolso derrubar o acesso sem cache para expirar.
 
+### Validação final em produção — ciclo comercial real ✅
+
+- **Resultado:** compra e reembolso reais do Doce Margem Essencial processados com HTTP 200.
+- **Concessão:** `compra_aprovada` `processed`, usuária criada, convite entregue, senha criada, licença `active` e auditoria `granted`.
+- **Uso:** acesso confirmado em `/conta`, `/ingredientes`, `/receitas`, `/precificacao` e `/configuracoes`.
+- **Revogação:** `compra_reembolsada` `processed`, licença `refunded`, auditoria `refunded` e redirecionamento para `/acesso-bloqueado`.
+- **Higiene final:** licenças manuais e webhooks antigos `failed`/`ignored` removidos; ficaram somente os eventos `processed` da compra e do reembolso reais.
+- **Limite:** chargeback ainda não passou por teste manual ponta a ponta, embora compartilhe o mecanismo de revogação.
+
 ### Fase 4-8 — Teste ponta a ponta e navegador real
 
 - **Objetivo:** pagar a dívida que atravessa o projeto desde a Fase 2-2.
@@ -725,12 +759,12 @@ Considerando **~4 h úteis por dia**.
 ## 8. Checklist do dia do lançamento
 
 ### Vercel
-- [ ] ⛔ **`KIWIFY_ESSENTIAL_PRODUCT_ID` definida** — sem ela nenhuma compra libera licença (`product_config_missing`, falha fechada por decisão)
+- [x] **Identificação do produto configurada e validada com compra real** — manter `KIWIFY_ESSENTIAL_PRODUCT_ID` como opção principal
 - [ ] Deployment de **Production** aponta para o commit mais recente de `main`
 - [ ] `NEXT_PUBLIC_SUPABASE_URL` e `NEXT_PUBLIC_SUPABASE_ANON_KEY` preenchidas
 - [ ] `SUPABASE_SERVICE_ROLE_KEY` preenchida — **sem** prefixo `NEXT_PUBLIC_`
-- [ ] `KIWIFY_WEBHOOK_SECRET` preenchida com o token do painel da Kiwify
-- [ ] `NEXT_PUBLIC_APP_URL` = domínio real (**não** `localhost:3000`)
+- [x] `KIWIFY_WEBHOOK_SECRET` validada pelos webhooks reais processados
+- [x] `NEXT_PUBLIC_APP_URL` = domínio real, validada pelo fluxo de convite
 - [ ] `NEXT_PUBLIC_BUY_ESSENTIAL_URL` = `https://pay.kiwify.com.br/i5YqT17`
 - [ ] `NEXT_PUBLIC_SUPPORT_WHATSAPP` preenchida
 - [ ] **Redeploy feito depois** de mexer nas variáveis
@@ -743,44 +777,52 @@ Considerando **~4 h úteis por dia**.
 - [ ] RLS habilitada em `profiles`, `user_access_flags`, `licenses`,
       `license_events`, `webhook_events`
 - [ ] `anon` e `authenticated` **sem** `INSERT`/`UPDATE` em `licenses`
-- [ ] SMTP próprio configurado (o padrão não aguenta produção)
+- [x] SMTP próprio configurado (Resend/Supabase SMTP)
 - [ ] Redirect URLs do Auth incluem o domínio real + `/auth/callback`
-- [ ] Contas de teste apagadas
-- [ ] Linhas de teste apagadas: `delete from public.webhook_events where payload ->> '_teste_claude_4_7c' is not null;`
+- [ ] Perfis antigos de teste permanecem, mas sem licença ativa
+- [x] Webhooks antigos `failed`/`ignored` removidos
 - [ ] Nenhum perfil sem linha em `user_access_flags` (consulta 5.4 da 0004)
 
 ### Kiwify
 - [ ] Preço definido e publicado
-- [ ] Webhook cadastrado em `https://DOMINIO/api/webhooks/kiwify`
-- [ ] Eventos marcados: compra aprovada, reembolso, chargeback
-- [ ] Token do webhook igual ao da Vercel
-- [ ] Produto do webhook = produto do checkout
+- [x] Webhook cadastrado e recebendo eventos no endpoint de produção
+- [x] Eventos de compra aprovada e reembolso recebidos e processados
+- [ ] Chargeback manual ainda não testado ponta a ponta
+- [x] Autenticação entre o webhook da Kiwify e a Vercel validada
+- [x] Produto do webhook = produto do checkout, confirmado pela compra real do Doce Margem Essencial
 - [ ] E-mail de confirmação da Kiwify orienta a **usar o mesmo e-mail** no cadastro
 
 ### Domínio e Auth
 - [ ] Domínio apontando, HTTPS válido
 - [ ] `GET /api/webhooks/kiwify` devolve **405** (não 404)
 - [ ] Cadastro envia e-mail de confirmação que **chega**
-- [ ] Link de confirmação leva ao domínio real
-- [ ] Login funciona; logout funciona
+- [x] Link de convite leva ao domínio real e permite criar senha
+- [x] Login/acesso autenticado funciona; logout ainda precisa entrar na revisão pré-venda
 - [ ] `/precos` e `/acesso-bloqueado` abrem sem sessão
 - [ ] `/`, `/ingredientes`, `/receitas`, `/precificacao`, `/configuracoes`
       redirecionam para `/login` sem sessão
 
 ### Teste de compra (com dinheiro real)
-- [ ] Comprar com um e-mail que **não** tem conta
-- [ ] Webhook registrou o evento
-- [ ] Licença criada com `provider = 'kiwify'`
-- [ ] `license_events` tem `granted` com `source = 'webhook:kiwify'`
-- [ ] Cadastro/entrada com o e-mail da compra libera as telas
+- [x] Comprar com um e-mail que **não** tem conta
+- [x] Webhook `compra_aprovada` registrado como `processed`
+- [x] Licença criada com `provider = 'kiwify'` e status `active`
+- [x] `license_events` tem `granted`
+- [x] Convite, criação de senha e acesso às cinco rotas protegidas validados
 - [ ] Repetir com e-mail que **já** tem conta
 
 ### Teste de reembolso
-- [ ] Pedir reembolso da compra de teste
-- [ ] `licenses.status` vira `refunded`
-- [ ] `license_events` registra `refunded`
-- [ ] Acesso cai na requisição seguinte
-- [ ] `/acesso-bloqueado` explica direito
+- [x] Pedir reembolso da compra real
+- [x] Webhook `compra_reembolsada` registrado como `processed`
+- [x] `licenses.status` vira `refunded`
+- [x] `license_events` registra `refunded`
+- [x] Acesso cai e a usuária é redirecionada para `/acesso-bloqueado`
+- [ ] Chargeback manual ponta a ponta (mesmo mecanismo de revogação; ainda não exercitado com evento real)
+
+### Limpeza após o teste real
+- [x] Licenças manuais de teste removidas
+- [x] Webhooks antigos `failed`/`ignored` removidos
+- [x] Banco mantido somente com os eventos `processed` da compra e do reembolso reais
+- [ ] Perfis antigos de teste permanecem, sem licença ativa
 
 ### Suporte
 - [ ] Canal ativo e monitorado no dia
@@ -804,27 +846,28 @@ Considerando **~4 h úteis por dia**.
 | S1 | **Service role vazar no bundle** | 🟢 controlado | lida por um arquivo só, com `server-only`. **Nunca** dar prefixo `NEXT_PUBLIC_` |
 | S2 | **Cliente se conceder licença** | 🟢 fechado | zero policy de escrita **e** zero privilégio em `licenses` — duas barreiras |
 | S3 | **Cliente se desbloquear** | 🟢 fechado | `user_access_flags` separada, sem escrita para cliente |
-| S4 | **Webhook público aceitar payload forjado** | 🟢 fechado (a confirmar) | HMAC do corpo cru implementado na Fase 4-7E (SHA-256/SHA-1 hex), em tempo constante. Provado que assinatura válida de **outro** corpo é rejeitada. **Falta a compra real** |
+| S4 | **Webhook público aceitar payload forjado** | 🟢 fechado e confirmado | HMAC do corpo cru validado também pelo tráfego real: compra e reembolso da Kiwify foram autenticados e processados em produção |
 | S5 | **Token da Kiwify vazar** | 🟡 atenção | se viajar em query string, entra em log de proxy. Prefira header quando houver escolha; nunca logue a URL completa |
 | S6 | **Reembolso não revogar** | 🟢 fechado | Fase 4-7H. Reembolso e chargeback revogam e auditam; acesso cai na requisição seguinte. Revogação sem licença fica `failed` e retriável, para não deixar a aprovação atrasada liberar quem foi reembolsado |
 | S7 | **Licença indevida por replay** | 🟢 fechado | índice único parcial testado — replay devolve 200 sem duplicar |
 | S8 | **Idempotência sumir com `provider_event_id` nulo** | 🟢 fechado | Confirmado que a Kiwify não envia event_id. Fase 4-7F derivou a chave `evento:pedido`, testada: replay não duplica, e reembolso do mesmo pedido gera linha própria |
 | S9 | **Compra com e-mail diferente** | 🔴 **aberto** | sem automação possível; precisa de admin + processo de suporte |
-| S10 | **Comprador sem cadastro** | 🔴 **aberto** | bloqueio físico por FK. Decisão pendente: convite × fila |
+| S10 | **Comprador sem cadastro** | 🟢 fechado | compra real criou a usuária, entregou convite via Resend/Supabase SMTP e permitiu a criação de senha |
 | S11 | **Open redirect no login** | 🟢 fechado | não há `?next=`. Se for implementado, validar caminho interno |
 | S12 | **Open redirect no callback** | 🟢 fechado | `/auth/callback` já valida que `next` começa com `/` e não com `//` |
 | S13 | **Enumeração de e-mail** | 🟢 tratado | mensagem genérica no login; webhook não conta se o e-mail existe |
 | S14 | **Dado pessoal em `webhook_events.payload`** | 🟡 atenção | LGPD: `DELETE` permitido a papéis administrativos. Falta política escrita de retenção |
 | S19 | **Licença concedida sem registro de auditoria** | 🟢 fechado | A 4-7G ignorava o erro do `insert` em `license_events`. Corrigido: falha vira `failed` + 500, o reenvio cura, e a auditoria é idempotente por estado (consulta antes de inserir). Janela entre licença e auditoria continua existindo — mas nunca se fecha em silêncio |
 | S20 | **Venda de outro produto liberar o Doce Margem** | 🟢 fechado | Webhook cadastrado como "todos os produtos que sou produtor" faria qualquer venda sua liberar licença aqui. Fase 4-7I valida `Product.product_id` contra `KIWIFY_ESSENTIAL_PRODUCT_ID`; produto diferente vira `ignored`, env ausente falha fechada |
-| S21 | **Teste do painel da Kiwify liberar licença** | 🟢 fechado | O botão "Testar Webhook" manda `order_approved` completo. Detectado por sinais literais (`@example.com` é reservado pela RFC 2606, `"Example product"` exato) e ignorado sem criar conta, licença ou auditoria |
+| S21 | **Teste do painel da Kiwify liberar licença** | 🟢 fechado e confirmado | O botão "Testar Webhook" retornou 200 em produção e foi ignorado com segurança, sem conceder acesso |
 | S18 | **Conta com evento de licença não pode ser excluída** | 🔴 **aberto** | Descoberto na 4-7G e isolado com teste A/B/C: `license_events.user_id` usa `ON DELETE SET NULL`, que é um UPDATE, e o trigger `license_events_immutable` bloqueia UPDATE para todos. **Pedido de exclusão (LGPD) não tem caminho automático.** Correção exige migration |
 | S15 | **Perda de dados locais** | 🟡 produto | `localStorage` some com limpeza de navegador. Backup existe; **a comunicação precisa ser explícita** |
 | S16 | **Rollback de banco é manual** | 🟡 operacional | migrations sem `down`. Aplicar direto em produção sem staging é o padrão atual |
 | S17 | **`service_role` sem grant em tabela nova** | 🟡 recorrente | por decisão, não há `alter default privileges`. **Toda tabela nova precisa do grant explícito** |
 
-**Os quatro vermelhos (S6, S8, S9, S10) são exatamente o escopo das Fases 4-7E a
-4-7G.** Não são surpresas — são o trabalho que falta.
+O ciclo automático de compra e reembolso está fechado. Permanecem riscos
+operacionais/comerciais, em especial compra com e-mail divergente, exclusão de
+perfis com histórico, entregabilidade do convite e a revisão pré-venda.
 
 ---
 
@@ -832,10 +875,10 @@ Considerando **~4 h úteis por dia**.
 
 - **`TASKS.md`** — ponteiro para este documento no cabeçalho.
 - **`REVIEW.md`** — seção de auditoria pré-lançamento apontando para cá.
-- **`DECISIONS.md`** — **não alterado.** Nenhuma decisão nova foi tomada aqui;
-  este documento é diagnóstico e recomendação. A regra de crédito de upgrade
-  (5.1) vira entrada no `DECISIONS.md` **quando você aprovar** — com os três
-  limites escritos, não antes.
+- **`DECISIONS.md`** — atualizado apenas com a validação posterior das decisões
+  já tomadas sobre filtro do webhook, concessão e revogação. Nenhuma regra nova
+  de produto foi criada. A regra de crédito de upgrade (5.1) continua pendente
+  de aprovação.
 - **`PLAN-FASE-4.md`** — não alterado; o capítulo 13 continua válido e a seção 7
   daqui é a continuação dele.
 - **`README.md`** — não alterado. A tabela de planos continua batendo com

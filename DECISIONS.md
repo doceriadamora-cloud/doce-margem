@@ -1208,3 +1208,29 @@ A régua se mostrou estreita o suficiente para incomodar do jeito certo: **os fi
 **Bloqueia a primeira venda até uma ação manual:** `KIWIFY_ESSENTIAL_PRODUCT_ID` precisa estar na Vercel. Sem ela, toda compra real vira `product_config_missing` e não libera. É o comportamento desejado, mas é uma armadilha se ninguém souber — daí o destaque no `.env.example`, no `TASKS.md` e no checklist de lançamento.
 
 `KIWIFY_ESSENTIAL_PRODUCT_NAME` é frágil por natureza: renomear a oferta no painel sem atualizar a env quebra a liberação silenciosamente. Serve como reserva, nunca como escolha principal.
+
+### Validação real posterior — 2026-08-08
+
+Esta validação não cria uma regra nova; registra que as decisões desta seção e da
+decisão **“Dinheiro devolvido não volta a virar acesso sozinho”** funcionaram no
+ciclo comercial real em produção:
+
+- O botão **“Testar Webhook”** retornou 200 e foi ignorado com segurança.
+- Uma compra real do Doce Margem Essencial retornou 200; `compra_aprovada` ficou
+  `processed`, a usuária foi criada, o convite chegou via Resend/Supabase SMTP e
+  a compradora criou a senha.
+- A licença Kiwify ficou `active`, `license_events` registrou `granted` e a
+  usuária acessou `/conta`, `/ingredientes`, `/receitas`, `/precificacao` e
+  `/configuracoes`.
+- O reembolso real disparou o webhook; `compra_reembolsada` ficou `processed`, a
+  licença mudou para `refunded`, `license_events` registrou `refunded` e a
+  usuária perdeu o acesso, sendo redirecionada para `/acesso-bloqueado`.
+- As licenças manuais e os webhooks antigos `failed`/`ignored` foram removidos. O
+  estado final do banco manteve somente os eventos `processed` de auditoria da
+  compra e do reembolso reais.
+
+Limites que permanecem: o convite pode cair em spam; perfis antigos de teste
+existem sem licença ativa; chargeback não foi exercitado manualmente de ponta a
+ponta, embora use o mesmo mecanismo de revogação; a venda oficial ainda não foi
+aberta; e copy, checkout, domínio, suporte e política de reembolso precisam ser
+revistos antes da abertura.
