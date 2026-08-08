@@ -1601,6 +1601,57 @@ O que a correção garante não é ausência de janela — é que **ela nunca se
 #### Dados de teste criados nesta rodada
 Uma conta `@example.com`, 2 licenças `kiwify`, 2 `license_events` e ~8 `webhook_events`. Mesma limitação de sempre: `service_role` não tem DELETE nessas tabelas. SQL de limpeza na seção da Fase 4-7G.
 
+### Fase 4-7H — Reembolso e chargeback revogam licença
+- **Status:** ✅ Implementado e validado. **65/65 isolados + 24/24 ponta a ponta.**
+- **Escopo:** `lib/webhooks/kiwify-processor.ts` e o log do Route Handler. Nada mais.
+
+#### O ciclo comercial fecha aqui
+| Evento | `licenses.status` | `license_events` | Acesso |
+|---|---|---|---|
+| `order_approved` | `active` | `granted` | liberado |
+| `order_refunded` | `refunded` | `refunded` | **cai** |
+| `order_chargeback` | `chargeback` | `chargeback` | **cai** |
+
+A revogação é só um `UPDATE` de status. Não precisa de mais nada porque as funções SQL filtram `status = 'active'` a cada chamada e o DAL não persiste acesso: **o efeito é imediato na requisição seguinte, sem cache para invalidar.** É o retorno concreto da decisão de 2026-08-05 de nunca persistir acesso calculado — o desenho feito lá é o que torna esta fase quase trivial.
+
+Verificado de ponta a ponta: `has_essential_access` vai para `false` após reembolso e após chargeback.
+
+#### Três decisões que não eram óbvias
+
+**1. Revogação sem licença vira `failed`, não `processed`.**
+A escolha confortável seria "não há o que revogar, marca processado e segue". Ela tem um buraco: um reembolso sem licença correspondente costuma significar que **a aprovação ainda não foi processada** — webhook fora de ordem, ou uma concessão que falhou e ficou pendente. Dar o reembolso por concluído nesse estado faz a aprovação chegar depois, criar a licença, e **quem foi reembolsado ficar com acesso**.
+
+Como `failed` é reprocessável e a resposta é 500, a Kiwify reenvia e a revogação acontece assim que a licença existir. Se nunca existir, a linha fica visível — que é o certo.
+
+**2. Aprovação depois de reembolso/chargeback não reativa.**
+A 4-7G reativava qualquer licença não-`active` ao receber uma aprovação. Isso agora está bloqueado para `refunded` e `chargeback`: **o dinheiro já voltou para a compradora**, e reconceder acesso a partir de um webhook, sem ninguém olhar, é devolver o produto depois de devolver o pagamento. O caso vira `failed` com `reativacao_bloqueada:<status>` para decisão humana.
+
+`cancelled` e `expired` continuam reativáveis — não envolvem devolução.
+
+**3. Reembolso depois de chargeback não sobrescreve o chargeback.**
+Para o acesso dá no mesmo (qualquer um derruba), mas o chargeback é o fato mais grave e o registro deve preservá-lo.
+
+#### Auditoria
+`ensureAudited` foi generalizado da 4-7G e serve os três eventos. Continua consultando antes de inserir — idempotência por estado, não por caminho — e continua **obrigatória**: falha vira `failed` + 500, nunca `processed` sem registro.
+
+Uma licença revogada acumula `granted` + `refunded` (ou `chargeback`), que é exatamente a linha do tempo que uma disputa exige.
+
+#### Testes
+**65/65 isolados** com o Supabase falso de falhas programáveis (12 casos novos), incluindo: revogação sem licença; replay não duplicando auditoria; reprocessamento com auditoria existente; falha da auditoria da revogação; aprovação pós-reembolso e pós-chargeback bloqueadas; reembolso não sobrescrevendo chargeback; evento ignorado sem tocar em licença.
+
+**24/24 ponta a ponta** contra o Supabase real — o stub não valida as consultas do PostgREST. Confirmado no banco: status corretos, auditoria com os dois eventos, `webhook_events` fechado com `user_id`/`license_id`, e **`has_essential_access` indo para `false` nas duas revogações**.
+
+Duas asserções antigas (9 e 10) falharam na primeira rodada porque afirmavam o comportamento anterior — `recorded` para revogação sem licença. Foram corrigidas para a regra nova; o código estava certo.
+
+`typecheck` → 0; `lint` → 0; `build` → 0, 14 rotas.
+
+#### Riscos restantes
+- **Compra real de ponta a ponta continua sem teste** — agora incluindo o reembolso. É a última validação antes de abrir venda.
+- **`cancelled` e `expired` não são tratados.** A Kiwify pode enviá-los; hoje caem em `ignored` e não revogam. Para compra única vitalícia isso raramente importa, mas vira relevante no Pro anual.
+- **Assinatura recorrente não tem renovação.** Fora de escopo até o Pro existir.
+- **Exclusão de conta continua impossível** para quem tem `license_events` (bug do trigger da 0002). Impacto LGPD, e agora atinge mais contas, já que toda compra gera evento.
+- **Dados de teste acumulados** no Supabase: contas `@example.com` que não saem por causa do mesmo bug, mais licenças e `webhook_events` sem DELETE para `service_role`.
+
 ## Checklist técnico
 - [x] O projeto está em C:\dev\doce-margem
 - [x] Não há dependência de OneDrive

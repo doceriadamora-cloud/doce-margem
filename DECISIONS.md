@@ -1136,3 +1136,38 @@ ruim quanto e-mail não entregue.
 ⚠️ **A compra real de ponta a ponta continua sem teste.** Comprar, receber,
 criar senha e entrar é o único percurso que fecha o ciclo, e nenhuma validação
 sintética substitui.
+
+---
+
+## 2026-08-07 — Dinheiro devolvido não volta a virar acesso sozinho
+
+### Decisão
+Reembolso e chargeback revogam a licença (`refunded` / `chargeback`), com auditoria obrigatória. Junto, três regras que não decorrem obviamente disso:
+
+1. **Revogação sem licença correspondente vira `failed`, não `processed`** — e é retriável.
+2. **Uma `compra_aprovada` que chegue depois de `refunded` ou `chargeback` NÃO reativa a licença.** O caso vira `failed` com `reativacao_bloqueada:<status>`, para decisão humana. `cancelled` e `expired` continuam reativáveis.
+3. **Reembolso após chargeback não sobrescreve o chargeback.**
+
+### Contexto
+Fase 4-7H, na branch `feature/4-7g-license-grant`. A 4-7G já concedia licença; reembolso e chargeback eram registrados e não faziam nada. Quem pedisse reembolso recebia o dinheiro e mantinha acesso vitalício.
+
+### Motivo
+
+**Por que revogação sem licença não pode ser "processed".** É a decisão menos óbvia da fase. O caminho confortável seria: não há o que revogar, marca concluído, segue. O buraco: um reembolso sem licença correspondente costuma significar que **a aprovação ainda não foi processada** — webhook fora de ordem, ou uma concessão que falhou e ficou pendente em `failed`. Dar o reembolso por encerrado nesse estado faz a aprovação chegar depois, criar a licença, e **quem foi reembolsado ficar com acesso vitalício**. Um erro silencioso que só aparece na conta bancária.
+
+Como `failed` é reprocessável (regra criada na correção de auditoria) e a resposta é 500, a Kiwify reenvia e a revogação acontece assim que a licença existir. Se nunca existir, a linha fica visível para alguém olhar — o que é correto, porque de fato não havia nada a revogar.
+
+**Por que aprovação não reativa licença com dinheiro devolvido.** A 4-7G reativava qualquer licença não-`active` ao receber aprovação, sob a premissa de que "aprovação nova significa pagamento válido de novo". Com revogação implementada, essa premissa fica perigosa: `refunded` e `chargeback` significam que **o dinheiro já voltou para a compradora**. Reconceder acesso a partir de um webhook, sem ninguém olhar, é devolver o produto depois de devolver o pagamento. Também fecha o cenário de entrega fora de ordem — reembolso processado antes da aprovação — que de outro modo terminaria com a licença ativa.
+
+`cancelled` e `expired` seguem reativáveis porque não envolvem devolução: ali uma aprovação nova é uma retomada legítima.
+
+**Por que reembolso não sobrescreve chargeback.** Para o acesso dá no mesmo — qualquer um dos dois derruba. Mas chargeback é o fato mais grave e o registro precisa preservá-lo: é o que sustenta uma disputa com a operadora.
+
+### Impacto
+Técnico: a revogação é só um `UPDATE` de `status`. Não precisa de mais nada porque as funções SQL filtram `status = 'active'` a cada chamada e o DAL não persiste acesso — **o efeito é imediato na requisição seguinte, sem cache para invalidar**. É o retorno concreto da decisão de 2026-08-05 de nunca persistir acesso calculado: o desenho feito lá é o que torna esta fase quase trivial.
+
+Auditoria: uma licença revogada acumula `granted` + `refunded` (ou `chargeback`) — exatamente a linha do tempo que uma disputa exige. `ensureAudited` serve os três eventos e continua consultando antes de inserir, então reprocessamento não duplica nem omite.
+
+Comercial: **o ciclo fecha.** Compra libera, devolução revoga, tudo registrado. O que falta antes de abrir venda é o percurso real — comprar, receber, criar senha, acessar, reembolsar, confirmar a perda de acesso.
+
+⚠️ **`cancelled` e `expired` não são tratados.** A Kiwify pode enviá-los; hoje caem em `ignored` e não revogam. Para compra única vitalícia raramente importa; vira relevante quando existir o Pro anual.

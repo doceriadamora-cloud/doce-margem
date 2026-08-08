@@ -35,6 +35,8 @@ export type ProcessOutcome =
   | { kind: "duplicate" }
   /** Licença Essencial concedida (ou reaproveitada) **e auditada**. */
   | { kind: "granted"; userCreated: boolean; licenseCreated: boolean; auditCreated: boolean }
+  /** Licença revogada por reembolso ou chargeback, **e auditada**. */
+  | { kind: "revoked"; reason: RevocableEvent; alreadyRevoked: boolean; auditCreated: boolean }
   /** Payload aceito mas inutilizável. Registrado como `failed`; reenviar não conserta. */
   | { kind: "rejected"; reason: string }
   /** Falha de infraestrutura. Reenviar **é** a recuperação. */
@@ -48,7 +50,31 @@ interface WebhookRow {
 interface LicenseRow {
   id: string;
   status: string;
+  user_id: string;
 }
+
+/** Eventos que tiram acesso. */
+export type RevocableEvent = "compra_reembolsada" | "chargeback";
+
+/**
+ * Tradução do evento da Kiwify para os valores dos CHECK das migrations.
+ *
+ * `licenses.status` aceita `refunded` e `chargeback`; `license_events.event_type`
+ * aceita os mesmos nomes. Não inventar valor aqui — o CHECK rejeita, e a
+ * rejeição chegaria como falha genérica de gravação.
+ */
+const REVOCATION: Record<RevocableEvent, { licenseStatus: string; auditEvent: string }> = {
+  compra_reembolsada: { licenseStatus: "refunded", auditEvent: "refunded" },
+  chargeback: { licenseStatus: "chargeback", auditEvent: "chargeback" },
+};
+
+/**
+ * Estados em que o dinheiro já voltou para a compradora.
+ *
+ * Uma licença nesses estados **não é reativada automaticamente** por uma compra
+ * aprovada que chegue depois — ver `grantEssentialLicense`.
+ */
+const MONEY_RETURNED_STATUSES = new Set(["refunded", "chargeback"]);
 
 /** Erro do PostgREST na forma mínima que interessa aqui. */
 interface PostgrestErrorish {
@@ -184,6 +210,14 @@ interface LicenseResolution {
  *
  * `expires_at` fica `NULL` obrigatoriamente: o CHECK
  * `licenses_one_time_is_lifetime` rejeita compra única com validade.
+ *
+ * ⚠️ **Licença reembolsada ou com chargeback NÃO é reativada automaticamente**
+ * (mudança da Fase 4-7H). Antes, qualquer status diferente de `active` voltava a
+ * `active`. O dinheiro dessas duas já voltou para a compradora: reconceder
+ * acesso a partir de um webhook, sem ninguém olhar, é devolver o produto depois
+ * de devolver o pagamento. Também fecha uma entrega fora de ordem —
+ * reembolso chegando antes da aprovação — que de outro modo terminaria com a
+ * licença ativa. Casos assim viram `failed`, para alguém decidir.
  */
 async function grantEssentialLicense(
   supabase: SupabaseClient,
@@ -192,7 +226,7 @@ async function grantEssentialLicense(
 ): Promise<LicenseResolution> {
   const existing = await supabase
     .from("licenses")
-    .select("id, status")
+    .select("id, status, user_id")
     .eq("provider", "kiwify")
     .eq("provider_order_id", providerOrderId)
     .limit(1)
@@ -204,8 +238,11 @@ async function grantEssentialLicense(
 
   const found = existing.data as LicenseRow | null;
   if (found !== null) {
-    // Já existe. Reativa só se estiver revogada — uma aprovação nova para o
-    // mesmo pedido significa que o pagamento voltou a valer.
+    if (MONEY_RETURNED_STATUSES.has(found.status)) {
+      return { licenseId: null, created: false, error: `reativacao_bloqueada:${found.status}` };
+    }
+    // `cancelled` / `expired` não envolvem devolução de dinheiro: uma aprovação
+    // nova para o mesmo pedido significa que o pagamento voltou a valer.
     if (found.status !== "active") {
       const { error } = await supabase
         .from("licenses")
@@ -236,7 +273,7 @@ async function grantEssentialLicense(
     if (inserted.error.code === UNIQUE_VIOLATION) {
       const again = await supabase
         .from("licenses")
-        .select("id, status")
+        .select("id, status, user_id")
         .eq("provider", "kiwify")
         .eq("provider_order_id", providerOrderId)
         .limit(1)
@@ -259,25 +296,26 @@ interface AuditResolution {
 }
 
 /**
- * Garante que existe um evento `granted` para esta licença.
+ * Garante que existe um evento do tipo pedido para esta licença.
  *
  * **Por que consultar antes de inserir, em vez de inserir só quando a licença
- * nasce.** A condição óbvia seria `if (license.created)`. Ela funciona na
- * primeira entrega e falha exatamente quando mais importa: se a auditoria
- * quebrar e a Kiwify reenviar, na segunda passagem a licença **já existe**,
- * `created` é `false`, o insert seria pulado — e o webhook fecharia como
- * `processed` sem registro nenhum. O reprocessamento restauraria em silêncio o
- * defeito que ele deveria consertar.
+ * muda.** A condição óbvia seria `if (license.created)` — ou, na revogação,
+ * `if (status mudou)`. Funciona na primeira entrega e falha exatamente quando
+ * mais importa: se a auditoria quebrar e a Kiwify reenviar, na segunda passagem
+ * a licença **já está no estado final**, o insert seria pulado, e o webhook
+ * fecharia como `processed` sem registro nenhum. O reprocessamento restauraria
+ * em silêncio o defeito que ele deveria consertar.
  *
- * Consultar por `granted` desta licença torna a auditoria idempotente por
- * estado, não por sorte de caminho.
+ * Consultar por evento desta licença torna a auditoria idempotente por estado,
+ * não por sorte de caminho.
  *
  * `license_events` não tem unicidade, então duas entregas simultâneas poderiam
- * inserir dois `granted`. É aceito: auditoria duplicada se explica lendo os
- * carimbos de tempo; auditoria ausente não se explica de jeito nenhum.
+ * inserir dois registros iguais. É aceito: auditoria duplicada se explica lendo
+ * os carimbos de tempo; auditoria ausente não se explica de jeito nenhum.
  */
-async function ensureGrantAudited(
+async function ensureAudited(
   supabase: SupabaseClient,
+  eventType: "granted" | "refunded" | "chargeback",
   params: {
     licenseId: string;
     userId: string;
@@ -291,7 +329,7 @@ async function ensureGrantAudited(
     .from("license_events")
     .select("id")
     .eq("license_id", params.licenseId)
-    .eq("event_type", "granted")
+    .eq("event_type", eventType)
     .limit(1)
     .maybeSingle();
 
@@ -308,7 +346,7 @@ async function ensureGrantAudited(
   const { error } = await supabase.from("license_events").insert({
     license_id: params.licenseId,
     user_id: params.userId,
-    event_type: "granted",
+    event_type: eventType,
     source: "webhook:kiwify",
     payload: {
       webhook_event_id: params.webhookEventId,
@@ -322,6 +360,62 @@ async function ensureGrantAudited(
     return { ok: false, inserted: false, error: `audit_insert:${error.code ?? "?"}` };
   }
   return { ok: true, inserted: true, error: null };
+}
+
+/* ─────────────────────── Revogação ─────────────────────── */
+
+interface RevocationResolution {
+  license: LicenseRow | null;
+  changed: boolean;
+  error: string | null;
+}
+
+/**
+ * Marca a licença do pedido como revogada — Fase 4-7H.
+ *
+ * A revogação é só um `UPDATE` de `status`. Não precisa de mais nada porque as
+ * funções de acesso filtram `status = 'active'` a cada chamada e o DAL não
+ * persiste acesso: **o efeito é imediato na requisição seguinte, sem cache para
+ * invalidar.** Foi para isso que a decisão de 2026-08-05 existiu.
+ *
+ * Se a licença já estiver num estado de dinheiro devolvido, o status **não é
+ * sobrescrito** — um `refunded` que chega depois de um `chargeback` não deve
+ * apagar o registro do chargeback, que é o fato mais grave. Para o acesso dá no
+ * mesmo: qualquer um dos dois já derruba.
+ */
+async function revokeEssentialLicense(
+  supabase: SupabaseClient,
+  event: RevocableEvent,
+  providerOrderId: string,
+): Promise<RevocationResolution> {
+  const existing = await supabase
+    .from("licenses")
+    .select("id, status, user_id")
+    .eq("provider", "kiwify")
+    .eq("provider_order_id", providerOrderId)
+    .limit(1)
+    .maybeSingle();
+
+  if (existing.error !== null) {
+    return { license: null, changed: false, error: `license_lookup:${existing.error.code}` };
+  }
+
+  const license = existing.data as LicenseRow | null;
+  if (license === null) {
+    return { license: null, changed: false, error: "licenca_nao_encontrada" };
+  }
+
+  if (MONEY_RETURNED_STATUSES.has(license.status)) {
+    return { license, changed: false, error: null };
+  }
+
+  const target = REVOCATION[event].licenseStatus;
+  const { error } = await supabase.from("licenses").update({ status: target }).eq("id", license.id);
+  if (error !== null) {
+    return { license, changed: false, error: `license_revoke:${error.code}` };
+  }
+
+  return { license: { ...license, status: target }, changed: true, error: null };
 }
 
 /* ─────────────────────── Encerramento da linha de webhook ─────────────────────── */
@@ -352,6 +446,87 @@ async function closeWebhookRow(
 }
 
 /* ─────────────────────── Orquestração ─────────────────────── */
+
+/**
+ * Revoga a licença do pedido, audita e fecha a linha de webhook — Fase 4-7H.
+ *
+ * **Licença não encontrada vira `failed`, não `processed`.** É a decisão menos
+ * óbvia deste arquivo, então vale o porquê: um reembolso sem licença
+ * correspondente costuma significar que a aprovação ainda não foi processada —
+ * webhook fora de ordem, ou uma concessão que falhou e ficou pendente. Dar o
+ * reembolso por concluído nesse estado é o pior desfecho possível: a aprovação
+ * chega depois, cria a licença, e **quem foi reembolsado fica com acesso**.
+ *
+ * Como `failed` é reprocessável e a resposta é 500, a Kiwify reenvia e a
+ * revogação acontece assim que a licença existir. Se nunca existir, a linha fica
+ * visível para alguém olhar — que é o certo, já que não há nada a revogar.
+ */
+async function revokeAndClose(
+  supabase: SupabaseClient,
+  event: RevocableEvent,
+  ctx: { webhookRow: WebhookRow; extraction: KiwifyExtraction },
+): Promise<ProcessOutcome> {
+  const { webhookRow, extraction } = ctx;
+
+  if (extraction.providerOrderId === null) {
+    await closeWebhookRow(supabase, webhookRow.id, {
+      status: "failed",
+      errorMessage: "sem_order_id",
+    });
+    return { kind: "rejected", reason: "sem_order_id" };
+  }
+
+  const revocation = await revokeEssentialLicense(supabase, event, extraction.providerOrderId);
+  if (revocation.license === null) {
+    await closeWebhookRow(supabase, webhookRow.id, {
+      status: "failed",
+      errorMessage: revocation.error ?? "revogacao_falhou",
+    });
+    return { kind: "storage_error", code: revocation.error ?? "revogacao_falhou" };
+  }
+  if (revocation.error !== null) {
+    await closeWebhookRow(supabase, webhookRow.id, {
+      status: "failed",
+      userId: revocation.license.user_id,
+      licenseId: revocation.license.id,
+      errorMessage: revocation.error,
+    });
+    return { kind: "storage_error", code: revocation.error };
+  }
+
+  // Mesma regra da concessão: auditoria antes de dar por concluído.
+  const audit = await ensureAudited(supabase, REVOCATION[event].auditEvent as "refunded" | "chargeback", {
+    licenseId: revocation.license.id,
+    userId: revocation.license.user_id,
+    webhookEventId: webhookRow.id,
+    providerEventId: extraction.providerEventId,
+    providerOrderId: extraction.providerOrderId,
+    productId: extraction.productId,
+  });
+
+  if (!audit.ok) {
+    await closeWebhookRow(supabase, webhookRow.id, {
+      status: "failed",
+      userId: revocation.license.user_id,
+      licenseId: revocation.license.id,
+      errorMessage: audit.error ?? "auditoria_falhou",
+    });
+    return { kind: "storage_error", code: audit.error ?? "auditoria_falhou" };
+  }
+
+  await closeWebhookRow(supabase, webhookRow.id, {
+    status: "processed",
+    userId: revocation.license.user_id,
+    licenseId: revocation.license.id,
+  });
+
+  return {
+    kind: "revoked",
+    reason: event,
+    alreadyRevoked: !revocation.changed,
+    auditCreated: audit.inserted,
+  };
+}
 
 /**
  * Grava o webhook e, se for compra aprovada, concede a licença Essencial.
@@ -416,7 +591,12 @@ export async function processKiwifyWebhook(params: {
     return { kind: "storage_error", code: "sem linha" };
   }
 
-  // Só compra aprovada concede licença nesta fase.
+  // Reembolso e chargeback tiram acesso (Fase 4-7H).
+  if (extraction.eventType === "compra_reembolsada" || extraction.eventType === "chargeback") {
+    return revokeAndClose(supabase, extraction.eventType, { webhookRow, extraction });
+  }
+
+  // Qualquer outro evento fica só registrado.
   if (extraction.eventType !== "compra_aprovada") {
     return { kind: "recorded" };
   }
@@ -457,7 +637,7 @@ export async function processKiwifyWebhook(params: {
   // auditada" existe. O que **não** pode existir é essa janela se fechar em
   // silêncio: se a auditoria falhar, a linha vira `failed` com o código do erro
   // e a resposta é 500, para a Kiwify reenviar e o reprocessamento concluir.
-  const audit = await ensureGrantAudited(supabase, {
+  const audit = await ensureAudited(supabase, "granted", {
     licenseId: license.licenseId,
     userId: buyer.userId,
     webhookEventId: webhookRow.id,

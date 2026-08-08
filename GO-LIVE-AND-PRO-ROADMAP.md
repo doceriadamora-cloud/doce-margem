@@ -108,7 +108,7 @@ verificar**, e por isso pesam mais do que o tamanho delas sugere:
 | C3 | **Webhook não confirmado em produção** | ⚠️ Parcial: a rota responde e a Fase 4-7E implementou a verificação HMAC que o teste real exigia. **Falta uma compra real fechar o ciclo.** |
 | C4 | ~~**Payload real da Kiwify não capturado**~~ | ✅ **Resolvido na Fase 4-7F.** Capturado em produção: `webhook_event_type = "order_approved"`, `order_id`, `Product.*`, `Customer.*`. Extractores mapeados sobre fato. Falta só confirmar que a **compra real** usa o mesmo formato do teste. |
 | C5 | **`KIWIFY_WEBHOOK_SECRET` vazia** | Handler responde 500 e não grava nada. Falha fechada correta — e webhook morto. |
-| C6 | **Reembolso e chargeback não revogam** | Cliente pede reembolso, recebe o dinheiro **e mantém acesso vitalício**. Prejuízo direto e problema com a Kiwify. |
+| C6 | ~~**Reembolso e chargeback não revogam**~~ | ✅ **Resolvido na Fase 4-7H.** `order_refunded` → `refunded`, `order_chargeback` → `chargeback`, ambos auditados, e o acesso cai na requisição seguinte (verificado: `has_essential_access` vai para `false`). Aprovação posterior ao reembolso **não reativa**. |
 | C7 | **Compra antes do cadastro sem decisão** | `licenses.user_id → profiles.id → auth.users.id`. Não existe licença para e-mail sem conta — **nem com service role**. Quem comprar sem ter conta fica em limbo. |
 | C8 | **Fluxo compra → cadastro → acesso nunca testado** | Nem em produção, nem local. É o único fluxo que o cliente vai percorrer. |
 | C9 | ~~**Confirmação de e-mail sem SMTP próprio**~~ | ✅ **Fechado.** Resend verificado, SMTP do Supabase configurado, convite entregue no Gmail, Redirect URL cadastrada e `NEXT_PUBLIC_APP_URL` correta. O app consome o token do fragment em `/auth/accept-invite`. Resta só entregabilidade (SPF/DKIM/DMARC) — o e-mail caiu em spam, o que custa vendas mas não bloqueia. |
@@ -805,7 +805,7 @@ Considerando **~4 h úteis por dia**.
 | S3 | **Cliente se desbloquear** | 🟢 fechado | `user_access_flags` separada, sem escrita para cliente |
 | S4 | **Webhook público aceitar payload forjado** | 🟢 fechado (a confirmar) | HMAC do corpo cru implementado na Fase 4-7E (SHA-256/SHA-1 hex), em tempo constante. Provado que assinatura válida de **outro** corpo é rejeitada. **Falta a compra real** |
 | S5 | **Token da Kiwify vazar** | 🟡 atenção | se viajar em query string, entra em log de proxy. Prefira header quando houver escolha; nunca logue a URL completa |
-| S6 | **Reembolso não revogar** | 🔴 **aberto** | Fase 4-7G. Hoje reembolso mantém acesso vitalício |
+| S6 | **Reembolso não revogar** | 🟢 fechado | Fase 4-7H. Reembolso e chargeback revogam e auditam; acesso cai na requisição seguinte. Revogação sem licença fica `failed` e retriável, para não deixar a aprovação atrasada liberar quem foi reembolsado |
 | S7 | **Licença indevida por replay** | 🟢 fechado | índice único parcial testado — replay devolve 200 sem duplicar |
 | S8 | **Idempotência sumir com `provider_event_id` nulo** | 🟢 fechado | Confirmado que a Kiwify não envia event_id. Fase 4-7F derivou a chave `evento:pedido`, testada: replay não duplica, e reembolso do mesmo pedido gera linha própria |
 | S9 | **Compra com e-mail diferente** | 🔴 **aberto** | sem automação possível; precisa de admin + processo de suporte |

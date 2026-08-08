@@ -270,12 +270,17 @@ export async function POST(request: Request): Promise<Response> {
         ? ` userCreated=${outcome.userCreated} licenseCreated=${outcome.licenseCreated}` +
           ` auditCreated=${outcome.auditCreated}`
         : "") +
+      (outcome.kind === "revoked"
+        ? ` motivo=${outcome.reason} jaRevogada=${outcome.alreadyRevoked}` +
+          ` auditCreated=${outcome.auditCreated}`
+        : "") +
       (outcome.kind === "rejected" ? ` reason=${outcome.reason}` : "") +
       (outcome.kind === "storage_error" ? ` code=${outcome.code}` : ""),
   );
 
   switch (outcome.kind) {
     case "granted":
+    case "revoked":
     case "recorded":
       return json({ received: true }, 200);
 

@@ -4,8 +4,8 @@
 > Marcar `[x]` ao concluir. Adicionar novas tarefas quando surgirem.
 > Antes de iniciar uma nova fase: parar, resumir o que foi feito e aguardar aprovação.
 
-**Fase atual:** Fase 4-7G revisada e fechada na branch `feature/4-7g-license-grant`. Configuração externa (Resend, SMTP, Redirect URL, envs) validada. Reembolso e chargeback ainda não revogam.
-**Próximo passo recomendado:** **compra real de valor mínimo em produção**, de ponta a ponta → depois Fase 4-7H (revogação). A branch está pronta para merge controlado; os achados 🟡 da revisão não bloqueiam o teste.
+**Fase atual:** Fase 4-7H concluída na branch `feature/4-7g-license-grant`. **O ciclo comercial fecha:** compra libera, reembolso e chargeback revogam, tudo auditado.
+**Próximo passo recomendado:** **compra real de valor mínimo em produção**, de ponta a ponta, incluindo um reembolso de teste. É a última validação que falta antes de abrir venda.
 
 > 📋 **Auditoria pré-lançamento (2026-08-07): `GO-LIVE-AND-PRO-ROADMAP.md`** —
 > estado do produto, 10 bloqueadores críticos, diagnóstico do webhook, fronteira
@@ -571,7 +571,23 @@
 - [ ] 🟡 **Achado da revisão:** quem abre o convite e fecha antes de definir a senha fica com sessão válida **sem senha** — navega normalmente, mas não consegue voltar depois. Precisa de novo convite ou de tela de recuperação de senha
 - [ ] 🟡 **Achado da revisão:** `InviteHashRescue` reencaminha qualquer hash com token, inclusive de recuperação de senha. Benigno hoje (o destino também define senha), mas revisar quando existir fluxo de recuperação
 
-### Fase 4-7H — Reembolso e chargeback (pendente)
+### Fase 4-7H — Reembolso e chargeback revogam licença ✅
+- [x] `compra_reembolsada` → `licenses.status = 'refunded'` + `license_events` `refunded`
+- [x] `chargeback` → `licenses.status = 'chargeback'` + `license_events` `chargeback`
+- [x] Valores exatos dos CHECK das migrations; nada inventado
+- [x] **Acesso cai na requisição seguinte** — as funções SQL filtram `status = 'active'` e o DAL não persiste acesso; não há cache para invalidar
+- [x] `webhook_events` fechado como `processed` com `processed_at`, `user_id`, `license_id`
+- [x] **Revogação sem licença → `failed` + 500, nunca `processed`.** Reembolso sem licença costuma significar aprovação ainda não processada; dar por concluído deixaria a aprovação chegar depois e liberar quem foi reembolsado
+- [x] **Aprovação depois de reembolso/chargeback NÃO reativa** — o dinheiro já voltou; reconceder por webhook, sem ninguém olhar, é devolver o produto depois de devolver o pagamento
+- [x] Reembolso após chargeback **não sobrescreve** o chargeback (fato mais grave preservado); para o acesso dá no mesmo
+- [x] Auditoria idempotente por estado (`ensureAudited` consulta antes de inserir), e obrigatória — falha vira `failed` + 500
+- [x] **65/65 isolados** + **24/24 ponta a ponta** contra o Supabase real
+- [x] `has_essential_access` verificado indo para `false` após reembolso e após chargeback
+- [x] `typecheck` + `lint` + `build` — 14 rotas
+- [ ] **Compra real de ponta a ponta antes de abrir venda** — comprar, receber, criar senha, acessar, reembolsar, confirmar perda de acesso
+- [ ] Sobraram dados de teste no Supabase (contas `@example.com` não excluíveis por causa do bug do trigger da 0002)
+
+### Fase 4-7I — Cancelamento e expiração (pendente)
 - [ ] Cadastrar o webhook no painel da Kiwify — **ainda não existe webhook cadastrado**
 - [ ] Criar `POST /api/webhooks/kiwify` — **a rota ainda não existe**
 - [ ] **Capturar payload real da Kiwify** (webhook.site) antes de escrever código — sem isso os nomes de campo são chute
