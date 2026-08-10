@@ -3,7 +3,7 @@ import RecipesScreen from "@/components/recipes/RecipesScreen";
 import { requireEssentialAccess } from "@/lib/auth/require-access";
 
 export const metadata: Metadata = {
-  title: "Receitas — Doce Margem",
+  title: "Receitas — Minha Fatia",
 };
 
 export default async function ReceitasPage() {

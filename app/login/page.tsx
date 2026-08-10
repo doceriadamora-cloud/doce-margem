@@ -5,7 +5,7 @@ import InviteHashRescue from "@/components/auth/InviteHashRescue";
 import { getAuthUser } from "@/services/supabase/server";
 
 export const metadata: Metadata = {
-  title: "Entrar — Doce Margem",
+  title: "Entrar — Minha Fatia",
 };
 
 interface LoginPageProps {

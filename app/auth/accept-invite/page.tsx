@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import AcceptInviteClient from "@/components/auth/AcceptInviteClient";
 
 export const metadata: Metadata = {
-  title: "Criar senha — Doce Margem",
+  title: "Criar senha — Minha Fatia",
   // Destino de link pessoal enviado por e-mail; não faz sentido em buscador.
   robots: { index: false, follow: false },
 };

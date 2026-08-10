@@ -147,7 +147,7 @@ export default function BackupPanel() {
               Importar backup
             </h3>
             <p className="mt-1 text-sm text-stone-600 dark:text-stone-400">
-              Use a importação apenas com arquivos de backup gerados pelo próprio Doce Margem.
+              Use a importação apenas com arquivos de backup gerados pelo próprio Minha Fatia.
             </p>
           </div>
 

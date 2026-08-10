@@ -1,4 +1,6 @@
-# GO-LIVE & PRO ROADMAP — Doce Margem
+# GO-LIVE & PRO ROADMAP — Minha Fatia
+
+> **Marca atual:** Minha Fatia. Referências datadas a Doce Margem neste roadmap documentam o nome anterior usado durante as validações técnicas e comerciais. O domínio público planejado para a nova marca é [https://www.minhafatia.com.br](https://www.minhafatia.com.br); configurações externas e envs não foram alteradas pelo rebrand de código.
 
 > Auditoria de 2026-08-07, feita **sem acesso à internet, sem service role e sem
 > executar SQL**. Tudo abaixo sai de leitura do código, das migrations, do
@@ -444,7 +446,7 @@ seguro; "no segundo semestre" é uma promessa que pode virar reclamação.
 
 > **O que você compra hoje é seu para sempre.**
 >
-> O Doce Margem Essencial é compra única. Você paga uma vez e usa para sempre,
+> O Minha Fatia Essencial é compra única. Você paga uma vez e usa para sempre,
 > sem mensalidade — não existe plano mensal aqui, e não vai existir.
 >
 > Estamos construindo uma versão Pro, com sincronização em nuvem, relatórios e
@@ -457,7 +459,7 @@ seguro; "no segundo semestre" é uma promessa que pode virar reclamação.
 
 ### 5.3 "O que está incluso no Essencial"
 
-> **Doce Margem Essencial — pagamento único**
+> **Minha Fatia Essencial — pagamento único**
 >
 > - Cadastro de ingredientes com custo real por grama, ml ou unidade
 > - Ficha técnica das suas receitas, com rendimento e custo por unidade
@@ -473,7 +475,7 @@ seguro; "no segundo semestre" é uma promessa que pode virar reclamação.
 
 ### 5.4 "O que será Pro"
 
-> **Doce Margem Pro Anual — em desenvolvimento**
+> **Minha Fatia Pro Anual — em desenvolvimento**
 >
 > - Sincronização em nuvem: seus dados no celular e no computador, sempre iguais
 > - Histórico de preços dos ingredientes e alerta quando algo subir
@@ -489,7 +491,7 @@ seguro; "no segundo semestre" é uma promessa que pode virar reclamação.
 
 > **Compra única quer dizer compra única.**
 >
-> Você paga uma vez pelo Doce Margem Essencial e tem acesso vitalício à versão
+> Você paga uma vez pelo Minha Fatia Essencial e tem acesso vitalício à versão
 > Essencial. Não cobramos mensalidade, não cobramos renovação e não vamos tirar
 > recursos que você já usa para colocar num plano pago.
 >
@@ -765,12 +767,14 @@ Considerando **~4 h úteis por dia**.
 - [ ] `SUPABASE_SERVICE_ROLE_KEY` preenchida — **sem** prefixo `NEXT_PUBLIC_`
 - [x] `KIWIFY_WEBHOOK_SECRET` validada pelos webhooks reais processados
 - [x] `NEXT_PUBLIC_APP_URL` = domínio real, validada pelo fluxo de convite
+- [ ] No cutover, atualizar `NEXT_PUBLIC_APP_URL` para `https://www.minhafatia.com.br` e fazer redeploy
 - [ ] `NEXT_PUBLIC_BUY_ESSENTIAL_URL` = `https://pay.kiwify.com.br/i5YqT17`
 - [ ] `NEXT_PUBLIC_SUPPORT_WHATSAPP` preenchida
 - [ ] **Redeploy feito depois** de mexer nas variáveis
 
 ### Supabase
 - [x] **Redirect URLs inclui `https://docemargem.doceriadamora.com.br/auth/accept-invite`** ✅
+- [ ] Adicionar `https://www.minhafatia.com.br/auth/accept-invite` às Redirect URLs antes do cutover do novo domínio
 - [x] SMTP próprio (Resend) configurado e convite entregue ✅
 - [ ] SPF, DKIM e DMARC do domínio configurados no Resend (o convite caiu em spam no teste)
 - [ ] Migrations 0001–0004 aplicadas
@@ -858,7 +862,7 @@ Considerando **~4 h úteis por dia**.
 | S13 | **Enumeração de e-mail** | 🟢 tratado | mensagem genérica no login; webhook não conta se o e-mail existe |
 | S14 | **Dado pessoal em `webhook_events.payload`** | 🟡 atenção | LGPD: `DELETE` permitido a papéis administrativos. Falta política escrita de retenção |
 | S19 | **Licença concedida sem registro de auditoria** | 🟢 fechado | A 4-7G ignorava o erro do `insert` em `license_events`. Corrigido: falha vira `failed` + 500, o reenvio cura, e a auditoria é idempotente por estado (consulta antes de inserir). Janela entre licença e auditoria continua existindo — mas nunca se fecha em silêncio |
-| S20 | **Venda de outro produto liberar o Doce Margem** | 🟢 fechado | Webhook cadastrado como "todos os produtos que sou produtor" faria qualquer venda sua liberar licença aqui. Fase 4-7I valida `Product.product_id` contra `KIWIFY_ESSENTIAL_PRODUCT_ID`; produto diferente vira `ignored`, env ausente falha fechada |
+| S20 | **Venda de outro produto liberar o Minha Fatia** | 🟢 fechado | Webhook cadastrado como "todos os produtos que sou produtor" faria qualquer venda sua liberar licença aqui. Fase 4-7I valida `Product.product_id` contra `KIWIFY_ESSENTIAL_PRODUCT_ID`; produto diferente vira `ignored`, env ausente falha fechada |
 | S21 | **Teste do painel da Kiwify liberar licença** | 🟢 fechado e confirmado | O botão "Testar Webhook" retornou 200 em produção e foi ignorado com segurança, sem conceder acesso |
 | S18 | **Conta com evento de licença não pode ser excluída** | 🔴 **aberto** | Descoberto na 4-7G e isolado com teste A/B/C: `license_events.user_id` usa `ON DELETE SET NULL`, que é um UPDATE, e o trigger `license_events_immutable` bloqueia UPDATE para todos. **Pedido de exclusão (LGPD) não tem caminho automático.** Correção exige migration |
 | S15 | **Perda de dados locais** | 🟡 produto | `localStorage` some com limpeza de navegador. Backup existe; **a comunicação precisa ser explícita** |

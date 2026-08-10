@@ -1,4 +1,6 @@
-# REVIEW — Doce Margem
+# REVIEW — Minha Fatia
+
+> **Marca atual:** Minha Fatia. Referências datadas a Doce Margem neste histórico técnico descrevem o nome anterior do projeto e foram mantidas quando necessárias para preservar evidências, identificadores ou configurações da época.
 
 > Registro de revisão técnica, riscos e pendências. Atualizar ao final de cada fase.
 
@@ -1772,3 +1774,26 @@ O valor sai de `Product.product_id` num payload real (o teste do painel serve: e
 - Depender apenas do frontend para bloquear acesso.
 - Criar SaaS robusto antes do Essencial vendável.
 - Misturar compra única com assinatura sem regra clara.
+
+---
+
+## 2026-08-09 — Rebrand controlado para Minha Fatia
+
+### Escopo concluído
+
+- Navbar, login, cadastro, convite, preços, conta, acesso bloqueado e metadata exibem **Minha Fatia**.
+- Os planos aparecem como **Minha Fatia Essencial** e **Minha Fatia Pro Anual**.
+- A documentação viva adota a marca e o domínio público `https://www.minhafatia.com.br`.
+- O nome de arquivo exportado mudou para `minha-fatia-backup-AAAA-MM-DD.json`; o marcador interno do formato legado foi preservado para manter a importação compatível.
+- A busca final encontrou zero ocorrências de Doce Margem em `app/`, `components/` e `public/`.
+
+### Fronteira preservada
+
+Nenhuma alteração em pricing engine, migrations, schema do Supabase, endpoint ou processamento do webhook Kiwify, validação de produto, licenças, auth actions, serviços de autenticação ou envs. Diretório, nome do pacote, chaves de `localStorage`, tipos existentes e marcadores internos continuam com os identificadores legados quando necessário para compatibilidade.
+
+### Validação
+
+- `npm run typecheck`: passou (`tsc --noEmit`).
+- `npm run lint`: passou (`eslint`).
+- `npm run build`: passou no Next.js 16.2.9; 16 páginas geradas. A primeira tentativa no sandbox não alcançou o Google Fonts; a repetição com rede permitida baixou Geist/Geist Mono e concluiu sem erros.
+- `git diff --check`: passou sem erros.

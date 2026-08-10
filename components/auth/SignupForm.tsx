@@ -19,7 +19,7 @@ export default function SignupForm() {
   return (
     <AuthFormShell
       title="Criar conta"
-      description="Crie sua conta para guardar seu acesso ao Doce Margem."
+      description="Crie sua conta para guardar seu acesso ao Minha Fatia."
       state={state}
       pending={pending}
       action={formAction}

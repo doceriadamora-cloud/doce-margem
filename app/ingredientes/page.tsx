@@ -3,7 +3,7 @@ import IngredientsScreen from "@/components/ingredients/IngredientsScreen";
 import { requireEssentialAccess } from "@/lib/auth/require-access";
 
 export const metadata: Metadata = {
-  title: "Ingredientes — Doce Margem",
+  title: "Ingredientes — Minha Fatia",
 };
 
 export default async function IngredientesPage() {

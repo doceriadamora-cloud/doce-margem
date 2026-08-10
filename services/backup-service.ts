@@ -6,10 +6,10 @@ import {
   saveAppState,
 } from "./storage-service";
 
-export const BACKUP_APP_NAME = "Doce Margem";
+export const BACKUP_APP_NAME = "Minha Fatia";
 export const BACKUP_FORMAT_VERSION = 1;
 
-export interface DoceMargemBackup {
+export interface MinhaFatiaBackup {
   appName: typeof BACKUP_APP_NAME;
   backupVersion: typeof BACKUP_FORMAT_VERSION;
   schemaVersion: number;
@@ -33,7 +33,7 @@ function formatDateForFileName(date: Date): string {
   return `${year}-${month}-${day}`;
 }
 
-export function createBackupPayload(exportedAt = new Date()): DoceMargemBackup {
+export function createBackupPayload(exportedAt = new Date()): MinhaFatiaBackup {
   const state = loadAppState();
   return {
     appName: BACKUP_APP_NAME,
@@ -50,7 +50,7 @@ export function serializeBackup(payload = createBackupPayload()): string {
 }
 
 export function createBackupFileName(date = new Date()): string {
-  return `doce-margem-backup-${formatDateForFileName(date)}.json`;
+  return `minha-fatia-backup-${formatDateForFileName(date)}.json`;
 }
 
 export function parseBackupJson(text: string): BackupParseResult {
@@ -71,14 +71,14 @@ export function parseBackupJson(text: string): BackupParseResult {
   if (!isPlainObject(parsed)) {
     return {
       ok: false,
-      message: "Este arquivo não parece ser um backup do Doce Margem.",
+      message: "Este arquivo não parece ser um backup do Minha Fatia.",
     };
   }
 
   if (parsed.appName !== BACKUP_APP_NAME) {
     return {
       ok: false,
-      message: "Use apenas arquivos de backup gerados pelo próprio Doce Margem.",
+      message: "Use apenas arquivos de backup gerados pelo próprio Minha Fatia.",
     };
   }
 

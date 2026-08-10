@@ -5,7 +5,7 @@ import { ALL_FEATURES, type FeatureDefinition } from "@/lib/features";
 import type { UserAccess } from "@/types/access";
 
 export const metadata: Metadata = {
-  title: "Acesso bloqueado — Doce Margem",
+  title: "Acesso bloqueado — Minha Fatia",
   // Página de destino de um redirecionamento; não faz sentido em buscador.
   robots: { index: false, follow: false },
 };
@@ -49,7 +49,7 @@ const HEADLINE: Record<DeniedReason, string> = {
 
 const EXPLANATION: Record<DeniedReason, string> = {
   unauthenticated:
-    "Esta parte do Doce Margem precisa de uma conta. Entre com seu e-mail e senha, ou crie uma conta em um minuto.",
+    "Esta parte do Minha Fatia precisa de uma conta. Entre com seu e-mail e senha, ou crie uma conta em um minuto.",
   blocked:
     "O acesso desta conta foi suspenso, e por isso nenhuma licença está valendo agora. Se você acha que houve engano, fale com o suporte — a gente resolve.",
   no_license:
@@ -107,7 +107,7 @@ export default async function AcessoBloqueadoPage() {
 
         <section className="rounded-2xl border border-stone-200 bg-white p-5 dark:border-stone-800 dark:bg-stone-900">
           <h2 className="text-base font-semibold text-stone-900 dark:text-stone-50">
-            Doce Margem Essencial
+            Minha Fatia Essencial
           </h2>
           <p className="mt-1 text-sm text-stone-500 dark:text-stone-400">
             Compra única, acesso vitalício à versão Essencial atual.
@@ -121,7 +121,7 @@ export default async function AcessoBloqueadoPage() {
 
         <section className="rounded-2xl border border-stone-200 bg-white p-5 dark:border-stone-800 dark:bg-stone-900">
           <h2 className="text-base font-semibold text-stone-900 dark:text-stone-50">
-            Doce Margem Pro Anual
+            Minha Fatia Pro Anual
           </h2>
           <p className="mt-1 text-sm text-stone-500 dark:text-stone-400">
             Tudo do Essencial, mais os recursos de nuvem, automação, inteligência artificial e

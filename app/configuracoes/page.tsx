@@ -6,7 +6,7 @@ import BackupPanel from "@/components/backup/BackupPanel";
 import { requireEssentialAccess } from "@/lib/auth/require-access";
 
 export const metadata: Metadata = {
-  title: "Configurações — Doce Margem",
+  title: "Configurações — Minha Fatia",
 };
 
 export default async function ConfiguracoesPage() {

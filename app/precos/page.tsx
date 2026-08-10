@@ -2,9 +2,9 @@ import type { Metadata } from "next";
 import { ALL_FEATURES, type FeatureDefinition } from "@/lib/features";
 
 export const metadata: Metadata = {
-  title: "Planos — Doce Margem",
+  title: "Planos — Minha Fatia",
   description:
-    "Conheça o Doce Margem Essencial, com compra única, e o Doce Margem Pro Anual.",
+    "Conheça o Minha Fatia Essencial, com compra única, e o Minha Fatia Pro Anual.",
 };
 
 const essentialFeatures = ALL_FEATURES.filter(
@@ -85,7 +85,7 @@ export default function PrecosPage() {
       <header className="max-w-2xl">
         <p className="text-sm font-semibold text-rose-600 dark:text-rose-400">Planos</p>
         <h1 className="mt-2 text-3xl font-semibold tracking-tight text-stone-950 sm:text-4xl dark:text-white">
-          Planos do Doce Margem
+          Planos do Minha Fatia
         </h1>
         <p className="mt-3 text-base leading-7 text-stone-600 dark:text-stone-400">
           Comece com a precificação completa do Essencial ou escolha o Pro Anual para os
@@ -103,7 +103,7 @@ export default function PrecosPage() {
               Compra única
             </p>
             <h2 className="mt-1 text-2xl font-semibold text-stone-950 dark:text-white">
-              Doce Margem Essencial
+              Minha Fatia Essencial
             </h2>
             <p className="mt-2 text-sm leading-6 text-stone-600 dark:text-stone-400">
               Acesso vitalício à versão Essencial atual, com os dados salvos neste navegador e
@@ -125,7 +125,7 @@ export default function PrecosPage() {
           <header className="border-b border-stone-200 pb-5 dark:border-stone-800">
             <p className="text-sm font-semibold text-rose-600 dark:text-rose-400">Plano anual</p>
             <h2 className="mt-1 text-2xl font-semibold text-stone-950 dark:text-white">
-              Doce Margem Pro Anual
+              Minha Fatia Pro Anual
             </h2>
             <p className="mt-2 text-sm leading-6 text-stone-600 dark:text-stone-400">
               Tudo do Essencial, mais recursos planejados para acompanhar o negócio ao longo do

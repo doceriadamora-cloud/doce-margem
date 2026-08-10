@@ -19,7 +19,7 @@ export default function LoginForm() {
   return (
     <AuthFormShell
       title="Entrar"
-      description="Acesse sua conta do Doce Margem."
+      description="Acesse sua conta do Minha Fatia."
       state={state}
       pending={pending}
       action={formAction}

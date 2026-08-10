@@ -6,7 +6,7 @@ This version has breaking changes — APIs, conventions, and file structure may 
 
 ---
 
-# AGENTS — Doce Margem
+# AGENTS — Minha Fatia
 
 Papéis conceituais usados para raciocinar sobre o projeto. Cada decisão e tarefa pode ser vista pela ótica destes agentes.
 

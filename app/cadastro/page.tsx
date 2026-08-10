@@ -4,7 +4,7 @@ import SignupForm from "@/components/auth/SignupForm";
 import { getAuthUser } from "@/services/supabase/server";
 
 export const metadata: Metadata = {
-  title: "Criar conta — Doce Margem",
+  title: "Criar conta — Minha Fatia",
 };
 
 export default async function CadastroPage() {

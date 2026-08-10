@@ -4,19 +4,19 @@ import { requireAuthenticatedAccess } from "@/lib/auth/require-access";
 import type { ActivePlan } from "@/types/access";
 
 export const metadata: Metadata = {
-  title: "Minha conta — Doce Margem",
+  title: "Minha conta — Minha Fatia",
 };
 
 /** Nome comercial de cada plano, do jeito que a usuária reconhece. */
 const PLAN_LABEL: Record<ActivePlan, string> = {
   none: "Sem licença ativa",
-  essential: "Doce Margem Essencial",
-  pro_annual: "Doce Margem Pro Anual",
+  essential: "Minha Fatia Essencial",
+  pro_annual: "Minha Fatia Pro Anual",
 };
 
 const PLAN_DESCRIPTION: Record<ActivePlan, string> = {
   none:
-    "Você ainda não tem uma licença ativa. O Doce Margem continua funcionando no seu navegador — seus ingredientes, receitas e cálculos estão todos aqui.",
+    "Você ainda não tem uma licença ativa. O Minha Fatia continua funcionando no seu navegador — seus ingredientes, receitas e cálculos estão todos aqui.",
   essential:
     "Acesso vitalício à versão Essencial atual: ingredientes, receitas, custos fixos, canais e precificação.",
   pro_annual:
@@ -42,7 +42,7 @@ export default async function ContaPage() {
           Minha conta
         </h1>
         <p className="mt-2 text-stone-600 dark:text-stone-400">
-          Seus dados de acesso ao Doce Margem.
+          Seus dados de acesso ao Minha Fatia.
         </p>
       </header>
 

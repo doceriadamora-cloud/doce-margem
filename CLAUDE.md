@@ -1,4 +1,6 @@
-# CLAUDE — Memória de execução do Doce Margem
+# CLAUDE — Memória de execução do Minha Fatia
+
+> **Marca atual:** Minha Fatia. O projeto se chamava Doce Margem antes do rebrand de 2026-08-09; nomes técnicos legados permanecem quando necessários para compatibilidade.
 
 Regras permanentes para qualquer trabalho neste projeto. Leia este arquivo antes de começar.
 

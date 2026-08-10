@@ -1,4 +1,6 @@
-# DECISIONS — Doce Margem
+# DECISIONS — Minha Fatia
+
+> **Marca atual:** Minha Fatia. Entradas anteriores a 2026-08-09 podem citar Doce Margem, o nome anterior do projeto; esses registros históricos permanecem válidos e identificadores técnicos legados continuam preservados quando a troca poderia quebrar compatibilidade.
 
 Histórico oficial de decisões arquiteturais, comerciais e de produto.
 
@@ -1234,3 +1236,39 @@ existem sem licença ativa; chargeback não foi exercitado manualmente de ponta 
 ponta, embora use o mesmo mecanismo de revogação; a venda oficial ainda não foi
 aberta; e copy, checkout, domínio, suporte e política de reembolso precisam ser
 revistos antes da abertura.
+
+---
+
+## 2026-08-09 — A marca pública passa a ser Minha Fatia sem romper compatibilidade
+
+### Decisão
+
+O produto, os planos e o domínio público passam a ser apresentados como **Minha
+Fatia**, **Minha Fatia Essencial**, **Minha Fatia Pro Anual** e
+`https://www.minhafatia.com.br`.
+
+O rebrand é deliberadamente apenas de apresentação e documentação. Permanecem
+inalterados os endpoints, a rota `/api/webhooks/kiwify`, a autenticação, as
+licenças, as migrations, o schema do Supabase, a validação Kiwify, as variáveis
+de ambiente e o pricing engine.
+
+Identificadores técnicos legados que poderiam invalidar dados ou integrações
+também permanecem, entre eles o diretório e nome de pacote `doce-margem`, a chave
+`doce-margem:app-state`, nomes de tipos/variáveis existentes e o marcador interno
+`appName: "Doce Margem"` dos backups. Arquivos novos de backup passam a usar o
+prefixo público `minha-fatia-backup-`, mas continuam importando o formato legado.
+
+### Motivo
+
+Renomear identificadores persistidos ou reconhecidos por sistemas externos junto
+com a copy criaria um risco de perda de dados locais, rejeição de backups ou
+falha na concessão de acesso. A marca muda para a usuária; os contratos técnicos
+continuam estáveis até que exista uma migração própria, planejada e compatível.
+
+### Impacto
+
+Navbar, fluxos de login/cadastro/convite, páginas, cards de planos, metadata,
+mensagens de backup e documentação passam a exibir Minha Fatia. Referências a
+Doce Margem ficam restritas a registros históricos e identificadores técnicos
+explicitamente preservados. A configuração externa do novo domínio continua
+como etapa de go-live e não faz parte desta alteração de código.

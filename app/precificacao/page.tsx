@@ -3,7 +3,7 @@ import PricingForm from "@/components/pricing/PricingForm";
 import { requireEssentialAccess } from "@/lib/auth/require-access";
 
 export const metadata: Metadata = {
-  title: "Precificação — Doce Margem",
+  title: "Precificação — Minha Fatia",
 };
 
 export default async function PrecificacaoPage() {

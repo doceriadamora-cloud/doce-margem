@@ -1,4 +1,4 @@
-# Doce Margem
+# Minha Fatia
 
 > **Pare de vender doce no achismo.** Descubra quanto custa produzir, quanto cobrar e qual margem sobra em cada venda.
 
@@ -6,11 +6,13 @@ App de **precificação para confeiteiras**. Calcula custo real de ingredientes,
 
 > Este README é a **especificação viva** do projeto. Sempre que uma decisão estrutural importante for tomada, ele deve ser atualizado.
 
+> **Rebrand (2026-08-09):** Minha Fatia é a marca pública atual do produto, antes chamado Doce Margem. Identificadores técnicos legados como `C:\dev\doce-margem`, o nome do pacote, chaves de armazenamento e marcadores de compatibilidade de backup permanecem inalterados para não quebrar instalações, dados ou integrações existentes. O domínio público da nova marca é [https://www.minhafatia.com.br](https://www.minhafatia.com.br).
+
 ---
 
 ## 1. Visão geral
 
-Confeiteiras frequentemente precificam no "achismo": colocam um preço sem saber o custo real de produção, e descobrem tarde demais que a margem é baixa ou negativa. O **Doce Margem** resolve isso transformando ingredientes, receitas e canais de venda em números claros.
+Confeiteiras frequentemente precificam no "achismo": colocam um preço sem saber o custo real de produção, e descobrem tarde demais que a margem é baixa ou negativa. O **Minha Fatia** resolve isso transformando ingredientes, receitas e canais de venda em números claros.
 
 - **Objetivo do produto:** dar à confeiteira clareza sobre custo, preço e margem de cada doce.
 - **Público-alvo:** confeiteiras e doceiras (de iniciantes a profissionais), que vendem por encomenda, balcão e/ou marketplaces.
@@ -22,14 +24,14 @@ Confeiteiras frequentemente precificam no "achismo": colocam um preço sem saber
 
 Duas formas de venda. **Não existe plano mensal.**
 
-### Doce Margem Essencial — compra única
+### Minha Fatia Essencial — compra única
 - Pagamento único.
 - **Acesso vitalício à versão Essencial atual** (não promete funções futuras).
 - Acesso com login, controlado por licença.
 - Sem arquivo baixável e sem link público aberto.
 - Acesso vinculado ao status da compra: **reembolso, chargeback ou bloqueio manual removem o acesso.**
 
-### Doce Margem Pro Anual — assinatura anual
+### Minha Fatia Pro Anual — assinatura anual
 - Plano **anual** (renovação anual). Sem mensal.
 - Recursos avançados, dados em nuvem, múltiplos dispositivos.
 - Expiração automática se não renovar.
@@ -261,6 +263,7 @@ Antes de qualquer deploy: `npm run lint`, `npm run typecheck` e `npm run build` 
 4. Importar na Vercel (Framework Preset **Next.js**).
 5. Cadastrar variáveis de ambiente na Vercel.
 6. Desligar Vercel Authentication se o site público pedir login.
+7. Associar e validar o domínio público `https://www.minhafatia.com.br`.
 
 ---
 

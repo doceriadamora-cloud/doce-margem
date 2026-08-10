@@ -1,16 +1,27 @@
-# TASKS — Doce Margem
+# TASKS — Minha Fatia
+
+> **Marca atual:** Minha Fatia. Referências datadas a Doce Margem abaixo registram o nome anterior do projeto; identificadores técnicos legados foram preservados por compatibilidade.
 
 > Desenvolvimento por fases e em tarefas pequenas. **Não executar tudo de uma vez.**
 > Marcar `[x]` ao concluir. Adicionar novas tarefas quando surgirem.
 > Antes de iniciar uma nova fase: parar, resumir o que foi feito e aguardar aprovação.
 
-**Fase atual:** validação final do ciclo real em produção concluída. Compra e reembolso reais do Doce Margem Essencial foram processados; convite, senha, acesso e bloqueio foram observados de ponta a ponta.
+**Fase atual:** rebrand controlado para Minha Fatia concluído após a validação final do ciclo real em produção. Compra, convite, senha, acesso, reembolso e bloqueio continuam preservados de ponta a ponta.
 **Próximo passo recomendado:** revisar copy, checkout, domínio, suporte e política de reembolso antes de abrir oficialmente a venda.
 
 > 📋 **Auditoria pré-lançamento (2026-08-07): `GO-LIVE-AND-PRO-ROADMAP.md`** —
 > estado do produto, 10 bloqueadores críticos, diagnóstico do webhook, fronteira
 > Essencial × Pro, copy pública, prazos e checklist de lançamento.
 > **Estado atual:** o ciclo compra → acesso → reembolso → bloqueio está validado em produção. A venda oficial ainda não foi aberta.
+
+### Rebrand controlado — Minha Fatia ✅
+- [x] Atualizar navbar, login, cadastro, preços, conta, acesso bloqueado e fluxo visual de convite
+- [x] Atualizar metadata, títulos, descrições e nomes comerciais dos planos
+- [x] Atualizar documentação viva e registrar a preservação dos identificadores legados
+- [x] Adotar `https://www.minhafatia.com.br` como domínio público documentado
+- [x] Preservar rotas, auth, licenças, migrations, webhook, validação Kiwify, envs e pricing engine
+- [x] Rodar `typecheck`, `lint` e `build` com sucesso após o rebrand
+- [ ] **Cutover externo, fora deste rebrand de código:** configurar o novo domínio na Vercel, Supabase, Resend e variáveis de ambiente antes da abertura oficial
 
 ## Fase 0 — Setup e documentação ✅
 - [x] Criar projeto em C:\dev\doce-margem
@@ -322,8 +333,8 @@
 
 ### Fase 4-3B — Validação autenticada do DAL (pendente)
 - [ ] Confirmar e-mail de uma conta de teste e abrir `/conta` logada
-- [ ] Conceder licença `one_time` manual → `/conta` deve mostrar "Doce Margem Essencial"
-- [ ] Trocar para `annual_pro` vigente → deve mostrar "Doce Margem Pro Anual" + vencimento
+- [ ] Conceder licença `one_time` manual → `/conta` deve mostrar "Minha Fatia Essencial"
+- [ ] Trocar para `annual_pro` vigente → deve mostrar "Minha Fatia Pro Anual" + vencimento
 - [ ] Marcar `status = 'refunded'` → deve voltar a "Sem licença ativa"
 - [ ] Marcar `is_blocked = true` → deve mostrar "Bloqueada" e "Sem licença ativa"
 - [ ] Provar que `authenticated` **consegue** chamar `current_user_has_pro_access()` e **falha** em `has_pro_access(uid)`
@@ -377,7 +388,7 @@
 
 ### Fase 4-6A — Página pública de preços ✅
 - [x] Criar `/precos` pública, sem guarda de acesso e sem redirect para login
-- [x] Separar Doce Margem Essencial (compra única) e Doce Margem Pro Anual
+- [x] Separar Minha Fatia Essencial (compra única) e Minha Fatia Pro Anual
 - [x] Gerar listas de recursos a partir de `ALL_FEATURES`, incluindo status planejado
 - [x] Usar `NEXT_PUBLIC_BUY_ESSENTIAL_URL` e `NEXT_PUBLIC_BUY_PRO_ANNUAL_URL`; fallback visual `Em breve`
 - [x] Não inventar preço: exibir `Preço de lançamento em breve`

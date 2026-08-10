@@ -140,7 +140,7 @@ export default function AcceptInviteClient() {
   return (
     <AuthFormShell
       title="Crie sua senha"
-      description="Sua compra foi confirmada. Defina uma senha para acessar o Doce Margem."
+      description="Sua compra foi confirmada. Defina uma senha para acessar o Minha Fatia."
       state={state}
       pending={pending}
       action={formAction}

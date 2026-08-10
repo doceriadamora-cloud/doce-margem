@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Doce Margem",
+  title: "Minha Fatia",
   description:
     "Pare de vender doce no achismo. Descubra quanto custa produzir, quanto cobrar e qual margem sobra em cada venda.",
 };
