@@ -52,6 +52,7 @@ export default function PricingResult({ result }: PricingResultProps) {
         <dl className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2 text-sm">
           <DL label="Custo da receita" value={formatCurrency(result.baseDirectUnitCost)} />
           <DL label="Custo de embalagens" value={formatCurrency(result.packagingCost)} />
+          <DL label="Custo de mão de obra" value={formatCurrency(result.laborCost)} />
           <DL label="Custo direto total" value={formatCurrency(result.directUnitCost)} />
           <DL label="Custo fixo estimado" value={formatCurrency(result.fixedCostAmount)} />
           <DL label="Lucro esperado" value={formatCurrency(result.expectedProfitAmount)} />

@@ -4,6 +4,7 @@ import { useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import {
   calculateFixedCostSummary,
+  calculateLaborCostPerUnit,
   calculatePackagingUnitCost,
   calculatePricing,
   calculateRecipe,
@@ -42,6 +43,7 @@ import {
   getBusinessSettingsServerSnapshot,
   getBusinessSettingsSnapshot,
   subscribeBusinessSettings,
+  updateBusinessSettings,
 } from "@/components/settings/business-settings-store";
 import {
   getPackagingsServerSnapshot,
@@ -75,6 +77,10 @@ function toDecimalOrNull(percentText: string): number | null {
 function formatDecimalRateAsPercentInput(rate: number): string {
   const rounded = Math.round(rate * 100 * 100) / 100;
   return rounded.toString().replace(".", ",");
+}
+
+function formatNumberAsInput(value: number | null): string {
+  return value === null ? "" : value.toString().replace(".", ",");
 }
 
 function formatCurrency(value: number): string {
@@ -118,6 +124,7 @@ function computePricingResult(params: {
   practicedPrice: number | undefined | null;
   channel: SalesChannel | undefined;
   packagingCost: number | null;
+  laborCost: number | null;
 }) {
   const {
     recipeCalc,
@@ -126,15 +133,18 @@ function computePricingResult(params: {
     practicedPrice,
     channel,
     packagingCost,
+    laborCost,
   } = params;
   if (!recipeCalc || !recipeCalc.ok) return null;
   if (fixedCostRateDecimal === null || desiredProfitRateDecimal === null) return null;
   if (practicedPrice === null) return null; // texto inválido digitado no preço praticado
   if (packagingCost === null) return null;
+  if (laborCost === null) return null;
 
   return calculatePricing({
     recipe: recipeCalc.value,
     packagingCost,
+    laborCost,
     fixedCostRate: fixedCostRateDecimal,
     desiredProfitRate: desiredProfitRateDecimal,
     channel,
@@ -193,6 +203,9 @@ export default function PricingForm() {
   const [selectedChannelId, setSelectedChannelId] = useState("");
   const [practicedPriceInput, setPracticedPriceInput] = useState("");
   const [packagingQuantities, setPackagingQuantities] = useState<Record<string, string>>({});
+  const [laborHourlyRateDraft, setLaborHourlyRateDraft] = useState<string | null>(null);
+  const [laborHoursInput, setLaborHoursInput] = useState("");
+  const [laborMinutesInput, setLaborMinutesInput] = useState("");
 
   const settingsBasedSummary =
     businessSettings.estimatedMonthlyRevenue !== null && businessSettings.estimatedMonthlyRevenue > 0
@@ -209,6 +222,17 @@ export default function PricingForm() {
     : "";
   const fixedCostRatePercent = fixedCostRateDraft ?? settingsBasedPercentText;
   const isFixedCostRateFromSettings = fixedCostRateDraft === null && settingsBasedPercentText !== "";
+  const laborHourlyRateInput =
+    laborHourlyRateDraft ?? formatNumberAsInput(businessSettings.laborHourlyRate);
+  const isLaborHourlyRateFromSettings =
+    laborHourlyRateDraft === null && businessSettings.laborHourlyRate !== null;
+
+  function persistLaborHourlyRate(): void {
+    const parsed = parseOptionalNumber(laborHourlyRateInput);
+    if (parsed === null || (parsed !== undefined && parsed < 0)) return;
+    updateBusinessSettings({ laborHourlyRate: parsed ?? null });
+    setLaborHourlyRateDraft(null);
+  }
 
   if (recipes.length === 0) {
     return (
@@ -242,6 +266,9 @@ export default function PricingForm() {
   const fixedCostRateDecimal = toDecimalOrNull(fixedCostRatePercent);
   const desiredProfitRateDecimal = toDecimalOrNull(desiredProfitRatePercent);
   const practicedPrice = parseOptionalNumber(practicedPriceInput);
+  const parsedLaborHourlyRate = parseOptionalNumber(laborHourlyRateInput);
+  const parsedLaborHours = parseOptionalNumber(laborHoursInput);
+  const parsedLaborMinutes = parseOptionalNumber(laborMinutesInput);
 
   const selectedPackagings = packagings.filter(
     (packaging) =>
@@ -262,12 +289,45 @@ export default function PricingForm() {
     invalidPackagingIds.size === 0 ? calculateTotalPackagingCost(packagingUsages) : null;
   const packagingCost = packagingCostResult?.ok ? packagingCostResult.value.totalCost : null;
 
+  const laborInputsAreNumbers =
+    parsedLaborHourlyRate !== null &&
+    parsedLaborHours !== null &&
+    parsedLaborMinutes !== null;
+  const laborCostResult =
+    recipeCalc?.ok && laborInputsAreNumbers
+      ? calculateLaborCostPerUnit({
+          laborHourlyRate: parsedLaborHourlyRate ?? 0,
+          hours: parsedLaborHours ?? 0,
+          minutes: parsedLaborMinutes ?? 0,
+          yieldQuantity: recipeCalc.value.recipe.yieldQuantity,
+        })
+      : null;
+  const laborCost = laborCostResult?.ok ? laborCostResult.value.laborCostPerUnit : null;
+
   // Campo "inválido" = a usuária digitou algo que não é vazio, mas não dá pra
   // interpretar como número. Campo vazio não é erro — só significa "ainda não
   // preenchido" (a calculadora simplesmente não mostra resultado ainda).
   const fixedCostRateInvalid = fixedCostRatePercent.trim() !== "" && fixedCostRateDecimal === null;
   const profitInvalid = desiredProfitRatePercent.trim() !== "" && desiredProfitRateDecimal === null;
   const practicedPriceInvalid = practicedPriceInput.trim() !== "" && practicedPrice === null;
+  const laborHourlyRateError =
+    parsedLaborHourlyRate === null
+      ? "Confira o valor da hora. Use apenas números maiores ou iguais a zero."
+      : laborCostResult && !laborCostResult.ok
+        ? laborCostResult.errors.find((error) => error.field === "laborHourlyRate")?.message
+        : undefined;
+  const laborHoursError =
+    parsedLaborHours === null
+      ? "Confira as horas. Use apenas números maiores ou iguais a zero."
+      : laborCostResult && !laborCostResult.ok
+        ? laborCostResult.errors.find((error) => error.field === "hours")?.message
+        : undefined;
+  const laborMinutesError =
+    parsedLaborMinutes === null
+      ? "Confira os minutos. Use um número entre 0 e 59."
+      : laborCostResult && !laborCostResult.ok
+        ? laborCostResult.errors.find((error) => error.field === "minutes")?.message
+        : undefined;
 
   const pricingResult = computePricingResult({
     recipeCalc,
@@ -276,6 +336,7 @@ export default function PricingForm() {
     practicedPrice,
     channel: selectedChannel,
     packagingCost,
+    laborCost,
   });
 
   return (
@@ -419,6 +480,83 @@ export default function PricingForm() {
             <Link href="/embalagens" className="w-fit text-sm font-medium text-rose-600 hover:underline dark:text-rose-400">
               Gerenciar embalagens
             </Link>
+          )}
+        </div>
+      )}
+
+      {selectedRecipe && recipeCalc?.ok && (
+        <div className="flex flex-col gap-4 rounded-2xl border border-stone-200 bg-white p-5 dark:border-stone-800 dark:bg-stone-900">
+          <div>
+            <h2 className="font-medium text-stone-800 dark:text-stone-200">
+              Mão de obra
+            </h2>
+            <p className="mt-1 text-sm text-stone-500 dark:text-stone-400">
+              Valorize seu tempo: informe quanto vale sua hora e quanto tempo esta produção leva.
+            </p>
+          </div>
+
+          <Field
+            label="Valor da hora de trabalho (R$)"
+            hint={
+              isLaborHourlyRateFromSettings
+                ? "Valor salvo neste navegador — você pode ajustar quando quiser."
+                : "Este valor fica salvo neste navegador ao sair do campo."
+            }
+            error={laborHourlyRateError}
+          >
+            <input
+              type="text"
+              inputMode="decimal"
+              value={laborHourlyRateInput}
+              onChange={(event) => setLaborHourlyRateDraft(event.target.value)}
+              onBlur={persistLaborHourlyRate}
+              placeholder="Ex.: 30,00"
+              className={inputClass}
+            />
+          </Field>
+
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Tempo de produção (horas)" error={laborHoursError}>
+              <input
+                type="text"
+                inputMode="decimal"
+                value={laborHoursInput}
+                onChange={(event) => setLaborHoursInput(event.target.value)}
+                placeholder="Ex.: 2"
+                className={inputClass}
+              />
+            </Field>
+            <Field label="Minutos adicionais" error={laborMinutesError}>
+              <input
+                type="text"
+                inputMode="numeric"
+                value={laborMinutesInput}
+                onChange={(event) => setLaborMinutesInput(event.target.value)}
+                placeholder="Ex.: 30"
+                className={inputClass}
+              />
+            </Field>
+          </div>
+
+          {laborCostResult?.ok && (
+            <dl className="grid grid-cols-2 gap-3 rounded-lg bg-rose-50 px-3 py-2 text-sm dark:bg-rose-950">
+              <div>
+                <dt className="text-xs text-rose-700 dark:text-rose-300">
+                  Custo total de mão de obra
+                </dt>
+                <dd className="font-semibold text-rose-800 dark:text-rose-200">
+                  {formatCurrency(laborCostResult.value.totalLaborCost)}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-xs text-rose-700 dark:text-rose-300">
+                  Custo por {recipeCalc.value.recipe.yieldUnit}
+                </dt>
+                <dd className="font-semibold text-rose-800 dark:text-rose-200">
+                  {formatCurrency(laborCostResult.value.laborCostPerUnit)}
+                </dd>
+              </div>
+            </dl>
           )}
         </div>
       )}

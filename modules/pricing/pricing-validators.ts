@@ -6,6 +6,7 @@
  *  - todo valor numérico precisa ser finito (NaN/Infinity → INVALID_NUMBER);
  *  - custo direto unitário: obrigatório (direto ou via receita) e > 0;
  *  - custo de embalagens (se informado): ≥ 0;
+ *  - custo de mão de obra por unidade (se informado): ≥ 0;
  *  - fixedCostRate: ≥ 0 e < 1 (100%);
  *  - desiredProfitRate: ≥ 0 e < 1 (100%);
  *  - canal (se houver): válido (reaproveita `validateChannel`);
@@ -62,6 +63,23 @@ export function validatePricingEngineInput(
         field: "packagingCost",
         code: "NEGATIVE",
         message: "O custo de embalagens não pode ser negativo.",
+      });
+    }
+  }
+
+  // Mão de obra por unidade é custo direto adicional e pode ser zero.
+  if (input.laborCost !== undefined) {
+    if (!Number.isFinite(input.laborCost)) {
+      errors.push({
+        field: "laborCost",
+        code: "INVALID_NUMBER",
+        message: "Informe um número válido para o custo de mão de obra.",
+      });
+    } else if (input.laborCost < 0) {
+      errors.push({
+        field: "laborCost",
+        code: "NEGATIVE",
+        message: "O custo de mão de obra não pode ser negativo.",
       });
     }
   }

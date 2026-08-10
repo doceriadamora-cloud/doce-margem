@@ -15,6 +15,7 @@ type Listener = () => void;
 const EMPTY_SETTINGS: BusinessSettings = {
   estimatedMonthlyRevenue: null,
   estimatedMonthlyUnits: null,
+  laborHourlyRate: null,
   updatedAt: "",
 };
 
@@ -56,9 +57,14 @@ export function reloadBusinessSettingsFromStorage(): void {
   notify();
 }
 
-/** Atualiza faturamento/volume mensal estimado e persiste. */
+/** Atualiza uma ou mais configurações financeiras e persiste. */
 export function updateBusinessSettings(
-  values: Pick<BusinessSettings, "estimatedMonthlyRevenue" | "estimatedMonthlyUnits">,
+  values: Partial<
+    Pick<
+      BusinessSettings,
+      "estimatedMonthlyRevenue" | "estimatedMonthlyUnits" | "laborHourlyRate"
+    >
+  >,
 ): boolean {
   const next: BusinessSettings = {
     ...ensureLoaded(),

@@ -5,8 +5,8 @@
  * percentual e taxas de canal) para produzir preço sugerido, margem e markup,
  * além da comparação com o preço praticado.
  *
- * O custo das embalagens entra no custo direto antes dos percentuais:
- *   custo direto = custo base da receita/CMV + embalagens
+ * Embalagens e mão de obra entram no custo direto antes dos percentuais:
+ *   custo direto = custo base da receita/CMV + embalagens + mão de obra
  *
  * Preço sugerido SEM canal:
  *   preço = custo direto / (1 − fixedCostRate − desiredProfitRate)
@@ -38,6 +38,7 @@ import type {
   SalesChannel,
 } from "@/types/pricing";
 import { validatePricingEngineInput } from "./pricing-validators";
+import { calculateTotalDirectCost } from "./labor";
 
 /** Tolerância (1%) para considerar o preço praticado "no ideal" (at_suggested). */
 export const PRICE_COMPARISON_TOLERANCE = 0.01;
@@ -67,7 +68,14 @@ export function calculatePricing(
   // A validação garante que ao menos um destes resolve para um número > 0.
   const baseDirectUnitCost = (input.directUnitCost ?? input.recipe?.unitCost) as number;
   const packagingCost = input.packagingCost ?? 0;
-  const directUnitCost = baseDirectUnitCost + packagingCost;
+  const laborCost = input.laborCost ?? 0;
+  const directCostResult = calculateTotalDirectCost({
+    recipeUnitCost: baseDirectUnitCost,
+    packagingCost,
+    laborCostPerUnit: laborCost,
+  });
+  if (!directCostResult.ok) return directCostResult;
+  const directUnitCost = directCostResult.value;
   const { fixedCostRate, desiredProfitRate } = input;
 
   // ── Cenário SEM canal ──
@@ -84,6 +92,7 @@ export function calculatePricing(
   const result: PricingEngineResult = {
     baseDirectUnitCost,
     packagingCost,
+    laborCost,
     directUnitCost,
     fixedCostRate,
     desiredProfitRate,

@@ -17,7 +17,7 @@ export default async function PrecificacaoPage() {
           Precificação
         </h1>
         <p className="mt-2 text-stone-600 dark:text-stone-400">
-          Escolha uma receita e descubra quanto custa, por quanto vender e quanto sobra de lucro.
+          Escolha uma receita, inclua embalagens e o tempo de trabalho e descubra por quanto vender.
         </p>
       </header>
       <PricingForm />

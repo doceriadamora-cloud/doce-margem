@@ -30,6 +30,8 @@ export interface BusinessSettings {
   estimatedMonthlyRevenue: number | null;
   /** Volume mensal estimado de unidades vendidas, ou `null` se ainda não informado. */
   estimatedMonthlyUnits: number | null;
+  /** Valor desejado da hora de trabalho em R$/h, ou `null` se ainda não informado. */
+  laborHourlyRate: number | null;
   /** Data/hora ISO da última gravação. */
   updatedAt: string;
 }
@@ -49,9 +51,8 @@ export interface AppState {
   /** Canais de venda customizados pela usuária (além da biblioteca padrão). */
   customChannels: SalesChannel[];
   /**
-   * Configurações financeiras (Fase 2-6). Sempre presente — dados salvos antes
-   * da Fase 2-6 não têm este campo; `normalizeStoredState` (storage-service.ts)
-   * repõe um valor seguro sem descartar o resto do estado.
+   * Configurações financeiras (Fase 2-6 + P0-2). Sempre presente — campos
+   * ausentes em dados antigos são normalizados sem descartar o resto do estado.
    */
   businessSettings: BusinessSettings;
   /** Data/hora ISO da última gravação. */

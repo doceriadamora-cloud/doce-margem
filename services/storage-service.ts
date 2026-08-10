@@ -32,6 +32,7 @@ export function createEmptyBusinessSettings(): BusinessSettings {
   return {
     estimatedMonthlyRevenue: null,
     estimatedMonthlyUnits: null,
+    laborHourlyRate: null,
     updatedAt: new Date().toISOString(),
   };
 }
@@ -105,6 +106,10 @@ function isFiniteNumberOrNull(value: unknown): value is number | null {
   return value === null || (typeof value === "number" && Number.isFinite(value));
 }
 
+function isNonNegativeFiniteNumberOrNull(value: unknown): value is number | null {
+  return value === null || (typeof value === "number" && Number.isFinite(value) && value >= 0);
+}
+
 /**
  * Normaliza `businessSettings` bruto. Segue o mesmo princípio das listas em
  * `normalizeStoredState`: campo ausente, de tipo errado ou com um número
@@ -119,6 +124,9 @@ function normalizeBusinessSettings(raw: unknown): BusinessSettings {
       : null,
     estimatedMonthlyUnits: isFiniteNumberOrNull(raw.estimatedMonthlyUnits)
       ? raw.estimatedMonthlyUnits
+      : null,
+    laborHourlyRate: isNonNegativeFiniteNumberOrNull(raw.laborHourlyRate)
+      ? raw.laborHourlyRate
       : null,
     updatedAt: typeof raw.updatedAt === "string" ? raw.updatedAt : new Date().toISOString(),
   };
@@ -135,8 +143,9 @@ function normalizeBusinessSettings(raw: unknown): BusinessSettings {
  *  - Com a versão batendo, cada array ausente ou com tipo errado é reposto por
  *    `[]` individualmente — um campo corrompido não descarta o restante do
  *    estado (ex.: dado antigo sem `customChannels`).
- *  - `businessSettings` e `packagings` seguem a mesma lógica aditiva: dado salvo
- *    ANTES dessas fases recebe o padrão seguro sem perder os outros cadastros.
+ *  - `businessSettings` (incluindo `laborHourlyRate`) e `packagings` seguem a
+ *    mesma lógica aditiva: dado salvo ANTES dessas fases recebe o padrão seguro
+ *    sem perder os outros cadastros.
  *    `businessSettings` vira `createEmptyBusinessSettings()` e `packagings` vira
  *    `[]`, sem descartar `ingredients`/`recipes`/etc. já cadastrados. Por isso não foi
  *    necessário incrementar `APP_STATE_SCHEMA_VERSION`: a reconstrução campo a

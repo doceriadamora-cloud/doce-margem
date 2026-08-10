@@ -1300,3 +1300,35 @@ anteriores continuam importáveis pelo mesmo caminho de normalização.
 
 Nenhuma mudança foi feita em webhook/Kiwify, autenticação, licenças, variáveis
 de ambiente, schema/migrations do Supabase ou SQL.
+
+---
+
+## 2026-08-10 — Valor/hora é configuração; tempo de produção pertence à simulação
+
+### Decisão
+
+A Fase P0-2 calcula mão de obra a partir do valor desejado da hora e do tempo de
+produção informado em horas e minutos. O custo total é `valor/hora × tempo em
+horas`; o custo por unidade é esse total dividido pelo rendimento da receita.
+
+Somente `laborHourlyRate` é persistido em `BusinessSettings`, porque representa
+uma configuração estável do negócio. Horas e minutos permanecem na simulação
+atual da Precificação: nesta fase não há vínculo persistido entre uma receita e
+seu tempo de produção, portanto salvar um tempo global poderia reaplicá-lo por
+engano a outra receita.
+
+No pricing engine, o custo unitário de mão de obra é somado ao custo unitário da
+receita e às embalagens. Esse custo direto total entra antes dos percentuais de
+custo fixo e lucro e antes das taxas do canal. Valor/hora ou tempo iguais a zero
+são válidos e mantêm a calculadora funcionando.
+
+### Compatibilidade
+
+`APP_STATE_STORAGE_KEY`, `APP_STATE_SCHEMA_VERSION` e
+`BACKUP_FORMAT_VERSION` permanecem inalterados. `laborHourlyRate` é um campo
+aditivo em `BusinessSettings`: estados e backups v1 anteriores, sem o campo,
+são normalizados para `null` sem perder os demais dados. O backup continua
+exportando e importando o mesmo `AppState` v1.
+
+Nenhuma mudança foi feita em webhook/Kiwify, autenticação, licenças, variáveis
+de ambiente, schema/migrations do Supabase ou SQL.

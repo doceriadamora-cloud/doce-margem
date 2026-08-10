@@ -108,7 +108,8 @@ export function runStorageValidations(): StorageCheckResult[] {
       empty.packagings.length === 0 &&
       empty.customChannels.length === 0 &&
       empty.businessSettings.estimatedMonthlyRevenue === null &&
-      empty.businessSettings.estimatedMonthlyUnits === null,
+      empty.businessSettings.estimatedMonthlyUnits === null &&
+      empty.businessSettings.laborHourlyRate === null,
   });
 
   // 2. Round-trip de ingredientes.
@@ -166,12 +167,19 @@ export function runStorageValidations(): StorageCheckResult[] {
   });
 
   // 6b. Round-trip de configurações financeiras (Fase 2-6).
-  saveBusinessSettings({ estimatedMonthlyRevenue: 10000, estimatedMonthlyUnits: 770, updatedAt: "" });
+  saveBusinessSettings({
+    estimatedMonthlyRevenue: 10000,
+    estimatedMonthlyUnits: 770,
+    laborHourlyRate: 30,
+    updatedAt: "",
+  });
   const loadedSettings = loadBusinessSettings();
   checks.push({
     label: "Configurações financeiras — round-trip salva/carrega",
     pass:
-      loadedSettings.estimatedMonthlyRevenue === 10000 && loadedSettings.estimatedMonthlyUnits === 770,
+      loadedSettings.estimatedMonthlyRevenue === 10000 &&
+      loadedSettings.estimatedMonthlyUnits === 770 &&
+      loadedSettings.laborHourlyRate === 30,
   });
 
   // 7. saveAppState grava com sucesso e atualiza updatedAt (ISO válido).
@@ -193,7 +201,8 @@ export function runStorageValidations(): StorageCheckResult[] {
       afterClear.fixedCosts.length === 0 &&
       afterClear.packagings.length === 0 &&
       afterClear.customChannels.length === 0 &&
-      afterClear.businessSettings.estimatedMonthlyRevenue === null,
+      afterClear.businessSettings.estimatedMonthlyRevenue === null &&
+      afterClear.businessSettings.laborHourlyRate === null,
   });
 
   // 9. JSON inválido — loadAppState não lança, devolve estado vazio.
@@ -254,6 +263,7 @@ export function runStorageValidations(): StorageCheckResult[] {
       partial.customChannels.length === 0 &&
       partial.businessSettings.estimatedMonthlyRevenue === null &&
       partial.businessSettings.estimatedMonthlyUnits === null &&
+      partial.businessSettings.laborHourlyRate === null &&
       typeof partial.businessSettings.updatedAt === "string",
   });
 
@@ -290,7 +300,8 @@ export function runStorageValidations(): StorageCheckResult[] {
     label: "businessSettings como string (não objeto) — vira padrão seguro",
     pass:
       corruptedSettings1.businessSettings.estimatedMonthlyRevenue === null &&
-      corruptedSettings1.businessSettings.estimatedMonthlyUnits === null,
+      corruptedSettings1.businessSettings.estimatedMonthlyUnits === null &&
+      corruptedSettings1.businessSettings.laborHourlyRate === null,
   });
 
   writeRawState(
@@ -300,7 +311,11 @@ export function runStorageValidations(): StorageCheckResult[] {
       recipes: [],
       fixedCosts: [],
       customChannels: [],
-      businessSettings: { estimatedMonthlyRevenue: "dez mil", estimatedMonthlyUnits: NaN },
+      businessSettings: {
+        estimatedMonthlyRevenue: "dez mil",
+        estimatedMonthlyUnits: NaN,
+        laborHourlyRate: -1,
+      },
     }),
   );
   const corruptedSettings2 = loadAppState();
@@ -308,7 +323,8 @@ export function runStorageValidations(): StorageCheckResult[] {
     label: "businessSettings com campos de tipo/valor errado (string, NaN) — cada campo vira null",
     pass:
       corruptedSettings2.businessSettings.estimatedMonthlyRevenue === null &&
-      corruptedSettings2.businessSettings.estimatedMonthlyUnits === null,
+      corruptedSettings2.businessSettings.estimatedMonthlyUnits === null &&
+      corruptedSettings2.businessSettings.laborHourlyRate === null,
   });
 
   // Não deixa rastro na máquina de quem rodou a validação.

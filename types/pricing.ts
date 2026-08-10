@@ -416,6 +416,48 @@ export interface PackagingCostSummary {
   totalCost: number;
 }
 
+/* ──────────────────── Mão de obra (Fase P0-2) ──────────────────── */
+
+/** Tempo de produção informado de forma simples, em horas e minutos. */
+export interface LaborTimeInput {
+  /** Horas de produção (≥ 0). */
+  hours: number;
+  /** Minutos adicionais de produção (≥ 0 e < 60). */
+  minutes: number;
+}
+
+/** Entrada para calcular o custo total da mão de obra de uma produção. */
+export interface LaborCostInput extends LaborTimeInput {
+  /** Valor desejado da hora de trabalho em R$/h (≥ 0). */
+  laborHourlyRate: number;
+}
+
+/** Entrada para ratear a mão de obra pelo rendimento da receita. */
+export interface LaborCostPerUnitInput extends LaborCostInput {
+  /** Rendimento total da receita (> 0). */
+  yieldQuantity: number;
+}
+
+/** Resultado completo do cálculo de mão de obra. */
+export interface LaborCostSummary extends LaborCostPerUnitInput {
+  /** Tempo total convertido para horas. */
+  laborTimeInHours: number;
+  /** Custo total de mão de obra da receita/produção. */
+  totalLaborCost: number;
+  /** Custo de mão de obra por unidade de rendimento. */
+  laborCostPerUnit: number;
+}
+
+/** Custos diretos unitários somados antes de percentuais e taxas. */
+export interface TotalDirectCostInput {
+  /** Custo unitário da receita. */
+  recipeUnitCost: number;
+  /** Custo de embalagens por venda/produto. */
+  packagingCost: number;
+  /** Custo de mão de obra por unidade de rendimento. */
+  laborCostPerUnit: number;
+}
+
 /* ──────────────────── Pricing engine (Fase 1C-3) ──────────────────── */
 
 /**
@@ -446,6 +488,8 @@ export interface PricingEngineInput {
   directUnitCost?: number;
   /** Custo total das embalagens usadas por venda/produto em R$ (≥ 0). */
   packagingCost?: number;
+  /** Custo de mão de obra por unidade de rendimento em R$ (≥ 0). */
+  laborCost?: number;
   /** Percentual de custo fixo sobre o preço, em decimal (0 ≤ x < 1). Ex.: 0,231. */
   fixedCostRate: number;
   /** Lucro desejado, em decimal (0 ≤ x < 1). Ex.: 0,20. */
@@ -532,11 +576,13 @@ export interface PracticedPriceComparison {
  * comparação com o preço praticado (ambos opcionais).
  */
 export interface PricingEngineResult {
-  /** Custo direto base antes das embalagens (receita/CMV). */
+  /** Custo direto base antes de embalagens e mão de obra (receita/CMV). */
   baseDirectUnitCost: number;
   /** Custo total das embalagens usadas na venda/produto. */
   packagingCost: number;
-  /** Custo direto total usado (baseDirectUnitCost + packagingCost). */
+  /** Custo de mão de obra por unidade de rendimento. */
+  laborCost: number;
+  /** Custo direto total usado (receita + embalagens + mão de obra). */
   directUnitCost: number;
   /** Percentual de custo fixo (decimal). */
   fixedCostRate: number;

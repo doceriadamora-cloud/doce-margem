@@ -161,7 +161,8 @@ export default function Dashboard() {
           />
           <NextStepCard
             title="Calcule o preço"
-            description="Defina sua margem e veja por quanto vender sem perder dinheiro."
+            description="Inclua embalagens e o tempo de trabalho, defina sua margem e veja por quanto vender."
+            href="/precificacao"
           />
           <NextStepCard
             title="Cadastre suas embalagens"

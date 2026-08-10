@@ -16,10 +16,10 @@ const proFeatures = ALL_FEATURES.filter(
 
 interface FeatureListProps {
   features: readonly FeatureDefinition[];
-  includePackaging?: boolean;
+  includeP0Features?: boolean;
 }
 
-function FeatureList({ features, includePackaging = false }: FeatureListProps) {
+function FeatureList({ features, includeP0Features = false }: FeatureListProps) {
   return (
     <ul className="grid gap-3">
       {features.map((feature) => (
@@ -45,23 +45,41 @@ function FeatureList({ features, includePackaging = false }: FeatureListProps) {
           </span>
         </li>
       ))}
-      {includePackaging && (
-        <li className="flex items-start gap-3 text-sm">
-          <span
-            aria-hidden="true"
-            className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-xs font-bold text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
-          >
-            ✓
-          </span>
-          <span>
-            <strong className="font-medium text-stone-800 dark:text-stone-200">
-              Embalagens
-            </strong>
-            <span className="mt-0.5 block text-stone-500 dark:text-stone-400">
-              Cadastre caixas, saquinhos, etiquetas e outros itens para incluir esse custo na precificação.
+      {includeP0Features && (
+        <>
+          <li className="flex items-start gap-3 text-sm">
+            <span
+              aria-hidden="true"
+              className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-xs font-bold text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
+            >
+              ✓
             </span>
-          </span>
-        </li>
+            <span>
+              <strong className="font-medium text-stone-800 dark:text-stone-200">
+                Embalagens
+              </strong>
+              <span className="mt-0.5 block text-stone-500 dark:text-stone-400">
+                Cadastre caixas, saquinhos, etiquetas e outros itens para incluir esse custo na precificação.
+              </span>
+            </span>
+          </li>
+          <li className="flex items-start gap-3 text-sm">
+            <span
+              aria-hidden="true"
+              className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-xs font-bold text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
+            >
+              ✓
+            </span>
+            <span>
+              <strong className="font-medium text-stone-800 dark:text-stone-200">
+                Mão de obra e tempo de produção
+              </strong>
+              <span className="mt-0.5 block text-stone-500 dark:text-stone-400">
+                Calcule o custo do seu tempo por receita e inclua-o na precificação.
+              </span>
+            </span>
+          </li>
+        </>
       )}
     </ul>
   );
@@ -134,7 +152,7 @@ export default function PrecosPage() {
           </header>
 
           <div className="py-6">
-            <FeatureList features={essentialFeatures} includePackaging />
+            <FeatureList features={essentialFeatures} includeP0Features />
           </div>
 
           <PurchaseCta href={essentialUrl} label="Comprar Essencial" />

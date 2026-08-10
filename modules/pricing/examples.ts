@@ -877,6 +877,8 @@ export function allFixedCostExamplesPass(): boolean {
  *       (0,231) + iFood Básico → preço = (0,465 + 1) / 0,417 ≈ R$ 3,51319
  *   Embalagem: custo base 10 + embalagem 2 → custo direto 12 antes dos
  *       percentuais; com fixedRate 0,20 e lucro 0,20 → preço = R$ 20.
+ *   Mão de obra: receita 1,36 + embalagem 2 + mão de obra 3 → custo direto
+ *       6,36 antes dos percentuais.
  */
 export function runPricingEngineValidations(): RecipeCheckResult[] {
   const checks: RecipeCheckResult[] = [];
@@ -942,6 +944,22 @@ export function runPricingEngineValidations(): RecipeCheckResult[] {
     checks.push({ label: "Embalagens — custo separado", expected: 2, actual: withPackaging.value.packagingCost, pass: near(withPackaging.value.packagingCost, 2) });
     checks.push({ label: "Embalagens — custo direto total", expected: 12, actual: withPackaging.value.directUnitCost, pass: near(withPackaging.value.directUnitCost, 12) });
     checks.push({ label: "Embalagens — preço após fixo e lucro", expected: 20, actual: withPackaging.value.suggestedPrice, pass: near(withPackaging.value.suggestedPrice, 20) });
+  }
+
+  // ── Mão de obra entra junto com embalagens antes dos percentuais ──
+  const withLabor = calculatePricing({
+    directUnitCost: 1.36,
+    packagingCost: 2,
+    laborCost: 3,
+    fixedCostRate: 0.2,
+    desiredProfitRate: 0.2,
+  });
+  if (!withLabor.ok) {
+    checks.push({ label: "Mão de obra — calcula sem erros", expected: 0, actual: withLabor.errors.length, pass: false });
+  } else {
+    checks.push({ label: "Mão de obra — custo separado", expected: 3, actual: withLabor.value.laborCost, pass: near(withLabor.value.laborCost, 3) });
+    checks.push({ label: "Mão de obra — custo direto total", expected: 6.36, actual: withLabor.value.directUnitCost, pass: near(withLabor.value.directUnitCost, 6.36) });
+    checks.push({ label: "Mão de obra — altera o preço sugerido", expected: 10.6, actual: withLabor.value.suggestedPrice, pass: near(withLabor.value.suggestedPrice, 10.6) });
   }
 
   // ── Exemplo 3: preço praticado abaixo do sugerido ──

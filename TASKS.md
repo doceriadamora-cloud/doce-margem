@@ -6,7 +6,7 @@
 > Marcar `[x]` ao concluir. Adicionar novas tarefas quando surgirem.
 > Antes de iniciar uma nova fase: parar, resumir o que foi feito e aguardar aprovação.
 
-**Fase atual:** P0-1 — Módulo de Embalagens concluído antes do lançamento. Compra, convite, senha, acesso, reembolso e bloqueio continuam preservados de ponta a ponta.
+**Fase atual:** P0-2 — Mão de obra / tempo de produção implementada antes do lançamento. Compra, convite, senha, acesso, reembolso e bloqueio continuam preservados de ponta a ponta.
 **Próximo passo recomendado:** seguir o roadmap P0 e revisar copy, checkout, suporte e política de reembolso antes de abrir oficialmente a venda.
 
 > 📋 **Auditoria pré-lançamento (2026-08-07): `GO-LIVE-AND-PRO-ROADMAP.md`** —
@@ -32,6 +32,17 @@
 - [x] Permitir múltiplas embalagens e quantidade usada por venda/produto na Precificação
 - [x] Somar embalagens ao custo direto antes de custo fixo percentual, margem e taxas do canal
 - [x] Exibir “Custo de embalagens” separado no resultado
+- [x] Preservar webhook/Kiwify, autenticação, licenças, envs, Supabase schema/migrations e SQL
+- [x] Rodar `typecheck`, `lint`, `build` e `git diff --check`
+
+### Fase P0-2 — Mão de obra / tempo de produção ✅
+- [x] Criar tipos, validações e funções puras para tempo em horas/minutos, custo total e custo por unidade
+- [x] Permitir valor/hora e tempo de produção na Precificação, com zero como entrada válida
+- [x] Persistir somente o valor/hora em `BusinessSettings`; manter o tempo específico da simulação sem persistência
+- [x] Somar mão de obra ao custo direto antes de custo fixo percentual, margem e taxas do canal
+- [x] Exibir custo da receita, embalagens, mão de obra, custo direto total e custo fixo separadamente
+- [x] Manter backups v1 anteriores compatíveis: `laborHourlyRate` ausente é normalizado para `null`
+- [x] Atualizar as listas do Essencial e a documentação sem marcar o recurso como planejado
 - [x] Preservar webhook/Kiwify, autenticação, licenças, envs, Supabase schema/migrations e SQL
 - [x] Rodar `typecheck`, `lint`, `build` e `git diff --check`
 

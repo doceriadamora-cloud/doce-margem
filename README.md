@@ -2,7 +2,7 @@
 
 > **Pare de vender doce no achismo.** Descubra quanto custa produzir, quanto cobrar e qual margem sobra em cada venda.
 
-App de **precificação para confeiteiras**. Calcula custo real de ingredientes, receitas e embalagens, ficha técnica, rendimento, CMV, custo unitário, preço sugerido, margem e markup — do jeito simples para quem está começando, e robusto para quem já é profissional.
+App de **precificação para confeiteiras**. Calcula custo real de ingredientes, receitas, embalagens e mão de obra, ficha técnica, rendimento, CMV, custo unitário, preço sugerido, margem e markup — do jeito simples para quem está começando, e robusto para quem já é profissional.
 
 > Este README é a **especificação viva** do projeto. Sempre que uma decisão estrutural importante for tomada, ele deve ser atualizado.
 
@@ -52,6 +52,7 @@ Duas formas de venda. **Não existe plano mensal.**
 | Preço por canal (básico) | ✅ | ✅ |
 | Custos fixos | ✅ | ✅ |
 | Cadastro e custo de embalagens | ✅ | ✅ |
+| Mão de obra / tempo de produção | ✅ | ✅ |
 | Backup export / import | ✅ | ✅ |
 | Templates básicos de receitas | ✅ | ✅ |
 | Modo simples + avançado básico | ✅ | ✅ |
@@ -134,6 +135,7 @@ modules/pricing/
   channels.ts         # taxas %, taxa fixa, comissão marketplace, preço por canal
   fixed-costs.ts      # custos fixos e rateio
   packagings.ts       # custo unitário e custo de embalagens por venda/produto
+  labor.ts            # tempo de produção, custo total e custo de mão de obra por unidade
   menu-engineering.ts # engenharia de cardápio
   pricing-engine.ts   # orquestra: CMV, preço sugerido, margem, markup
 ```
@@ -148,7 +150,9 @@ A lógica de cálculo deve cobrir:
 - Rendimento da receita, custo total e custo unitário.
 - Custo fixo rateado por unidade.
 - Embalagens: custo unitário = preço do pacote ÷ quantidade; custo da venda = custo unitário × quantidade usada.
-- O custo total das embalagens é somado ao custo direto da receita antes de margem, custo fixo percentual e taxas do canal.
+- Mão de obra: custo total = valor/hora × tempo de produção; custo por unidade = custo total ÷ rendimento.
+- Custo direto total = custo unitário da receita + custo de embalagens + custo de mão de obra por unidade.
+- Embalagens e mão de obra são somadas ao custo direto antes de margem, custo fixo percentual e taxas do canal.
 - Taxas percentuais, taxa fixa por pedido, comissão de marketplace.
 - Lucro desejado → preço sugerido.
 - Margem líquida e markup.
@@ -276,4 +280,4 @@ Antes de qualquer deploy: `npm run lint`, `npm run typecheck` e `npm run build` 
 Desenvolvimento **por fases**, com aprovação entre cada uma. Veja [TASKS.md](TASKS.md) para o backlog e [REVIEW.md](REVIEW.md) para riscos e revisão técnica.
 
 - **Fase 0 — Setup e documentação:** ✅ concluída.
-- Próxima: **Fase 1 — Núcleo de cálculo** (aguardando aprovação).
+- **Fase P0-2 — Mão de obra / tempo de produção:** implementada antes do lançamento.
