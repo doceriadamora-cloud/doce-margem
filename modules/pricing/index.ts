@@ -14,6 +14,9 @@ export * from "./channel-validators";
 export * from "./channels";
 export * from "./fixed-cost-validators";
 export * from "./fixed-costs";
+export * from "./packaging-validators";
+export * from "./packagings";
+export * from "./packaging-examples";
 export * from "./pricing-validators";
 export * from "./pricing-engine";
 export * from "./examples";
@@ -45,6 +48,10 @@ export type {
   FixedCost,
   FixedCostCalculationInput,
   FixedCostSummary,
+  Packaging,
+  PackagingUsage,
+  PackagingCostForSale,
+  PackagingCostSummary,
   PriceComparisonStatus,
   PricingEngineInput,
   ChannelSuggestedPriceBreakdown,

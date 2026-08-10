@@ -16,7 +16,7 @@
  * contra dados de uma usuária real.
  */
 
-import type { Recipe, SalesChannel } from "@/types/pricing";
+import type { Packaging, Recipe, SalesChannel } from "@/types/pricing";
 import { exampleIngredients } from "@/modules/pricing/examples";
 import {
   APP_STATE_STORAGE_KEY,
@@ -27,12 +27,14 @@ import {
   loadCustomChannels,
   loadFixedCosts,
   loadIngredients,
+  loadPackagings,
   loadRecipes,
   saveAppState,
   saveBusinessSettings,
   saveCustomChannels,
   saveFixedCosts,
   saveIngredients,
+  savePackagings,
   saveRecipes,
 } from "./storage-service";
 
@@ -59,6 +61,13 @@ const sampleCustomChannel: SalesChannel = {
   fixedFee: 0,
   adPercent: 0,
   monthlyFee: 0,
+};
+
+const samplePackaging: Packaging = {
+  id: "caixa-kraft",
+  name: "Caixa kraft 12x12",
+  packageQuantity: 10,
+  purchasePrice: 18,
 };
 
 /** Escreve uma string crua direto na chave do app (simula dado corrompido/legado). */
@@ -96,6 +105,7 @@ export function runStorageValidations(): StorageCheckResult[] {
       empty.ingredients.length === 0 &&
       empty.recipes.length === 0 &&
       empty.fixedCosts.length === 0 &&
+      empty.packagings.length === 0 &&
       empty.customChannels.length === 0 &&
       empty.businessSettings.estimatedMonthlyRevenue === null &&
       empty.businessSettings.estimatedMonthlyUnits === null,
@@ -146,6 +156,15 @@ export function runStorageValidations(): StorageCheckResult[] {
     pass: loadCustomChannels().length === 1 && loadCustomChannels()[0]?.id === "loja-propria",
   });
 
+  // 6a. Round-trip de embalagens (Fase P0-1).
+  savePackagings([samplePackaging]);
+  checks.push({
+    label: "Embalagens — round-trip salva/carrega",
+    pass:
+      loadPackagings().length === 1 &&
+      loadPackagings()[0]?.id === samplePackaging.id,
+  });
+
   // 6b. Round-trip de configurações financeiras (Fase 2-6).
   saveBusinessSettings({ estimatedMonthlyRevenue: 10000, estimatedMonthlyUnits: 770, updatedAt: "" });
   const loadedSettings = loadBusinessSettings();
@@ -172,6 +191,7 @@ export function runStorageValidations(): StorageCheckResult[] {
       afterClear.ingredients.length === 0 &&
       afterClear.recipes.length === 0 &&
       afterClear.fixedCosts.length === 0 &&
+      afterClear.packagings.length === 0 &&
       afterClear.customChannels.length === 0 &&
       afterClear.businessSettings.estimatedMonthlyRevenue === null,
   });
@@ -209,13 +229,13 @@ export function runStorageValidations(): StorageCheckResult[] {
   // 12. Estado antigo de ANTES da Fase 2-6: tem ingredientes/receitas, mas
   // nunca teve o campo `businessSettings` (nem existia). Não pode descartar
   // tudo, só recompor os campos faltando com um padrão seguro — é o teste que
-  // prova a compatibilidade retroativa exigida pela Fase 2-6.
+  // prova a compatibilidade retroativa exigida pela Fase 2-6 e pela P0-1.
   writeRawState(
     JSON.stringify({
       schemaVersion: 1,
       ingredients: exampleIngredients,
       updatedAt: "2026-01-01T00:00:00.000Z",
-      // recipes, fixedCosts, customChannels e businessSettings propositalmente ausentes.
+      // recipes, fixedCosts, packagings, customChannels e businessSettings ausentes.
     }),
   );
   const partial = loadAppState();
@@ -228,6 +248,8 @@ export function runStorageValidations(): StorageCheckResult[] {
       partial.recipes.length === 0 &&
       Array.isArray(partial.fixedCosts) &&
       partial.fixedCosts.length === 0 &&
+      Array.isArray(partial.packagings) &&
+      partial.packagings.length === 0 &&
       Array.isArray(partial.customChannels) &&
       partial.customChannels.length === 0 &&
       partial.businessSettings.estimatedMonthlyRevenue === null &&

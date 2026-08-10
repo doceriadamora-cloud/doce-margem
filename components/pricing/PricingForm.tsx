@@ -4,14 +4,17 @@ import { useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import {
   calculateFixedCostSummary,
+  calculatePackagingUnitCost,
   calculatePricing,
   calculateRecipe,
+  calculateTotalPackagingCost,
   defaultSalesChannels,
 } from "@/modules/pricing";
 import type {
   CalculatedRecipe,
   CalculationResult,
   Ingredient,
+  PackagingUsage,
   Recipe,
   SalesChannel,
 } from "@/types/pricing";
@@ -40,6 +43,11 @@ import {
   getBusinessSettingsSnapshot,
   subscribeBusinessSettings,
 } from "@/components/settings/business-settings-store";
+import {
+  getPackagingsServerSnapshot,
+  getPackagingsSnapshot,
+  subscribePackagings,
+} from "@/components/packagings/packagings-store";
 import PricingResult from "./PricingResult";
 
 /** Aceita vírgula OU ponto decimal (o exemplo da tarefa usa vírgula: "23,1"). */
@@ -92,6 +100,13 @@ function buildRecipesById(list: Recipe[]): Record<string, Recipe> {
   return map;
 }
 
+function hasOwnPackagingQuantity(
+  quantities: Record<string, string>,
+  packagingId: string,
+): boolean {
+  return Object.prototype.hasOwnProperty.call(quantities, packagingId);
+}
+
 /**
  * Monta o input do pricing engine e chama `calculatePricing` só quando todos
  * os campos necessários já são válidos — nunca reimplementa o cálculo aqui.
@@ -102,15 +117,24 @@ function computePricingResult(params: {
   desiredProfitRateDecimal: number | null;
   practicedPrice: number | undefined | null;
   channel: SalesChannel | undefined;
+  packagingCost: number | null;
 }) {
-  const { recipeCalc, fixedCostRateDecimal, desiredProfitRateDecimal, practicedPrice, channel } =
-    params;
+  const {
+    recipeCalc,
+    fixedCostRateDecimal,
+    desiredProfitRateDecimal,
+    practicedPrice,
+    channel,
+    packagingCost,
+  } = params;
   if (!recipeCalc || !recipeCalc.ok) return null;
   if (fixedCostRateDecimal === null || desiredProfitRateDecimal === null) return null;
   if (practicedPrice === null) return null; // texto inválido digitado no preço praticado
+  if (packagingCost === null) return null;
 
   return calculatePricing({
     recipe: recipeCalc.value,
+    packagingCost,
     fixedCostRate: fixedCostRateDecimal,
     desiredProfitRate: desiredProfitRateDecimal,
     channel,
@@ -155,6 +179,11 @@ export default function PricingForm() {
     getBusinessSettingsSnapshot,
     getBusinessSettingsServerSnapshot,
   );
+  const packagings = useSyncExternalStore(
+    subscribePackagings,
+    getPackagingsSnapshot,
+    getPackagingsServerSnapshot,
+  );
 
   const [selectedRecipeId, setSelectedRecipeId] = useState("");
   // `null` = a usuária ainda não editou este campo nesta visita → usa o
@@ -163,6 +192,7 @@ export default function PricingForm() {
   const [desiredProfitRatePercent, setDesiredProfitRatePercent] = useState("");
   const [selectedChannelId, setSelectedChannelId] = useState("");
   const [practicedPriceInput, setPracticedPriceInput] = useState("");
+  const [packagingQuantities, setPackagingQuantities] = useState<Record<string, string>>({});
 
   const settingsBasedSummary =
     businessSettings.estimatedMonthlyRevenue !== null && businessSettings.estimatedMonthlyRevenue > 0
@@ -213,6 +243,25 @@ export default function PricingForm() {
   const desiredProfitRateDecimal = toDecimalOrNull(desiredProfitRatePercent);
   const practicedPrice = parseOptionalNumber(practicedPriceInput);
 
+  const selectedPackagings = packagings.filter(
+    (packaging) =>
+      packaging.id !== undefined && hasOwnPackagingQuantity(packagingQuantities, packaging.id),
+  );
+  const invalidPackagingIds = new Set<string>();
+  const packagingUsages: PackagingUsage[] = [];
+  for (const packaging of selectedPackagings) {
+    if (!packaging.id) continue;
+    const quantityUsed = parseRequiredNumber(packagingQuantities[packaging.id] ?? "");
+    if (quantityUsed === null || quantityUsed <= 0) {
+      invalidPackagingIds.add(packaging.id);
+      continue;
+    }
+    packagingUsages.push({ packaging, quantityUsed });
+  }
+  const packagingCostResult =
+    invalidPackagingIds.size === 0 ? calculateTotalPackagingCost(packagingUsages) : null;
+  const packagingCost = packagingCostResult?.ok ? packagingCostResult.value.totalCost : null;
+
   // Campo "inválido" = a usuária digitou algo que não é vazio, mas não dá pra
   // interpretar como número. Campo vazio não é erro — só significa "ainda não
   // preenchido" (a calculadora simplesmente não mostra resultado ainda).
@@ -226,6 +275,7 @@ export default function PricingForm() {
     desiredProfitRateDecimal,
     practicedPrice,
     channel: selectedChannel,
+    packagingCost,
   });
 
   return (
@@ -264,6 +314,114 @@ export default function PricingForm() {
             </p>
           ))}
       </div>
+
+      {selectedRecipe && recipeCalc?.ok && (
+        <div className="flex flex-col gap-4 rounded-2xl border border-stone-200 bg-white p-5 dark:border-stone-800 dark:bg-stone-900">
+          <div>
+            <h2 className="font-medium text-stone-800 dark:text-stone-200">
+              Embalagens usadas
+            </h2>
+            <p className="mt-1 text-sm text-stone-500 dark:text-stone-400">
+              Selecione o que vai junto em cada produto ou venda e informe a quantidade usada.
+            </p>
+          </div>
+
+          {packagings.length === 0 ? (
+            <p className="rounded-lg bg-stone-50 px-3 py-3 text-sm text-stone-600 dark:bg-stone-950 dark:text-stone-400">
+              Você ainda não cadastrou embalagens. O cálculo continua sem esse custo.{" "}
+              <Link href="/embalagens" className="font-medium text-rose-600 hover:underline dark:text-rose-400">
+                Cadastrar embalagens
+              </Link>
+            </p>
+          ) : (
+            <div className="flex flex-col gap-3">
+              {packagings.map((packaging) => {
+                if (!packaging.id) return null;
+                const packagingId = packaging.id;
+                const checked = hasOwnPackagingQuantity(packagingQuantities, packagingId);
+                const quantityInvalid = invalidPackagingIds.has(packagingId);
+                const unitCost = calculatePackagingUnitCost(packaging);
+
+                return (
+                  <div
+                    key={packagingId}
+                    className="rounded-xl border border-stone-200 p-3 dark:border-stone-700"
+                  >
+                    <label className="flex cursor-pointer items-start gap-3 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        disabled={!unitCost.ok}
+                        onChange={(event) => {
+                          setPackagingQuantities((current) => {
+                            const next = { ...current };
+                            if (event.target.checked) next[packagingId] = "1";
+                            else delete next[packagingId];
+                            return next;
+                          });
+                        }}
+                        className="mt-0.5 h-4 w-4 accent-rose-600"
+                      />
+                      <span className="min-w-0 flex-1">
+                        <span className="font-medium text-stone-800 dark:text-stone-200">
+                          {packaging.name}
+                        </span>
+                        <span className="block text-xs text-stone-500 dark:text-stone-400">
+                          {unitCost.ok
+                            ? `${formatCurrency(unitCost.value)}/un`
+                            : unitCost.errors[0]?.message}
+                        </span>
+                      </span>
+                    </label>
+
+                    {checked && (
+                      <div className="mt-3 pl-7">
+                        <Field
+                          label="Quantidade usada por venda/produto"
+                          error={
+                            quantityInvalid
+                              ? "Informe uma quantidade maior que zero."
+                              : undefined
+                          }
+                        >
+                          <input
+                            type="text"
+                            inputMode="decimal"
+                            value={packagingQuantities[packagingId] ?? ""}
+                            onChange={(event) =>
+                              setPackagingQuantities((current) => ({
+                                ...current,
+                                [packagingId]: event.target.value,
+                              }))
+                            }
+                            className={inputClass}
+                          />
+                        </Field>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {packagingCostResult?.ok && (
+            <p className="rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-800 dark:bg-rose-950 dark:text-rose-200">
+              Custo de embalagens: <strong>{formatCurrency(packagingCostResult.value.totalCost)}</strong>
+            </p>
+          )}
+          {packagingCostResult && !packagingCostResult.ok && (
+            <p className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:bg-amber-950 dark:text-amber-200">
+              Não foi possível calcular as embalagens: {packagingCostResult.errors[0]?.message}
+            </p>
+          )}
+          {packagings.length > 0 && (
+            <Link href="/embalagens" className="w-fit text-sm font-medium text-rose-600 hover:underline dark:text-rose-400">
+              Gerenciar embalagens
+            </Link>
+          )}
+        </div>
+      )}
 
       {selectedRecipe && recipeCalc?.ok && (
         <div className="flex flex-col gap-4 rounded-2xl border border-stone-200 bg-white p-5 dark:border-stone-800 dark:bg-stone-900">

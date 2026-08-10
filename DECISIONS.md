@@ -1272,3 +1272,31 @@ mensagens de backup e documentação passam a exibir Minha Fatia. Referências a
 Doce Margem ficam restritas a registros históricos e identificadores técnicos
 explicitamente preservados. A configuração externa do novo domínio continua
 como etapa de go-live e não faz parte desta alteração de código.
+
+---
+
+## 2026-08-10 — Embalagens são custo direto calculado, não dado derivado persistido
+
+### Decisão
+
+A Fase P0-1 adiciona embalagens como cadastros locais (`name`,
+`packageQuantity`, `purchasePrice`, `notes`) e calcula custo unitário e custo por
+venda sempre a partir desses insumos. A seleção e a quantidade usada pertencem
+à calculadora de Precificação e não são persistidas nesta fase.
+
+No pricing engine, `packagingCost` é somado ao custo base da receita/CMV antes
+dos percentuais de custo fixo e lucro e antes das taxas do canal. O resultado
+preserva três valores explícitos: custo base, custo de embalagens e custo direto
+total.
+
+### Compatibilidade
+
+`APP_STATE_STORAGE_KEY` e `APP_STATE_SCHEMA_VERSION` permanecem inalterados. O
+novo array `packagings` é aditivo: estados e backups v1 anteriores, que não têm
+esse campo, são normalizados para `[]` sem perder ingredientes, receitas, custos
+fixos, canais ou configurações. `BACKUP_FORMAT_VERSION` também permanece em 1;
+novos backups incluem embalagens automaticamente dentro do `AppState`, e os
+anteriores continuam importáveis pelo mesmo caminho de normalização.
+
+Nenhuma mudança foi feita em webhook/Kiwify, autenticação, licenças, variáveis
+de ambiente, schema/migrations do Supabase ou SQL.

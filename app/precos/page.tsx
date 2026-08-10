@@ -16,9 +16,10 @@ const proFeatures = ALL_FEATURES.filter(
 
 interface FeatureListProps {
   features: readonly FeatureDefinition[];
+  includePackaging?: boolean;
 }
 
-function FeatureList({ features }: FeatureListProps) {
+function FeatureList({ features, includePackaging = false }: FeatureListProps) {
   return (
     <ul className="grid gap-3">
       {features.map((feature) => (
@@ -44,6 +45,24 @@ function FeatureList({ features }: FeatureListProps) {
           </span>
         </li>
       ))}
+      {includePackaging && (
+        <li className="flex items-start gap-3 text-sm">
+          <span
+            aria-hidden="true"
+            className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-xs font-bold text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
+          >
+            ✓
+          </span>
+          <span>
+            <strong className="font-medium text-stone-800 dark:text-stone-200">
+              Embalagens
+            </strong>
+            <span className="mt-0.5 block text-stone-500 dark:text-stone-400">
+              Cadastre caixas, saquinhos, etiquetas e outros itens para incluir esse custo na precificação.
+            </span>
+          </span>
+        </li>
+      )}
     </ul>
   );
 }
@@ -115,7 +134,7 @@ export default function PrecosPage() {
           </header>
 
           <div className="py-6">
-            <FeatureList features={essentialFeatures} />
+            <FeatureList features={essentialFeatures} includePackaging />
           </div>
 
           <PurchaseCta href={essentialUrl} label="Comprar Essencial" />

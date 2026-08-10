@@ -16,6 +16,7 @@ import type { AppState, BusinessSettings } from "@/types/app-state";
 import type {
   FixedCost,
   Ingredient,
+  Packaging,
   Recipe,
   SalesChannel,
 } from "@/types/pricing";
@@ -42,6 +43,7 @@ export function createEmptyAppState(): AppState {
     ingredients: [],
     recipes: [],
     fixedCosts: [],
+    packagings: [],
     customChannels: [],
     businessSettings: createEmptyBusinessSettings(),
     updatedAt: new Date().toISOString(),
@@ -133,9 +135,10 @@ function normalizeBusinessSettings(raw: unknown): BusinessSettings {
  *  - Com a versão batendo, cada array ausente ou com tipo errado é reposto por
  *    `[]` individualmente — um campo corrompido não descarta o restante do
  *    estado (ex.: dado antigo sem `customChannels`).
- *  - `businessSettings` segue a mesma lógica (Fase 2-6): dado salvo ANTES desta
- *    fase não tem esse campo — vira o padrão seguro (`createEmptyBusinessSettings`)
- *    sem descartar `ingredients`/`recipes`/etc. já cadastrados. Por isso não foi
+ *  - `businessSettings` e `packagings` seguem a mesma lógica aditiva: dado salvo
+ *    ANTES dessas fases recebe o padrão seguro sem perder os outros cadastros.
+ *    `businessSettings` vira `createEmptyBusinessSettings()` e `packagings` vira
+ *    `[]`, sem descartar `ingredients`/`recipes`/etc. já cadastrados. Por isso não foi
  *    necessário incrementar `APP_STATE_SCHEMA_VERSION`: a reconstrução campo a
  *    campo (decisão da Fase 2-1) já resolve "campo novo ausente em dado antigo"
  *    sem precisar de uma migração de verdade.
@@ -150,6 +153,7 @@ export function normalizeAppState(raw: unknown): AppState {
     ingredients: Array.isArray(raw.ingredients) ? (raw.ingredients as Ingredient[]) : [],
     recipes: Array.isArray(raw.recipes) ? (raw.recipes as Recipe[]) : [],
     fixedCosts: Array.isArray(raw.fixedCosts) ? (raw.fixedCosts as FixedCost[]) : [],
+    packagings: Array.isArray(raw.packagings) ? (raw.packagings as Packaging[]) : [],
     customChannels: Array.isArray(raw.customChannels)
       ? (raw.customChannels as SalesChannel[])
       : [],
@@ -227,6 +231,14 @@ export function saveFixedCosts(fixedCosts: FixedCost[]): boolean {
 
 export function loadFixedCosts(): FixedCost[] {
   return loadAppState().fixedCosts;
+}
+
+export function savePackagings(packagings: Packaging[]): boolean {
+  return saveAppState({ ...loadAppState(), packagings });
+}
+
+export function loadPackagings(): Packaging[] {
+  return loadAppState().packagings;
 }
 
 export function saveCustomChannels(customChannels: SalesChannel[]): boolean {

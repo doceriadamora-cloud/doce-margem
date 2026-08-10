@@ -116,6 +116,9 @@ export default async function AcessoBloqueadoPage() {
             {essentialFeatures.map((feature) => (
               <FeatureItem key={feature.key} feature={feature} />
             ))}
+            <li className="text-stone-700 dark:text-stone-300">
+              Cadastro e custo de embalagens
+            </li>
           </ul>
         </section>
 

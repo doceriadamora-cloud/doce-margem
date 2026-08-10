@@ -13,6 +13,7 @@ const availableSections: NavItem[] = [
   { label: "Painel", href: "/" },
   { label: "Ingredientes", href: "/ingredientes" },
   { label: "Receitas", href: "/receitas" },
+  { label: "Embalagens", href: "/embalagens" },
   { label: "Precificação", href: "/precificacao" },
   { label: "Configurações", href: "/configuracoes" },
 ];

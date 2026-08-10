@@ -11,6 +11,7 @@ import {
 import { reloadCustomChannelsFromStorage } from "@/components/channels/channels-store";
 import { reloadFixedCostsFromStorage } from "@/components/fixed-costs/fixed-costs-store";
 import { reloadIngredientsFromStorage } from "@/components/ingredients/ingredients-store";
+import { reloadPackagingsFromStorage } from "@/components/packagings/packagings-store";
 import { reloadRecipesFromStorage } from "@/components/recipes/recipes-store";
 import { reloadBusinessSettingsFromStorage } from "@/components/settings/business-settings-store";
 
@@ -21,6 +22,7 @@ const IMPORT_CONFIRMATION =
 
 function reloadAllStoresFromStorage(): void {
   reloadIngredientsFromStorage();
+  reloadPackagingsFromStorage();
   reloadRecipesFromStorage();
   reloadFixedCostsFromStorage();
   reloadCustomChannelsFromStorage();
@@ -128,8 +130,8 @@ export default function BackupPanel() {
               Exportar backup
             </h3>
             <p className="mt-1 text-sm text-stone-600 dark:text-stone-400">
-              Baixe uma cópia dos seus ingredientes, receitas, custos fixos, canais e
-              configurações.
+              Baixe uma cópia dos seus ingredientes, receitas, embalagens, custos fixos,
+              canais e configurações.
             </p>
           </div>
           <button

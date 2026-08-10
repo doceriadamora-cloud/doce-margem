@@ -9,6 +9,7 @@
 import type {
   FixedCost,
   Ingredient,
+  Packaging,
   Recipe,
   SalesChannel,
 } from "@/types/pricing";
@@ -43,6 +44,8 @@ export interface AppState {
   recipes: Recipe[];
   /** Custos fixos cadastrados. */
   fixedCosts: FixedCost[];
+  /** Embalagens cadastradas. */
+  packagings: Packaging[];
   /** Canais de venda customizados pela usuária (além da biblioteca padrão). */
   customChannels: SalesChannel[];
   /**

@@ -372,6 +372,50 @@ export interface FixedCostSummary {
   fixedCostPerUnit?: number;
 }
 
+/* ──────────────────── Embalagens (Fase P0-1) ──────────────────── */
+
+/** Embalagem como a usuária compra e mantém cadastrada. */
+export interface Packaging {
+  /** Identificador opcional (preenchido pela camada de persistência). */
+  id?: string;
+  /** Nome da embalagem (ex.: "Caixa kraft 12x12"). */
+  name: string;
+  /** Quantidade de unidades compradas no pacote (> 0). */
+  packageQuantity: number;
+  /** Preço pago pelo pacote em R$ (> 0). */
+  purchasePrice: number;
+  /** Observação opcional (tamanho, fornecedor, cor etc.). */
+  notes?: string;
+}
+
+/** Uso de uma embalagem em uma venda/produto. */
+export interface PackagingUsage {
+  /** Embalagem cadastrada. */
+  packaging: Packaging;
+  /** Quantidade de unidades da embalagem usadas na venda/produto (> 0). */
+  quantityUsed: number;
+}
+
+/** Custo calculado de uma embalagem para uma venda/produto. */
+export interface PackagingCostForSale {
+  /** Embalagem de origem. */
+  packaging: Packaging;
+  /** Custo de uma unidade da embalagem (purchasePrice / packageQuantity). */
+  unitCost: number;
+  /** Quantidade usada na venda/produto. */
+  quantityUsed: number;
+  /** Custo total deste uso (unitCost × quantityUsed). */
+  totalCost: number;
+}
+
+/** Soma calculada das embalagens selecionadas para uma venda/produto. */
+export interface PackagingCostSummary {
+  /** Detalhamento de cada embalagem selecionada. */
+  items: PackagingCostForSale[];
+  /** Soma dos custos de todas as embalagens selecionadas. */
+  totalCost: number;
+}
+
 /* ──────────────────── Pricing engine (Fase 1C-3) ──────────────────── */
 
 /**
@@ -400,6 +444,8 @@ export interface PricingEngineInput {
   recipe?: CalculatedRecipe;
   /** Custo direto unitário (CMV) em R$. Se omitido, usa `recipe.unitCost`. */
   directUnitCost?: number;
+  /** Custo total das embalagens usadas por venda/produto em R$ (≥ 0). */
+  packagingCost?: number;
   /** Percentual de custo fixo sobre o preço, em decimal (0 ≤ x < 1). Ex.: 0,231. */
   fixedCostRate: number;
   /** Lucro desejado, em decimal (0 ≤ x < 1). Ex.: 0,20. */
@@ -486,7 +532,11 @@ export interface PracticedPriceComparison {
  * comparação com o preço praticado (ambos opcionais).
  */
 export interface PricingEngineResult {
-  /** Custo direto unitário (CMV) usado. */
+  /** Custo direto base antes das embalagens (receita/CMV). */
+  baseDirectUnitCost: number;
+  /** Custo total das embalagens usadas na venda/produto. */
+  packagingCost: number;
+  /** Custo direto total usado (baseDirectUnitCost + packagingCost). */
   directUnitCost: number;
   /** Percentual de custo fixo (decimal). */
   fixedCostRate: number;

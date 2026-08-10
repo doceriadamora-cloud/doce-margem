@@ -2,7 +2,7 @@
 
 > **Pare de vender doce no achismo.** Descubra quanto custa produzir, quanto cobrar e qual margem sobra em cada venda.
 
-App de **precificação para confeiteiras**. Calcula custo real de ingredientes, ficha técnica, rendimento, CMV, custo unitário, preço sugerido, margem e markup — do jeito simples para quem está começando, e robusto para quem já é profissional.
+App de **precificação para confeiteiras**. Calcula custo real de ingredientes, receitas e embalagens, ficha técnica, rendimento, CMV, custo unitário, preço sugerido, margem e markup — do jeito simples para quem está começando, e robusto para quem já é profissional.
 
 > Este README é a **especificação viva** do projeto. Sempre que uma decisão estrutural importante for tomada, ele deve ser atualizado.
 
@@ -51,6 +51,7 @@ Duas formas de venda. **Não existe plano mensal.**
 | Preço sugerido, margem, markup | ✅ | ✅ |
 | Preço por canal (básico) | ✅ | ✅ |
 | Custos fixos | ✅ | ✅ |
+| Cadastro e custo de embalagens | ✅ | ✅ |
 | Backup export / import | ✅ | ✅ |
 | Templates básicos de receitas | ✅ | ✅ |
 | Modo simples + avançado básico | ✅ | ✅ |
@@ -132,6 +133,7 @@ modules/pricing/
   recipes.ts          # ficha técnica, rendimento, custo total e unitário
   channels.ts         # taxas %, taxa fixa, comissão marketplace, preço por canal
   fixed-costs.ts      # custos fixos e rateio
+  packagings.ts       # custo unitário e custo de embalagens por venda/produto
   menu-engineering.ts # engenharia de cardápio
   pricing-engine.ts   # orquestra: CMV, preço sugerido, margem, markup
 ```
@@ -145,6 +147,8 @@ A lógica de cálculo deve cobrir:
 - Fator de correção e perda de produção.
 - Rendimento da receita, custo total e custo unitário.
 - Custo fixo rateado por unidade.
+- Embalagens: custo unitário = preço do pacote ÷ quantidade; custo da venda = custo unitário × quantidade usada.
+- O custo total das embalagens é somado ao custo direto da receita antes de margem, custo fixo percentual e taxas do canal.
 - Taxas percentuais, taxa fixa por pedido, comissão de marketplace.
 - Lucro desejado → preço sugerido.
 - Margem líquida e markup.
@@ -238,7 +242,7 @@ Antes de qualquer deploy: `npm run lint`, `npm run typecheck` e `npm run build` 
 ## 15. Rotas planejadas
 
 **Públicas:** `/`, `/login`, `/cadastro`, `/precos`, `/acesso-bloqueado`
-**App:** `/app`, `/app/ingredientes`, `/app/receitas`, `/app/precificacao`, `/app/canais`, `/app/custos-fixos`, `/app/cardapio`, `/app/configuracoes`, `/app/backup`
+**App atual:** `/`, `/ingredientes`, `/receitas`, `/embalagens`, `/precificacao`, `/configuracoes`, `/conta`
 **Pro (futuro/bloqueável):** `/app/historico-precos`, `/app/scanner`, `/app/relatorios`
 **Admin:** `/admin`, `/admin/usuarios`, `/admin/licencas`, `/admin/webhooks`
 **API:** `POST /api/webhooks/kiwify`, `POST /api/webhooks/hotmart`

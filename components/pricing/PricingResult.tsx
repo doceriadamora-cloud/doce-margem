@@ -50,7 +50,9 @@ export default function PricingResult({ result }: PricingResultProps) {
           Esse é o valor mínimo para cobrir seus custos e o lucro desejado, sem taxas de canal.
         </p>
         <dl className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2 text-sm">
-          <DL label="Custo direto (por unidade)" value={formatCurrency(result.directUnitCost)} />
+          <DL label="Custo da receita" value={formatCurrency(result.baseDirectUnitCost)} />
+          <DL label="Custo de embalagens" value={formatCurrency(result.packagingCost)} />
+          <DL label="Custo direto total" value={formatCurrency(result.directUnitCost)} />
           <DL label="Custo fixo estimado" value={formatCurrency(result.fixedCostAmount)} />
           <DL label="Lucro esperado" value={formatCurrency(result.expectedProfitAmount)} />
           <DL label="Margem esperada" value={formatPercent(result.expectedMargin)} />

@@ -1,6 +1,7 @@
 "use client";
 
 import { useSyncExternalStore } from "react";
+import Link from "next/link";
 import { isStorageAvailable } from "@/services";
 import {
   getIngredientsServerSnapshot,
@@ -22,6 +23,11 @@ import {
   getCustomChannelsSnapshot,
   subscribeCustomChannels,
 } from "@/components/channels/channels-store";
+import {
+  getPackagingsServerSnapshot,
+  getPackagingsSnapshot,
+  subscribePackagings,
+} from "@/components/packagings/packagings-store";
 import StatCard from "./StatCard";
 
 /**
@@ -29,7 +35,7 @@ import StatCard from "./StatCard";
  * storage local, que só existe no navegador.
  *
  * Lê os MESMOS stores reativos das telas de CRUD (ingredientes, receitas,
- * custos fixos, canais) em vez de um cache próprio de `loadAppState()`. A
+ * custos fixos, embalagens, canais) em vez de um cache próprio de `loadAppState()`. A
  * versão original tinha cache próprio com `subscribe` no-op — o que funcionava
  * quando nenhuma tela escrevia dados (Fase 2-2), mas passou a mostrar contagens
  * DESATUALIZADAS assim que as Fases 2-3 a 2-6 criaram telas de cadastro: quem
@@ -87,15 +93,26 @@ export default function Dashboard() {
     getCustomChannelsSnapshot,
     getCustomChannelsServerSnapshot,
   );
+  const packagings = useSyncExternalStore(
+    subscribePackagings,
+    getPackagingsSnapshot,
+    getPackagingsServerSnapshot,
+  );
 
   const counts = {
     ingredients: ingredients.length,
     recipes: recipes.length,
     fixedCosts: fixedCosts.length,
+    packagings: packagings.length,
     customChannels: customChannels.length,
   };
   const hasAnyData =
-    counts.ingredients + counts.recipes + counts.fixedCosts + counts.customChannels > 0;
+    counts.ingredients +
+      counts.recipes +
+      counts.fixedCosts +
+      counts.packagings +
+      counts.customChannels >
+    0;
 
   return (
     <div className="flex flex-col gap-8">
@@ -109,11 +126,12 @@ export default function Dashboard() {
       {hasAnyData ? (
         <section
           aria-label="Resumo dos seus dados"
-          className="grid grid-cols-2 gap-4 lg:grid-cols-4"
+          className="grid grid-cols-2 gap-4 lg:grid-cols-5"
         >
           <StatCard label="Ingredientes cadastrados" value={counts.ingredients} />
           <StatCard label="Receitas cadastradas" value={counts.recipes} />
           <StatCard label="Custos fixos cadastrados" value={counts.fixedCosts} />
+          <StatCard label="Embalagens cadastradas" value={counts.packagings} />
           <StatCard label="Canais customizados" value={counts.customChannels} />
         </section>
       ) : (
@@ -132,7 +150,7 @@ export default function Dashboard() {
         <h2 className="text-lg font-semibold text-stone-900 dark:text-stone-50">
           Próximos passos
         </h2>
-        <div className="mt-3 grid gap-3 sm:grid-cols-3">
+        <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <NextStepCard
             title="Cadastre seus ingredientes"
             description="Informe o que você compra e por quanto, para saber o custo real de cada item."
@@ -144,6 +162,11 @@ export default function Dashboard() {
           <NextStepCard
             title="Calcule o preço"
             description="Defina sua margem e veja por quanto vender sem perder dinheiro."
+          />
+          <NextStepCard
+            title="Cadastre suas embalagens"
+            description="Inclua caixas, saquinhos, etiquetas e bandejas no custo final de cada venda."
+            href="/embalagens"
           />
         </div>
       </section>
@@ -158,16 +181,26 @@ export default function Dashboard() {
 interface NextStepCardProps {
   title: string;
   description: string;
+  href?: string;
 }
 
-function NextStepCard({ title, description }: NextStepCardProps) {
+function NextStepCard({ title, description, href }: NextStepCardProps) {
   return (
     <div className="rounded-2xl border border-stone-200 bg-white p-4 dark:border-stone-800 dark:bg-stone-900">
       <p className="font-medium text-stone-900 dark:text-stone-50">{title}</p>
       <p className="mt-1 text-sm text-stone-500 dark:text-stone-400">{description}</p>
-      <span className="mt-3 inline-block rounded-full bg-stone-100 px-2.5 py-0.5 text-xs font-medium text-stone-500 dark:bg-stone-800 dark:text-stone-400">
-        Em breve
-      </span>
+      {href ? (
+        <Link
+          href={href}
+          className="mt-3 inline-block rounded-full bg-rose-50 px-2.5 py-0.5 text-xs font-medium text-rose-700 transition-colors hover:bg-rose-100 dark:bg-rose-950 dark:text-rose-300 dark:hover:bg-rose-900"
+        >
+          Disponível
+        </Link>
+      ) : (
+        <span className="mt-3 inline-block rounded-full bg-stone-100 px-2.5 py-0.5 text-xs font-medium text-stone-500 dark:bg-stone-800 dark:text-stone-400">
+          Em breve
+        </span>
+      )}
     </div>
   );
 }

@@ -6,8 +6,8 @@
 > Marcar `[x]` ao concluir. Adicionar novas tarefas quando surgirem.
 > Antes de iniciar uma nova fase: parar, resumir o que foi feito e aguardar aprovação.
 
-**Fase atual:** rebrand controlado para Minha Fatia concluído após a validação final do ciclo real em produção. Compra, convite, senha, acesso, reembolso e bloqueio continuam preservados de ponta a ponta.
-**Próximo passo recomendado:** revisar copy, checkout, domínio, suporte e política de reembolso antes de abrir oficialmente a venda.
+**Fase atual:** P0-1 — Módulo de Embalagens concluído antes do lançamento. Compra, convite, senha, acesso, reembolso e bloqueio continuam preservados de ponta a ponta.
+**Próximo passo recomendado:** seguir o roadmap P0 e revisar copy, checkout, suporte e política de reembolso antes de abrir oficialmente a venda.
 
 > 📋 **Auditoria pré-lançamento (2026-08-07): `GO-LIVE-AND-PRO-ROADMAP.md`** —
 > estado do produto, 10 bloqueadores críticos, diagnóstico do webhook, fronteira
@@ -22,6 +22,18 @@
 - [x] Preservar rotas, auth, licenças, migrations, webhook, validação Kiwify, envs e pricing engine
 - [x] Rodar `typecheck`, `lint` e `build` com sucesso após o rebrand
 - [ ] **Cutover externo, fora deste rebrand de código:** configurar o novo domínio na Vercel, Supabase, Resend e variáveis de ambiente antes da abertura oficial
+
+### Fase P0-1 — Módulo de Embalagens ✅
+- [x] Criar tipos, validações e funções puras de custo unitário, custo por uso e custo total de embalagens
+- [x] Persistir embalagens no `AppState` v1 sem mudar `APP_STATE_STORAGE_KEY` nem descartar dados antigos
+- [x] Manter backups anteriores compatíveis: `packagings` ausente é normalizado para `[]`; formato continua v1
+- [x] Criar rota `/embalagens` com cadastro, custo unitário, listagem e remoção
+- [x] Adicionar Embalagens à navegação e ao resumo do Painel
+- [x] Permitir múltiplas embalagens e quantidade usada por venda/produto na Precificação
+- [x] Somar embalagens ao custo direto antes de custo fixo percentual, margem e taxas do canal
+- [x] Exibir “Custo de embalagens” separado no resultado
+- [x] Preservar webhook/Kiwify, autenticação, licenças, envs, Supabase schema/migrations e SQL
+- [x] Rodar `typecheck`, `lint`, `build` e `git diff --check`
 
 ## Fase 0 — Setup e documentação ✅
 - [x] Criar projeto em C:\dev\doce-margem

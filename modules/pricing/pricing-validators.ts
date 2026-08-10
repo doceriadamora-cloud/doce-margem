@@ -5,6 +5,7 @@
  * canal seguem 0–100 (validados por `validateChannel`). Regras:
  *  - todo valor numérico precisa ser finito (NaN/Infinity → INVALID_NUMBER);
  *  - custo direto unitário: obrigatório (direto ou via receita) e > 0;
+ *  - custo de embalagens (se informado): ≥ 0;
  *  - fixedCostRate: ≥ 0 e < 1 (100%);
  *  - desiredProfitRate: ≥ 0 e < 1 (100%);
  *  - canal (se houver): válido (reaproveita `validateChannel`);
@@ -46,6 +47,23 @@ export function validatePricingEngineInput(
       code: "NON_POSITIVE",
       message: "O custo direto unitário precisa ser maior que zero.",
     });
+  }
+
+  // Embalagens são custo direto adicional e podem ser zero quando nenhuma foi selecionada.
+  if (input.packagingCost !== undefined) {
+    if (!Number.isFinite(input.packagingCost)) {
+      errors.push({
+        field: "packagingCost",
+        code: "INVALID_NUMBER",
+        message: "Informe um número válido para o custo de embalagens.",
+      });
+    } else if (input.packagingCost < 0) {
+      errors.push({
+        field: "packagingCost",
+        code: "NEGATIVE",
+        message: "O custo de embalagens não pode ser negativo.",
+      });
+    }
   }
 
   // Percentual de custo fixo (decimal 0 a <1).
