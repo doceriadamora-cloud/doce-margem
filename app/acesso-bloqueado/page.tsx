@@ -122,6 +122,9 @@ export default async function AcessoBloqueadoPage() {
             <li className="text-stone-700 dark:text-stone-300">
               Mão de obra e tempo de produção
             </li>
+            <li className="text-stone-700 dark:text-stone-300">
+              Ficha interna de precificação
+            </li>
           </ul>
         </section>
 

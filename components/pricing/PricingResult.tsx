@@ -1,13 +1,6 @@
 import type { PriceComparisonStatus, PricingEngineResult } from "@/types/pricing";
-
-function formatCurrency(value: number): string {
-  return value.toLocaleString("pt-BR", {
-    style: "currency",
-    currency: "BRL",
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 4,
-  });
-}
+import { formatCurrency } from "./pricing-formatters";
+import PricingPrintableSheet from "./PricingPrintableSheet";
 
 function formatPercent(value: number): string {
   return value.toLocaleString("pt-BR", {
@@ -31,6 +24,9 @@ const STATUS_CLASS: Record<PriceComparisonStatus, string> = {
 
 interface PricingResultProps {
   result: PricingEngineResult;
+  recipeName: string;
+  yieldQuantity: number;
+  yieldUnit: string;
 }
 
 /**
@@ -38,10 +34,15 @@ interface PricingResultProps {
  * exibe valores já calculados por `calculatePricing` — nenhuma soma/divisão
  * própria aqui.
  */
-export default function PricingResult({ result }: PricingResultProps) {
+export default function PricingResult({
+  result,
+  recipeName,
+  yieldQuantity,
+  yieldUnit,
+}: PricingResultProps) {
   return (
     <div className="flex flex-col gap-4">
-      <section className="rounded-2xl border border-rose-200 bg-rose-50 p-5 dark:border-rose-900 dark:bg-rose-950">
+      <section className="pricing-print-hidden rounded-2xl border border-rose-200 bg-rose-50 p-5 dark:border-rose-900 dark:bg-rose-950">
         <p className="text-sm font-medium text-rose-700 dark:text-rose-300">Preço sugerido</p>
         <p className="mt-1 text-3xl font-semibold text-rose-900 dark:text-rose-100">
           {formatCurrency(result.suggestedPrice)}
@@ -62,7 +63,7 @@ export default function PricingResult({ result }: PricingResultProps) {
       </section>
 
       {result.channelPricing && (
-        <section className="rounded-2xl border border-stone-200 bg-white p-5 dark:border-stone-800 dark:bg-stone-900">
+        <section className="pricing-print-hidden rounded-2xl border border-stone-200 bg-white p-5 dark:border-stone-800 dark:bg-stone-900">
           <p className="text-sm font-medium text-stone-700 dark:text-stone-300">
             Preço sugerido no canal: {result.channelPricing.channel.name}
           </p>
@@ -92,7 +93,7 @@ export default function PricingResult({ result }: PricingResultProps) {
       )}
 
       {result.practicedComparison && (
-        <section className="rounded-2xl border border-stone-200 bg-white p-5 dark:border-stone-800 dark:bg-stone-900">
+        <section className="pricing-print-hidden rounded-2xl border border-stone-200 bg-white p-5 dark:border-stone-800 dark:bg-stone-900">
           <div className="flex items-center justify-between gap-3">
             <p className="text-sm font-medium text-stone-700 dark:text-stone-300">Preço praticado</p>
             <span
@@ -114,6 +115,13 @@ export default function PricingResult({ result }: PricingResultProps) {
           </dl>
         </section>
       )}
+
+      <PricingPrintableSheet
+        result={result}
+        recipeName={recipeName}
+        yieldQuantity={yieldQuantity}
+        yieldUnit={yieldUnit}
+      />
     </div>
   );
 }

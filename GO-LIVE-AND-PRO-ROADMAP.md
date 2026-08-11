@@ -385,6 +385,7 @@ Tudo que roda no navegador da cliente, sem nos custar nada por uso, é Essencial
 | **Custos fixos** | sem rateio, o preço sugerido mente | cálculo puro, `modules/pricing` |
 | **Canais e taxas** | quem vende no iFood **precisa** disso para não vender no prejuízo | idem |
 | **Precificação** | é o produto | idem |
+| **Ficha interna de precificação** | dá à confeiteira um resumo dos custos, margem e preço sugerido para controle próprio | impressão local com `window.print()`, custo marginal zero |
 | **Backup export/import** | é a rede de segurança dos dados dela; cobrar por isso seria cobrar para ela não perder o próprio trabalho | arquivo local, custo zero |
 | **Modo avançado básico** | o README já promete "avançado básico" nas duas colunas — tirar seria retirar o anunciado | motor pronto desde a Fase 1B |
 | **Sub-receitas** | recheio que entra em bolo é rotina de confeitaria, não recurso de luxo | `modules/pricing/recipes.ts`, já com proteção contra referência circular |
@@ -402,7 +403,7 @@ pagar de novo.
 | **Multi-dispositivo** | consequência da nuvem | idem |
 | **Histórico de preços** | responde "meu custo subiu quanto este ano?", pergunta que só o tempo cria | exige série temporal persistida — não cabe em `localStorage` |
 | **Alerta de aumento de custo** | valor que chega sem ela pedir; é o que faz renovar | precisa de execução agendada no servidor |
-| **Exportação em PDF** | ficha técnica para imprimir, orçamento para cliente — uso profissional | geração no servidor consome CPU por documento |
+| **Exportação avançada em PDF** | relatórios e documentos profissionais além da ficha simples do Essencial | geração avançada pode consumir CPU no servidor por documento |
 | **Engenharia de cardápio** | análise estratégica, não operação diária; público mais maduro | precisa de histórico de vendas, que depende da nuvem |
 | **Scanner de nota com IA** | o recurso "uau" da renovação: fotografa a nota e atualiza tudo | **custo por chamada de modelo** — o caso mais claro de recorrência |
 | **Relatórios avançados** | acompanhar evolução exige dado acumulado | idem histórico |
@@ -466,6 +467,8 @@ seguro; "no segundo semestre" é uma promessa que pode virar reclamação.
 > - Custos fixos rateados no preço (aluguel, energia, gás, internet)
 > - Canais de venda com as taxas certas — balcão, Pix, cartão, iFood, WhatsApp
 > - Preço sugerido, margem, markup e comparação com o preço que você já cobra
+> - Ficha interna de precificação para controle de custos, mão de obra, embalagens,
+>   margem e preço sugerido, com opção de salvar em PDF pelo navegador
 > - Backup dos seus dados em arquivo, para você nunca depender de um só aparelho
 > - Modo avançado: fator de correção, perda de produção, sub-receitas e medidas
 >   caseiras *(em desenvolvimento — incluído no que você já comprou)*
@@ -479,7 +482,7 @@ seguro; "no segundo semestre" é uma promessa que pode virar reclamação.
 >
 > - Sincronização em nuvem: seus dados no celular e no computador, sempre iguais
 > - Histórico de preços dos ingredientes e alerta quando algo subir
-> - Exportação em PDF de fichas técnicas e tabelas de preço
+> - Exportação avançada em PDF de relatórios e documentos profissionais
 > - Engenharia de cardápio: quais doces puxam seu lucro e quais só dão trabalho
 > - Scanner de nota do mercado com inteligência artificial
 > - Relatórios de evolução de custo e margem
@@ -510,6 +513,13 @@ seguro; "no segundo semestre" é uma promessa que pode virar reclamação.
 > Pro, dentro do primeiro ano de lançamento. É um desconto, não uma devolução —
 > não vira dinheiro nem pode ser transferido para outra pessoa. Se você preferir
 > continuar só no Essencial, ele segue seu, do mesmo jeito, para sempre.
+
+### 5.7 Próximas entregas recomendadas
+
+- **P0-4 — Orçamento para cliente:** visualização comercial separada, sem expor
+  custos, mão de obra, margem, markup ou lucro esperado da confeiteira.
+- **P1 — Aba Orçamentos:** evolução com clientes, histórico e status de cada
+  orçamento.
 
 ### 5.7 FAQ
 
@@ -607,7 +617,7 @@ Considerando **~4 h úteis por dia**.
 | C2 | Migrations das tabelas de dados na nuvem + RLS por usuária | **6–10** |
 | C3 | Sincronização, resolução de conflito, estado offline | **16–24** |
 | C4 | Histórico de preços + alerta de aumento | **8–12** |
-| C5 | Exportação em PDF | **6–10** |
+| C5 | Exportação avançada em PDF | **6–10** |
 | C6 | Engenharia de cardápio na interface | **8–12** |
 | C7 | Gating do Pro (4-6B) + checkout do Pro + webhook anual com vencimento | **8–12** |
 | C8 | Teste ponta a ponta do Pro | **6–10** |

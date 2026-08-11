@@ -24,3 +24,53 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+@media print {
+  @page {
+    margin: 16mm;
+  }
+
+  :root {
+    --background: #ffffff;
+    --foreground: #1c1917;
+  }
+
+  html,
+  body {
+    background: #ffffff !important;
+    color: #1c1917 !important;
+  }
+
+  body {
+    display: block !important;
+    min-height: auto !important;
+  }
+
+  body > header,
+  .pricing-print-hidden {
+    display: none !important;
+  }
+
+  main {
+    display: block !important;
+  }
+
+  .pricing-page {
+    width: 100% !important;
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  .pricing-print-sheet {
+    margin: 0 !important;
+    break-inside: avoid;
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: #ffffff !important;
+    padding: 0 !important;
+    color: #1c1917 !important;
+    box-shadow: none !important;
+    print-color-adjust: exact;
+  }
+}

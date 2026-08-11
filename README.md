@@ -53,6 +53,7 @@ Duas formas de venda. **Não existe plano mensal.**
 | Custos fixos | ✅ | ✅ |
 | Cadastro e custo de embalagens | ✅ | ✅ |
 | Mão de obra / tempo de produção | ✅ | ✅ |
+| Ficha interna de precificação | ✅ | ✅ |
 | Backup export / import | ✅ | ✅ |
 | Templates básicos de receitas | ✅ | ✅ |
 | Modo simples + avançado básico | ✅ | ✅ |
@@ -61,7 +62,7 @@ Duas formas de venda. **Não existe plano mensal.**
 | Sincronização em nuvem / multi-dispositivo | — | ✅ |
 | Scanner de nota/cupom com IA | — | ✅ |
 | Relatórios avançados | — | ✅ |
-| Exportação em PDF | — | ✅ |
+| Exportação avançada em PDF | — | ✅ |
 | Engenharia de cardápio avançada | — | ✅ |
 | Biblioteca premium de canais | — | ✅ |
 | Templates avançados | — | ✅ |
@@ -178,7 +179,7 @@ Funções de acesso (Fase 4): `getCurrentUserAccess()`, `hasEssentialAccess()`, 
 ## 10. Diferenças Essencial × Pro Anual
 
 - **Essencial:** resolve a dor central (custo, preço, margem) com backup manual e dados locais. Compra única, vitalício na versão atual.
-- **Pro Anual:** acompanhamento ao longo do tempo — histórico de preços, alertas de aumento de custo, nuvem/multi-dispositivo, IA, relatórios, PDF, cardápio avançado. Assinatura anual.
+- **Pro Anual:** acompanhamento ao longo do tempo — histórico de preços, alertas de aumento de custo, nuvem/multi-dispositivo, IA, relatórios e exportação avançada em PDF, cardápio avançado. Assinatura anual.
 
 ---
 
@@ -280,4 +281,6 @@ Antes de qualquer deploy: `npm run lint`, `npm run typecheck` e `npm run build` 
 Desenvolvimento **por fases**, com aprovação entre cada uma. Veja [TASKS.md](TASKS.md) para o backlog e [REVIEW.md](REVIEW.md) para riscos e revisão técnica.
 
 - **Fase 0 — Setup e documentação:** ✅ concluída.
-- **Fase P0-2 — Mão de obra / tempo de produção:** implementada antes do lançamento.
+- **Fase P0-3 — Ficha interna de precificação:** implementada antes do lançamento para controle de custos, mão de obra, embalagens, margem e preço sugerido.
+- **Fase P0-4 recomendada — Orçamento para cliente:** próxima entrega sugerida, com uma visualização própria que não exponha os dados internos da precificação.
+- **P1 recomendado — Aba Orçamentos:** evolução com clientes, histórico de orçamentos e status de acompanhamento.

@@ -18,7 +18,7 @@ const PLAN_DESCRIPTION: Record<ActivePlan, string> = {
   none:
     "Você ainda não tem uma licença ativa. O Minha Fatia continua funcionando no seu navegador — seus ingredientes, receitas e cálculos estão todos aqui.",
   essential:
-    "Acesso vitalício à versão Essencial atual: ingredientes, receitas, embalagens, mão de obra, custos fixos, canais e precificação.",
+    "Acesso vitalício à versão Essencial atual: ingredientes, receitas, embalagens, mão de obra, custos fixos, canais, precificação e ficha interna de precificação.",
   pro_annual:
     "Assinatura anual ativa, com tudo do Essencial mais os recursos avançados do Pro.",
 };

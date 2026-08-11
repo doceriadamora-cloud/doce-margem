@@ -11,8 +11,8 @@ export default async function PrecificacaoPage() {
   await requireEssentialAccess();
 
   return (
-    <div className="mx-auto max-w-3xl px-4 py-8 sm:px-6 sm:py-12">
-      <header className="mb-8 max-w-lg">
+    <div className="pricing-page mx-auto max-w-3xl px-4 py-8 sm:px-6 sm:py-12">
+      <header className="pricing-print-hidden mb-8 max-w-lg">
         <h1 className="text-3xl font-semibold tracking-tight text-stone-900 dark:text-stone-50">
           Precificação
         </h1>

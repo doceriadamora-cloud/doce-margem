@@ -6,8 +6,8 @@
 > Marcar `[x]` ao concluir. Adicionar novas tarefas quando surgirem.
 > Antes de iniciar uma nova fase: parar, resumir o que foi feito e aguardar aprovação.
 
-**Fase atual:** P0-2 — Mão de obra / tempo de produção implementada antes do lançamento. Compra, convite, senha, acesso, reembolso e bloqueio continuam preservados de ponta a ponta.
-**Próximo passo recomendado:** seguir o roadmap P0 e revisar copy, checkout, suporte e política de reembolso antes de abrir oficialmente a venda.
+**Fase atual:** P0-3 — Ficha interna de precificação implementada antes do lançamento. Compra, convite, senha, acesso, reembolso e bloqueio continuam preservados de ponta a ponta.
+**Próximo passo recomendado:** P0-4 — Orçamento para cliente, além da revisão de copy, checkout, suporte e política de reembolso antes de abrir oficialmente a venda.
 
 > 📋 **Auditoria pré-lançamento (2026-08-07): `GO-LIVE-AND-PRO-ROADMAP.md`** —
 > estado do produto, 10 bloqueadores críticos, diagnóstico do webhook, fronteira
@@ -45,6 +45,28 @@
 - [x] Atualizar as listas do Essencial e a documentação sem marcar o recurso como planejado
 - [x] Preservar webhook/Kiwify, autenticação, licenças, envs, Supabase schema/migrations e SQL
 - [x] Rodar `typecheck`, `lint`, `build` e `git diff --check`
+
+### Fase P0-3 — Ficha interna de precificação ✅
+- [x] Exibir uma ficha visual após o cálculo, com marca, receita, rendimento, custos, canal, lucro/margem e preços
+- [x] Reaproveitar exclusivamente o resultado do pricing engine, sem alterar as fórmulas atuais
+- [x] Adicionar o botão “Imprimir / salvar PDF” usando `window.print()`, sem biblioteca nova
+- [x] Criar estilos de impressão em fundo claro que mostram apenas a ficha e ocultam navegação, formulário, botões e cartões auxiliares
+- [x] Deixar explícito que a ficha é para controle interno e expõe custos, mão de obra, embalagens, margem e preço sugerido
+- [x] Listar “Ficha interna de precificação” no Essencial e diferenciar a futura “Exportação avançada em PDF” do Pro Anual
+- [x] Preservar webhook/Kiwify, autenticação, licenças, envs, Supabase schema/migrations, SQL e `APP_STATE_STORAGE_KEY`
+- [x] Rodar `typecheck`, `lint`, `build` e `git diff --check`
+
+### Fase P0-4 recomendada — Orçamento para cliente
+- [ ] Criar uma visualização própria para cliente, separada da ficha interna de precificação
+- [ ] Exibir somente informações comerciais apropriadas, sem custos internos, mão de obra, margem, markup ou lucro esperado
+- [ ] Permitir imprimir ou salvar o orçamento pelo navegador, sem biblioteca nova nesta primeira versão
+- [ ] Não incluir ainda cadastro de clientes, histórico ou status — esses itens ficam no P1 recomendado
+
+### P1 recomendado — Aba Orçamentos
+- [ ] Criar a aba Orçamentos
+- [ ] Adicionar cadastro e vínculo de clientes
+- [ ] Manter histórico dos orçamentos emitidos
+- [ ] Acompanhar status de cada orçamento
 
 ## Fase 0 — Setup e documentação ✅
 - [x] Criar projeto em C:\dev\doce-margem

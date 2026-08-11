@@ -194,8 +194,8 @@ const FEATURES: Record<FeatureKey, FeatureDefinition> = {
   },
   pdf_export: {
     key: "pdf_export",
-    label: "Exportação em PDF",
-    description: "Gere fichas técnicas e tabelas de preço prontas para imprimir ou enviar.",
+    label: "Exportação avançada em PDF",
+    description: "Gere relatórios e documentos avançados em PDF para compartilhar.",
     minimumPlan: "pro_annual",
     status: "planned",
   },

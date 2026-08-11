@@ -50,6 +50,7 @@ import {
   getPackagingsSnapshot,
   subscribePackagings,
 } from "@/components/packagings/packagings-store";
+import { formatCurrency } from "./pricing-formatters";
 import PricingResult from "./PricingResult";
 
 /** Aceita vírgula OU ponto decimal (o exemplo da tarefa usa vírgula: "23,1"). */
@@ -81,15 +82,6 @@ function formatDecimalRateAsPercentInput(rate: number): string {
 
 function formatNumberAsInput(value: number | null): string {
   return value === null ? "" : value.toString().replace(".", ",");
-}
-
-function formatCurrency(value: number): string {
-  return value.toLocaleString("pt-BR", {
-    style: "currency",
-    currency: "BRL",
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 4,
-  });
 }
 
 function buildIngredientsById(list: Ingredient[]): Record<string, Ingredient> {
@@ -341,7 +333,7 @@ export default function PricingForm() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-col gap-3 rounded-2xl border border-stone-200 bg-white p-5 dark:border-stone-800 dark:bg-stone-900">
+      <div className="pricing-print-hidden flex flex-col gap-3 rounded-2xl border border-stone-200 bg-white p-5 dark:border-stone-800 dark:bg-stone-900">
         <Field label="Escolha a receita">
           <select
             value={selectedRecipeId}
@@ -377,7 +369,7 @@ export default function PricingForm() {
       </div>
 
       {selectedRecipe && recipeCalc?.ok && (
-        <div className="flex flex-col gap-4 rounded-2xl border border-stone-200 bg-white p-5 dark:border-stone-800 dark:bg-stone-900">
+        <div className="pricing-print-hidden flex flex-col gap-4 rounded-2xl border border-stone-200 bg-white p-5 dark:border-stone-800 dark:bg-stone-900">
           <div>
             <h2 className="font-medium text-stone-800 dark:text-stone-200">
               Embalagens usadas
@@ -485,7 +477,7 @@ export default function PricingForm() {
       )}
 
       {selectedRecipe && recipeCalc?.ok && (
-        <div className="flex flex-col gap-4 rounded-2xl border border-stone-200 bg-white p-5 dark:border-stone-800 dark:bg-stone-900">
+        <div className="pricing-print-hidden flex flex-col gap-4 rounded-2xl border border-stone-200 bg-white p-5 dark:border-stone-800 dark:bg-stone-900">
           <div>
             <h2 className="font-medium text-stone-800 dark:text-stone-200">
               Mão de obra
@@ -562,7 +554,7 @@ export default function PricingForm() {
       )}
 
       {selectedRecipe && recipeCalc?.ok && (
-        <div className="flex flex-col gap-4 rounded-2xl border border-stone-200 bg-white p-5 dark:border-stone-800 dark:bg-stone-900">
+        <div className="pricing-print-hidden flex flex-col gap-4 rounded-2xl border border-stone-200 bg-white p-5 dark:border-stone-800 dark:bg-stone-900">
           <Field
             label="Custo fixo sobre faturamento (%)"
             hint={
@@ -637,7 +629,12 @@ export default function PricingForm() {
 
       {pricingResult &&
         (pricingResult.ok ? (
-          <PricingResult result={pricingResult.value} />
+          <PricingResult
+            result={pricingResult.value}
+            recipeName={recipeCalc?.ok ? recipeCalc.value.recipe.name : "Receita"}
+            yieldQuantity={recipeCalc?.ok ? recipeCalc.value.recipe.yieldQuantity : 0}
+            yieldUnit={recipeCalc?.ok ? recipeCalc.value.recipe.yieldUnit : "un"}
+          />
         ) : (
           <div className="flex flex-col gap-1 rounded-2xl border border-amber-300 bg-amber-50 p-4 dark:border-amber-800 dark:bg-amber-950">
             {pricingResult.errors.map((error, index) => (
