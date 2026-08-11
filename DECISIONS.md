@@ -1332,3 +1332,36 @@ exportando e importando o mesmo `AppState` v1.
 
 Nenhuma mudança foi feita em webhook/Kiwify, autenticação, licenças, variáveis
 de ambiente, schema/migrations do Supabase ou SQL.
+
+---
+
+## 2026-08-10 — P0-4 mantém um rascunho comercial local; histórico e clientes ficam no P1
+
+### Decisão
+
+A primeira versão de `/orcamentos` é um documento comercial independente da
+ficha interna de precificação. Os itens, quantidades, valores unitários,
+desconto e condições são informados manualmente. O documento destinado ao
+cliente recebe somente esses dados comerciais e nunca recebe custo de receita,
+embalagem, mão de obra, custo fixo, margem, markup, lucro esperado ou preço
+sugerido interno.
+
+Um único `quoteDraft` é salvo no `AppState` para que o trabalho atual sobreviva
+ao recarregamento da página. Subtotal, desconto efetivo, totais por item e total
+final são derivados por uma função pura e não são persistidos. A impressão usa
+`window.print()` e CSS próprio para mostrar apenas o documento comercial.
+
+### Compatibilidade e evolução
+
+O campo `quoteDraft` é aditivo. `APP_STATE_STORAGE_KEY`,
+`APP_STATE_SCHEMA_VERSION` e `BACKUP_FORMAT_VERSION` permanecem inalterados;
+estados e backups v1 anteriores são normalizados com `quoteDraft: null` sem
+perder os demais dados. O rascunho atual também participa do backup manual.
+
+Cadastro e reaproveitamento de clientes, histórico, status e duplicação de
+orçamentos ficam para a evolução P1. Um futuro botão “Imprimir receita” na área
+de Receitas será um terceiro documento, separado tanto da ficha interna de
+precificação quanto do orçamento para cliente.
+
+Nenhuma mudança foi feita no pricing engine, webhook/Kiwify, autenticação,
+licenças, variáveis de ambiente, Supabase, migrations ou SQL.

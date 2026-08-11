@@ -386,6 +386,7 @@ Tudo que roda no navegador da cliente, sem nos custar nada por uso, é Essencial
 | **Canais e taxas** | quem vende no iFood **precisa** disso para não vender no prejuízo | idem |
 | **Precificação** | é o produto | idem |
 | **Ficha interna de precificação** | dá à confeiteira um resumo dos custos, margem e preço sugerido para controle próprio | impressão local com `window.print()`, custo marginal zero |
+| **Orçamento simples para cliente** | transforma o preço escolhido em uma proposta comercial sem expor os dados internos da confeiteira | rascunho e impressão locais com `window.print()`, custo marginal zero |
 | **Backup export/import** | é a rede de segurança dos dados dela; cobrar por isso seria cobrar para ela não perder o próprio trabalho | arquivo local, custo zero |
 | **Modo avançado básico** | o README já promete "avançado básico" nas duas colunas — tirar seria retirar o anunciado | motor pronto desde a Fase 1B |
 | **Sub-receitas** | recheio que entra em bolo é rotina de confeitaria, não recurso de luxo | `modules/pricing/recipes.ts`, já com proteção contra referência circular |
@@ -469,6 +470,8 @@ seguro; "no segundo semestre" é uma promessa que pode virar reclamação.
 > - Preço sugerido, margem, markup e comparação com o preço que você já cobra
 > - Ficha interna de precificação para controle de custos, mão de obra, embalagens,
 >   margem e preço sugerido, com opção de salvar em PDF pelo navegador
+> - Orçamento simples para cliente, com itens e valores comerciais, sem mostrar
+>   custos internos, margem ou lucro
 > - Backup dos seus dados em arquivo, para você nunca depender de um só aparelho
 > - Modo avançado: fator de correção, perda de produção, sub-receitas e medidas
 >   caseiras *(em desenvolvimento — incluído no que você já comprou)*
@@ -514,14 +517,17 @@ seguro; "no segundo semestre" é uma promessa que pode virar reclamação.
 > não vira dinheiro nem pode ser transferido para outra pessoa. Se você preferir
 > continuar só no Essencial, ele segue seu, do mesmo jeito, para sempre.
 
-### 5.7 Próximas entregas recomendadas
+### 5.7 P0-4 entregue e próximos passos
 
-- **P0-4 — Orçamento para cliente:** visualização comercial separada, sem expor
-  custos, mão de obra, margem, markup ou lucro esperado da confeiteira.
-- **P1 — Aba Orçamentos:** evolução com clientes, histórico e status de cada
-  orçamento.
+- **P0-4 — Orçamento para cliente:** entregue como visualização comercial separada,
+  com itens manuais, rascunho local e impressão, sem expor custos, mão de obra,
+  margem, markup ou lucro esperado da confeiteira.
+- **P1 — Orçamentos avançados:** evolução da rota com clientes, histórico, status,
+  duplicação de orçamento e reaproveitamento de cliente.
+- **P0/P1 futuro — Imprimir receita:** botão próprio na área de Receitas, separado
+  da ficha interna de precificação e do orçamento comercial.
 
-### 5.7 FAQ
+### 5.8 FAQ
 
 **1. Tem mensalidade?**
 Não. O Essencial é pagamento único e não tem mensalidade nem renovação. O Pro,

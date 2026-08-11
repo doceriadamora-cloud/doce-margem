@@ -96,6 +96,23 @@ function FeatureList({ features, includeP0Features = false }: FeatureListProps) 
               </span>
             </span>
           </li>
+          <li className="flex items-start gap-3 text-sm">
+            <span
+              aria-hidden="true"
+              className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-xs font-bold text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
+            >
+              ✓
+            </span>
+            <span>
+              <strong className="font-medium text-stone-800 dark:text-stone-200">
+                Orçamento simples para cliente
+              </strong>
+              <span className="mt-0.5 block text-stone-500 dark:text-stone-400">
+                Monte uma proposta comercial com itens e valores finais para imprimir ou salvar
+                em PDF.
+              </span>
+            </span>
+          </li>
         </>
       )}
     </ul>

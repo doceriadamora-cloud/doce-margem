@@ -6,8 +6,8 @@
 > Marcar `[x]` ao concluir. Adicionar novas tarefas quando surgirem.
 > Antes de iniciar uma nova fase: parar, resumir o que foi feito e aguardar aprovação.
 
-**Fase atual:** P0-3 — Ficha interna de precificação implementada antes do lançamento. Compra, convite, senha, acesso, reembolso e bloqueio continuam preservados de ponta a ponta.
-**Próximo passo recomendado:** P0-4 — Orçamento para cliente, além da revisão de copy, checkout, suporte e política de reembolso antes de abrir oficialmente a venda.
+**Fase atual:** P0-4 — Orçamento simples para cliente implementado antes do lançamento. Compra, convite, senha, acesso, reembolso e bloqueio continuam preservados de ponta a ponta.
+**Próximo passo recomendado:** P1 — Orçamentos avançados, além da revisão de copy, checkout, suporte e política de reembolso antes de abrir oficialmente a venda.
 
 > 📋 **Auditoria pré-lançamento (2026-08-07): `GO-LIVE-AND-PRO-ROADMAP.md`** —
 > estado do produto, 10 bloqueadores críticos, diagnóstico do webhook, fronteira
@@ -56,17 +56,28 @@
 - [x] Preservar webhook/Kiwify, autenticação, licenças, envs, Supabase schema/migrations, SQL e `APP_STATE_STORAGE_KEY`
 - [x] Rodar `typecheck`, `lint`, `build` e `git diff --check`
 
-### Fase P0-4 recomendada — Orçamento para cliente
-- [ ] Criar uma visualização própria para cliente, separada da ficha interna de precificação
-- [ ] Exibir somente informações comerciais apropriadas, sem custos internos, mão de obra, margem, markup ou lucro esperado
-- [ ] Permitir imprimir ou salvar o orçamento pelo navegador, sem biblioteca nova nesta primeira versão
-- [ ] Não incluir ainda cadastro de clientes, histórico ou status — esses itens ficam no P1 recomendado
+### Fase P0-4 — Orçamento para cliente ✅
+- [x] Criar a rota `/orcamentos` com visualização comercial separada da ficha interna de precificação
+- [x] Permitir preencher cliente, contato, data, validade, forma e condições de pagamento
+- [x] Gerar um número simples e permitir adicionar ou remover itens com quantidade, valor unitário e total
+- [x] Calcular subtotal, desconto opcional e total final somente a partir dos valores comerciais informados
+- [x] Exibir somente informações apropriadas ao cliente, sem custos internos, mão de obra, margem, markup ou lucro esperado
+- [x] Permitir imprimir ou salvar o orçamento pelo navegador com `window.print()`, sem biblioteca nova
+- [x] Persistir um único rascunho atual no `AppState` v1, mantendo dados e backups anteriores compatíveis
+- [x] Adicionar Orçamentos à navegação, ao Painel e às listas do Essencial
+- [x] Não incluir ainda cadastro avançado de clientes, histórico ou status — esses itens ficam no P1 recomendado
+- [x] Preservar pricing engine, webhook/Kiwify, autenticação, licenças, envs, Supabase, migrations, SQL e `APP_STATE_STORAGE_KEY`
+- [x] Rodar `typecheck`, `lint`, `build` e `git diff --check`
 
-### P1 recomendado — Aba Orçamentos
-- [ ] Criar a aba Orçamentos
-- [ ] Adicionar cadastro e vínculo de clientes
+### P1 recomendado — Orçamentos avançados
+- [ ] Evoluir a rota `/orcamentos` sem remover o orçamento simples do Essencial
+- [ ] Adicionar cadastro, vínculo e reaproveitamento de clientes
 - [ ] Manter histórico dos orçamentos emitidos
 - [ ] Acompanhar status de cada orçamento
+- [ ] Permitir duplicar um orçamento existente
+
+### P0/P1 futuro — Imprimir receita
+- [ ] Adicionar um botão “Imprimir receita” na área de Receitas, separado da ficha interna de precificação e do orçamento para cliente
 
 ## Fase 0 — Setup e documentação ✅
 - [x] Criar projeto em C:\dev\doce-margem

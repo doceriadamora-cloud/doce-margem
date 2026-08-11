@@ -13,6 +13,7 @@ import type {
   Recipe,
   SalesChannel,
 } from "@/types/pricing";
+import type { QuoteDraft } from "@/types/quotes";
 
 /**
  * Configurações financeiras do negócio — Fase 2-6.
@@ -55,6 +56,8 @@ export interface AppState {
    * ausentes em dados antigos são normalizados sem descartar o resto do estado.
    */
   businessSettings: BusinessSettings;
+  /** Único rascunho local de orçamento da P0-4; `null` até o primeiro uso. */
+  quoteDraft: QuoteDraft | null;
   /** Data/hora ISO da última gravação. */
   updatedAt: string;
 }

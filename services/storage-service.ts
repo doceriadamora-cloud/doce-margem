@@ -20,6 +20,12 @@ import type {
   Recipe,
   SalesChannel,
 } from "@/types/pricing";
+import {
+  QUOTE_PAYMENT_METHODS,
+  type QuoteDraft,
+  type QuoteDraftItem,
+  type QuotePaymentMethod,
+} from "@/types/quotes";
 
 /** Versão atual do schema do estado local. Incrementar ao mudar a forma do AppState. */
 export const APP_STATE_SCHEMA_VERSION = 1;
@@ -47,6 +53,7 @@ export function createEmptyAppState(): AppState {
     packagings: [],
     customChannels: [],
     businessSettings: createEmptyBusinessSettings(),
+    quoteDraft: null,
     updatedAt: new Date().toISOString(),
   };
 }
@@ -132,6 +139,54 @@ function normalizeBusinessSettings(raw: unknown): BusinessSettings {
   };
 }
 
+function normalizeQuoteDraftItem(raw: unknown): QuoteDraftItem | null {
+  if (!isPlainObject(raw)) return null;
+  if (typeof raw.id !== "string" || raw.id.trim() === "") return null;
+
+  return {
+    id: raw.id,
+    description: typeof raw.description === "string" ? raw.description : "",
+    quantity: typeof raw.quantity === "string" ? raw.quantity : "",
+    unitPrice: typeof raw.unitPrice === "string" ? raw.unitPrice : "",
+  };
+}
+
+function isQuotePaymentMethod(value: unknown): value is QuotePaymentMethod {
+  return (
+    typeof value === "string" &&
+    QUOTE_PAYMENT_METHODS.some((paymentMethod) => paymentMethod === value)
+  );
+}
+
+/** Um rascunho corrompido é descartado sem afetar as demais fatias do AppState. */
+function normalizeQuoteDraft(raw: unknown): QuoteDraft | null {
+  if (!isPlainObject(raw)) return null;
+  if (
+    typeof raw.quoteNumber !== "string" ||
+    typeof raw.quoteDate !== "string" ||
+    !Array.isArray(raw.items)
+  ) {
+    return null;
+  }
+
+  return {
+    quoteNumber: raw.quoteNumber,
+    quoteDate: raw.quoteDate,
+    validityDays: typeof raw.validityDays === "string" ? raw.validityDays : "7",
+    clientName: typeof raw.clientName === "string" ? raw.clientName : "",
+    clientPhone: typeof raw.clientPhone === "string" ? raw.clientPhone : "",
+    clientEmail: typeof raw.clientEmail === "string" ? raw.clientEmail : "",
+    notes: typeof raw.notes === "string" ? raw.notes : "",
+    paymentMethod: isQuotePaymentMethod(raw.paymentMethod) ? raw.paymentMethod : "pix",
+    paymentTerms: typeof raw.paymentTerms === "string" ? raw.paymentTerms : "",
+    discount: typeof raw.discount === "string" ? raw.discount : "",
+    items: raw.items
+      .map((item) => normalizeQuoteDraftItem(item))
+      .filter((item): item is QuoteDraftItem => item !== null),
+    updatedAt: typeof raw.updatedAt === "string" ? raw.updatedAt : new Date().toISOString(),
+  };
+}
+
 /**
  * Normaliza dados brutos lidos do localStorage para um AppState seguro.
  *
@@ -143,11 +198,13 @@ function normalizeBusinessSettings(raw: unknown): BusinessSettings {
  *  - Com a versão batendo, cada array ausente ou com tipo errado é reposto por
  *    `[]` individualmente — um campo corrompido não descarta o restante do
  *    estado (ex.: dado antigo sem `customChannels`).
- *  - `businessSettings` (incluindo `laborHourlyRate`) e `packagings` seguem a
+ *  - `businessSettings` (incluindo `laborHourlyRate`), `packagings` e o
+ *    `quoteDraft` seguem a
  *    mesma lógica aditiva: dado salvo ANTES dessas fases recebe o padrão seguro
  *    sem perder os outros cadastros.
- *    `businessSettings` vira `createEmptyBusinessSettings()` e `packagings` vira
- *    `[]`, sem descartar `ingredients`/`recipes`/etc. já cadastrados. Por isso não foi
+ *    `businessSettings` vira `createEmptyBusinessSettings()`, `packagings` vira
+ *    `[]` e `quoteDraft` vira `null`, sem descartar `ingredients`/`recipes`/etc.
+ *    já cadastrados. Por isso não foi
  *    necessário incrementar `APP_STATE_SCHEMA_VERSION`: a reconstrução campo a
  *    campo (decisão da Fase 2-1) já resolve "campo novo ausente em dado antigo"
  *    sem precisar de uma migração de verdade.
@@ -167,6 +224,7 @@ export function normalizeAppState(raw: unknown): AppState {
       ? (raw.customChannels as SalesChannel[])
       : [],
     businessSettings: normalizeBusinessSettings(raw.businessSettings),
+    quoteDraft: normalizeQuoteDraft(raw.quoteDraft),
     updatedAt: typeof raw.updatedAt === "string" ? raw.updatedAt : new Date().toISOString(),
   };
 }
@@ -264,4 +322,12 @@ export function saveBusinessSettings(businessSettings: BusinessSettings): boolea
 
 export function loadBusinessSettings(): BusinessSettings {
   return loadAppState().businessSettings;
+}
+
+export function saveQuoteDraft(quoteDraft: QuoteDraft): boolean {
+  return saveAppState({ ...loadAppState(), quoteDraft });
+}
+
+export function loadQuoteDraft(): QuoteDraft | null {
+  return loadAppState().quoteDraft;
 }

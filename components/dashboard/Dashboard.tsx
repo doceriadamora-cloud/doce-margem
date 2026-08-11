@@ -150,7 +150,7 @@ export default function Dashboard() {
         <h2 className="text-lg font-semibold text-stone-900 dark:text-stone-50">
           Próximos passos
         </h2>
-        <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
           <NextStepCard
             title="Cadastre seus ingredientes"
             description="Informe o que você compra e por quanto, para saber o custo real de cada item."
@@ -168,6 +168,11 @@ export default function Dashboard() {
             title="Cadastre suas embalagens"
             description="Inclua caixas, saquinhos, etiquetas e bandejas no custo final de cada venda."
             href="/embalagens"
+          />
+          <NextStepCard
+            title="Crie um orçamento"
+            description="Monte uma proposta comercial com itens, valores e condições para enviar ao cliente."
+            href="/orcamentos"
           />
         </div>
       </section>

@@ -47,7 +47,8 @@ body {
   }
 
   body > header,
-  .pricing-print-hidden {
+  .pricing-print-hidden,
+  .quote-print-hidden {
     display: none !important;
   }
 
@@ -55,7 +56,8 @@ body {
     display: block !important;
   }
 
-  .pricing-page {
+  .pricing-page,
+  .quote-page {
     width: 100% !important;
     max-width: none !important;
     margin: 0 !important;
@@ -72,5 +74,33 @@ body {
     color: #1c1917 !important;
     box-shadow: none !important;
     print-color-adjust: exact;
+  }
+
+  .quote-builder {
+    display: block !important;
+  }
+
+  .quote-preview {
+    width: 100% !important;
+  }
+
+  .quote-print-document {
+    width: 100% !important;
+    margin: 0 !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: #ffffff !important;
+    padding: 0 !important;
+    color: #1c1917 !important;
+    box-shadow: none !important;
+    print-color-adjust: exact;
+  }
+
+  .quote-print-document thead {
+    display: table-header-group;
+  }
+
+  .quote-print-document tr {
+    break-inside: avoid;
   }
 }

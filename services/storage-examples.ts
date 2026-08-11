@@ -17,6 +17,7 @@
  */
 
 import type { Packaging, Recipe, SalesChannel } from "@/types/pricing";
+import type { QuoteDraft } from "@/types/quotes";
 import { exampleIngredients } from "@/modules/pricing/examples";
 import {
   APP_STATE_STORAGE_KEY,
@@ -28,6 +29,7 @@ import {
   loadFixedCosts,
   loadIngredients,
   loadPackagings,
+  loadQuoteDraft,
   loadRecipes,
   saveAppState,
   saveBusinessSettings,
@@ -35,6 +37,7 @@ import {
   saveFixedCosts,
   saveIngredients,
   savePackagings,
+  saveQuoteDraft,
   saveRecipes,
 } from "./storage-service";
 
@@ -68,6 +71,28 @@ const samplePackaging: Packaging = {
   name: "Caixa kraft 12x12",
   packageQuantity: 10,
   purchasePrice: 18,
+};
+
+const sampleQuoteDraft: QuoteDraft = {
+  quoteNumber: "ORC-VALIDACAO",
+  quoteDate: "2026-08-10",
+  validityDays: "7",
+  clientName: "Cliente de validação",
+  clientPhone: "11999999999",
+  clientEmail: "",
+  notes: "",
+  paymentMethod: "pix",
+  paymentTerms: "50% na encomenda",
+  discount: "5",
+  items: [
+    {
+      id: "item-validacao",
+      description: "Bolo de validação",
+      quantity: "2",
+      unitPrice: "50",
+    },
+  ],
+  updatedAt: "2026-08-10T12:00:00.000Z",
 };
 
 /** Escreve uma string crua direto na chave do app (simula dado corrompido/legado). */
@@ -107,6 +132,7 @@ export function runStorageValidations(): StorageCheckResult[] {
       empty.fixedCosts.length === 0 &&
       empty.packagings.length === 0 &&
       empty.customChannels.length === 0 &&
+      empty.quoteDraft === null &&
       empty.businessSettings.estimatedMonthlyRevenue === null &&
       empty.businessSettings.estimatedMonthlyUnits === null &&
       empty.businessSettings.laborHourlyRate === null,
@@ -182,6 +208,17 @@ export function runStorageValidations(): StorageCheckResult[] {
       loadedSettings.laborHourlyRate === 30,
   });
 
+  // 6c. Round-trip do único rascunho de orçamento (Fase P0-4).
+  saveQuoteDraft(sampleQuoteDraft);
+  const loadedQuoteDraft = loadQuoteDraft();
+  checks.push({
+    label: "Rascunho de orçamento — round-trip salva/carrega",
+    pass:
+      loadedQuoteDraft?.quoteNumber === sampleQuoteDraft.quoteNumber &&
+      loadedQuoteDraft.clientName === sampleQuoteDraft.clientName &&
+      loadedQuoteDraft.items[0]?.description === sampleQuoteDraft.items[0]?.description,
+  });
+
   // 7. saveAppState grava com sucesso e atualiza updatedAt (ISO válido).
   const saveResult = saveAppState({ ...loadAppState(), ingredients: [] });
   const updatedAtIso = loadAppState().updatedAt;
@@ -201,6 +238,7 @@ export function runStorageValidations(): StorageCheckResult[] {
       afterClear.fixedCosts.length === 0 &&
       afterClear.packagings.length === 0 &&
       afterClear.customChannels.length === 0 &&
+      afterClear.quoteDraft === null &&
       afterClear.businessSettings.estimatedMonthlyRevenue === null &&
       afterClear.businessSettings.laborHourlyRate === null,
   });
@@ -261,6 +299,7 @@ export function runStorageValidations(): StorageCheckResult[] {
       partial.packagings.length === 0 &&
       Array.isArray(partial.customChannels) &&
       partial.customChannels.length === 0 &&
+      partial.quoteDraft === null &&
       partial.businessSettings.estimatedMonthlyRevenue === null &&
       partial.businessSettings.estimatedMonthlyUnits === null &&
       partial.businessSettings.laborHourlyRate === null &&
@@ -325,6 +364,21 @@ export function runStorageValidations(): StorageCheckResult[] {
       corruptedSettings2.businessSettings.estimatedMonthlyRevenue === null &&
       corruptedSettings2.businessSettings.estimatedMonthlyUnits === null &&
       corruptedSettings2.businessSettings.laborHourlyRate === null,
+  });
+
+  writeRawState(
+    JSON.stringify({
+      schemaVersion: 1,
+      ingredients: exampleIngredients,
+      quoteDraft: { quoteNumber: 123, items: "inválido" },
+    }),
+  );
+  const corruptedQuoteDraft = loadAppState();
+  checks.push({
+    label: "Rascunho de orçamento corrompido — vira null sem apagar os ingredientes",
+    pass:
+      corruptedQuoteDraft.quoteDraft === null &&
+      corruptedQuoteDraft.ingredients.length === exampleIngredients.length,
   });
 
   // Não deixa rastro na máquina de quem rodou a validação.

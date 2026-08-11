@@ -125,6 +125,9 @@ export default async function AcessoBloqueadoPage() {
             <li className="text-stone-700 dark:text-stone-300">
               Ficha interna de precificação
             </li>
+            <li className="text-stone-700 dark:text-stone-300">
+              Orçamento simples para cliente
+            </li>
           </ul>
         </section>
 

@@ -14,6 +14,7 @@ import { reloadIngredientsFromStorage } from "@/components/ingredients/ingredien
 import { reloadPackagingsFromStorage } from "@/components/packagings/packagings-store";
 import { reloadRecipesFromStorage } from "@/components/recipes/recipes-store";
 import { reloadBusinessSettingsFromStorage } from "@/components/settings/business-settings-store";
+import { reloadQuoteDraftFromStorage } from "@/components/quotes/quote-draft-store";
 
 type Message = { type: "success" | "error"; text: string };
 
@@ -27,6 +28,7 @@ function reloadAllStoresFromStorage(): void {
   reloadFixedCostsFromStorage();
   reloadCustomChannelsFromStorage();
   reloadBusinessSettingsFromStorage();
+  reloadQuoteDraftFromStorage();
 }
 
 export default function BackupPanel() {
@@ -131,7 +133,7 @@ export default function BackupPanel() {
             </h3>
             <p className="mt-1 text-sm text-stone-600 dark:text-stone-400">
               Baixe uma cópia dos seus ingredientes, receitas, embalagens, custos fixos,
-              canais e configurações.
+              canais, configurações e rascunho de orçamento.
             </p>
           </div>
           <button
