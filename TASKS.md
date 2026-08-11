@@ -6,7 +6,7 @@
 > Marcar `[x]` ao concluir. Adicionar novas tarefas quando surgirem.
 > Antes de iniciar uma nova fase: parar, resumir o que foi feito e aguardar aprovação.
 
-**Fase atual:** P0-4 — Orçamento simples para cliente implementado antes do lançamento. Compra, convite, senha, acesso, reembolso e bloqueio continuam preservados de ponta a ponta.
+**Fase atual:** P0-4A — Personalização visual do orçamento implementada antes do lançamento. Compra, convite, senha, acesso, reembolso e bloqueio continuam preservados de ponta a ponta.
 **Próximo passo recomendado:** P1 — Orçamentos avançados, além da revisão de copy, checkout, suporte e política de reembolso antes de abrir oficialmente a venda.
 
 > 📋 **Auditoria pré-lançamento (2026-08-07): `GO-LIVE-AND-PRO-ROADMAP.md`** —
@@ -67,6 +67,19 @@
 - [x] Adicionar Orçamentos à navegação, ao Painel e às listas do Essencial
 - [x] Não incluir ainda cadastro avançado de clientes, histórico ou status — esses itens ficam no P1 recomendado
 - [x] Preservar pricing engine, webhook/Kiwify, autenticação, licenças, envs, Supabase, migrations, SQL e `APP_STATE_STORAGE_KEY`
+- [x] Rodar `typecheck`, `lint`, `build` e `git diff --check`
+
+### Fase P0-4A — Personalização visual do orçamento ✅
+- [x] Criar a seção “Identidade do orçamento” em `/configuracoes`
+- [x] Permitir nome da marca, WhatsApp, Instagram, e-mail, endereço e condições comerciais padrão
+- [x] Aceitar logo PNG, JPG/JPEG ou WEBP de até 2 MB e redimensionar/compactar no navegador antes de persistir
+- [x] Salvar a logo somente no `AppState`/`localStorage`, com remoção e fallback “Minha Fatia”
+- [x] Sugerir cores principal e secundária via canvas, ignorando transparência, branco e preto puros quando possível
+- [x] Permitir edição manual da paleta e preservar contraste dos elementos comerciais
+- [x] Aplicar logo, marca, contatos e cores à visualização e à impressão/PDF do orçamento
+- [x] Manter o documento sem custos internos, mão de obra, embalagem, margem, markup ou lucro
+- [x] Manter `AppState` e backups v1 anteriores compatíveis, sem mudar `APP_STATE_STORAGE_KEY`
+- [x] Preservar pricing engine, webhook/Kiwify, autenticação, licenças, envs, Supabase, migrations e SQL
 - [x] Rodar `typecheck`, `lint`, `build` e `git diff --check`
 
 ### P1 recomendado — Orçamentos avançados

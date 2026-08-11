@@ -55,6 +55,7 @@ Duas formas de venda. **Não existe plano mensal.**
 | Mão de obra / tempo de produção | ✅ | ✅ |
 | Ficha interna de precificação | ✅ | ✅ |
 | Orçamento simples para cliente | ✅ | ✅ |
+| Identidade visual do orçamento | ✅ | ✅ |
 | Backup export / import | ✅ | ✅ |
 | Templates básicos de receitas | ✅ | ✅ |
 | Modo simples + avançado básico | ✅ | ✅ |
@@ -284,5 +285,6 @@ Desenvolvimento **por fases**, com aprovação entre cada uma. Veja [TASKS.md](T
 - **Fase 0 — Setup e documentação:** ✅ concluída.
 - **Fase P0-3 — Ficha interna de precificação:** implementada antes do lançamento para controle de custos, mão de obra, embalagens, margem e preço sugerido.
 - **Fase P0-4 — Orçamento para cliente:** implementada com dados comerciais, itens manuais, totais, rascunho local e impressão pelo navegador, sem expor dados internos da precificação.
+- **Fase P0-4A — Personalização visual do orçamento:** implementada em Configurações com nome da marca, logo otimizada localmente, contatos, condições padrão, sugestão de cores via canvas e paleta editável aplicada também à impressão.
 - **P1 recomendado — Orçamentos avançados:** evolução da rota atual com clientes, histórico, status, duplicação de orçamento e reaproveitamento de cliente.
 - **P0/P1 futuro — Imprimir receita:** botão próprio na área de Receitas, separado da ficha interna e do orçamento comercial.

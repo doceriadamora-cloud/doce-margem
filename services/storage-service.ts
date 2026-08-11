@@ -21,9 +21,13 @@ import type {
   SalesChannel,
 } from "@/types/pricing";
 import {
+  DEFAULT_QUOTE_PRIMARY_COLOR,
+  DEFAULT_QUOTE_SECONDARY_COLOR,
+  MAX_STORED_LOGO_DATA_URL_LENGTH,
   QUOTE_PAYMENT_METHODS,
   type QuoteDraft,
   type QuoteDraftItem,
+  type QuoteIdentity,
   type QuotePaymentMethod,
 } from "@/types/quotes";
 
@@ -43,6 +47,22 @@ export function createEmptyBusinessSettings(): BusinessSettings {
   };
 }
 
+/** Identidade inicial segura, mantendo a marca do app como fallback visual. */
+export function createEmptyQuoteIdentity(): QuoteIdentity {
+  return {
+    brandName: "",
+    logoDataUrl: null,
+    primaryColor: DEFAULT_QUOTE_PRIMARY_COLOR,
+    secondaryColor: DEFAULT_QUOTE_SECONDARY_COLOR,
+    whatsapp: "",
+    instagram: "",
+    email: "",
+    address: "",
+    defaultCommercialTerms: "",
+    updatedAt: new Date().toISOString(),
+  };
+}
+
 /** Estado inicial seguro (sem dados) — usado sempre que a leitura falha ou não existe. */
 export function createEmptyAppState(): AppState {
   return {
@@ -53,6 +73,7 @@ export function createEmptyAppState(): AppState {
     packagings: [],
     customChannels: [],
     businessSettings: createEmptyBusinessSettings(),
+    quoteIdentity: createEmptyQuoteIdentity(),
     quoteDraft: null,
     updatedAt: new Date().toISOString(),
   };
@@ -139,6 +160,41 @@ function normalizeBusinessSettings(raw: unknown): BusinessSettings {
   };
 }
 
+function normalizeHexColor(value: unknown, fallback: string): string {
+  return typeof value === "string" && /^#[0-9a-fA-F]{6}$/.test(value)
+    ? value.toLowerCase()
+    : fallback;
+}
+
+function normalizeLogoDataUrl(value: unknown): string | null {
+  if (typeof value !== "string" || value.length > MAX_STORED_LOGO_DATA_URL_LENGTH) {
+    return null;
+  }
+  return /^data:image\/(?:png|jpeg|webp);base64,[a-zA-Z0-9+/=]+$/.test(value)
+    ? value
+    : null;
+}
+
+function normalizeQuoteIdentity(raw: unknown): QuoteIdentity {
+  if (!isPlainObject(raw)) return createEmptyQuoteIdentity();
+
+  return {
+    brandName: typeof raw.brandName === "string" ? raw.brandName.slice(0, 120) : "",
+    logoDataUrl: normalizeLogoDataUrl(raw.logoDataUrl),
+    primaryColor: normalizeHexColor(raw.primaryColor, DEFAULT_QUOTE_PRIMARY_COLOR),
+    secondaryColor: normalizeHexColor(raw.secondaryColor, DEFAULT_QUOTE_SECONDARY_COLOR),
+    whatsapp: typeof raw.whatsapp === "string" ? raw.whatsapp.slice(0, 60) : "",
+    instagram: typeof raw.instagram === "string" ? raw.instagram.slice(0, 80) : "",
+    email: typeof raw.email === "string" ? raw.email.slice(0, 160) : "",
+    address: typeof raw.address === "string" ? raw.address.slice(0, 240) : "",
+    defaultCommercialTerms:
+      typeof raw.defaultCommercialTerms === "string"
+        ? raw.defaultCommercialTerms.slice(0, 1_000)
+        : "",
+    updatedAt: typeof raw.updatedAt === "string" ? raw.updatedAt : new Date().toISOString(),
+  };
+}
+
 function normalizeQuoteDraftItem(raw: unknown): QuoteDraftItem | null {
   if (!isPlainObject(raw)) return null;
   if (typeof raw.id !== "string" || raw.id.trim() === "") return null;
@@ -198,12 +254,13 @@ function normalizeQuoteDraft(raw: unknown): QuoteDraft | null {
  *  - Com a versão batendo, cada array ausente ou com tipo errado é reposto por
  *    `[]` individualmente — um campo corrompido não descarta o restante do
  *    estado (ex.: dado antigo sem `customChannels`).
- *  - `businessSettings` (incluindo `laborHourlyRate`), `packagings` e o
- *    `quoteDraft` seguem a
+ *  - `businessSettings` (incluindo `laborHourlyRate`), `packagings`,
+ *    `quoteIdentity` e o `quoteDraft` seguem a
  *    mesma lógica aditiva: dado salvo ANTES dessas fases recebe o padrão seguro
  *    sem perder os outros cadastros.
  *    `businessSettings` vira `createEmptyBusinessSettings()`, `packagings` vira
- *    `[]` e `quoteDraft` vira `null`, sem descartar `ingredients`/`recipes`/etc.
+ *    `[]`, `quoteIdentity` recebe o fallback visual e `quoteDraft` vira `null`,
+ *    sem descartar `ingredients`/`recipes`/etc.
  *    já cadastrados. Por isso não foi
  *    necessário incrementar `APP_STATE_SCHEMA_VERSION`: a reconstrução campo a
  *    campo (decisão da Fase 2-1) já resolve "campo novo ausente em dado antigo"
@@ -224,6 +281,7 @@ export function normalizeAppState(raw: unknown): AppState {
       ? (raw.customChannels as SalesChannel[])
       : [],
     businessSettings: normalizeBusinessSettings(raw.businessSettings),
+    quoteIdentity: normalizeQuoteIdentity(raw.quoteIdentity),
     quoteDraft: normalizeQuoteDraft(raw.quoteDraft),
     updatedAt: typeof raw.updatedAt === "string" ? raw.updatedAt : new Date().toISOString(),
   };
@@ -322,6 +380,14 @@ export function saveBusinessSettings(businessSettings: BusinessSettings): boolea
 
 export function loadBusinessSettings(): BusinessSettings {
   return loadAppState().businessSettings;
+}
+
+export function saveQuoteIdentity(quoteIdentity: QuoteIdentity): boolean {
+  return saveAppState({ ...loadAppState(), quoteIdentity });
+}
+
+export function loadQuoteIdentity(): QuoteIdentity {
+  return loadAppState().quoteIdentity;
 }
 
 export function saveQuoteDraft(quoteDraft: QuoteDraft): boolean {

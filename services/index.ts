@@ -15,5 +15,6 @@ export type { AppState, BusinessSettings } from "@/types/app-state";
 export type {
   QuoteDraft,
   QuoteDraftItem,
+  QuoteIdentity,
   QuotePaymentMethod,
 } from "@/types/quotes";

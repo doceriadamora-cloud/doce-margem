@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import FixedCostsScreen from "@/components/fixed-costs/FixedCostsScreen";
 import BusinessSettingsForm from "@/components/settings/BusinessSettingsForm";
+import QuoteIdentityForm from "@/components/settings/QuoteIdentityForm";
 import CustomChannelsScreen from "@/components/channels/CustomChannelsScreen";
 import BackupPanel from "@/components/backup/BackupPanel";
 import { requireEssentialAccess } from "@/lib/auth/require-access";
@@ -20,12 +21,19 @@ export default async function ConfiguracoesPage() {
           Configurações
         </h1>
         <p className="mt-2 text-stone-600 dark:text-stone-400">
-          Cadastre seus custos fixos, estime o faturamento mensal e adicione canais de venda
-          próprios — a tela de Precificação usa tudo isso automaticamente.
+          Personalize seus orçamentos, cadastre custos fixos, estime o faturamento mensal e
+          adicione canais de venda próprios.
         </p>
       </header>
 
       <div className="flex flex-col gap-10">
+        <section id="identidade-orcamento" className="scroll-mt-24">
+          <h2 className="mb-3 text-lg font-semibold text-stone-900 dark:text-stone-50">
+            Identidade do orçamento
+          </h2>
+          <QuoteIdentityForm />
+        </section>
+
         <section>
           <h2 className="mb-3 text-lg font-semibold text-stone-900 dark:text-stone-50">
             Custos fixos

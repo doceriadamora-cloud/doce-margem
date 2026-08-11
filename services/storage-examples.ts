@@ -17,7 +17,7 @@
  */
 
 import type { Packaging, Recipe, SalesChannel } from "@/types/pricing";
-import type { QuoteDraft } from "@/types/quotes";
+import type { QuoteDraft, QuoteIdentity } from "@/types/quotes";
 import { exampleIngredients } from "@/modules/pricing/examples";
 import {
   APP_STATE_STORAGE_KEY,
@@ -29,6 +29,7 @@ import {
   loadFixedCosts,
   loadIngredients,
   loadPackagings,
+  loadQuoteIdentity,
   loadQuoteDraft,
   loadRecipes,
   saveAppState,
@@ -37,6 +38,7 @@ import {
   saveFixedCosts,
   saveIngredients,
   savePackagings,
+  saveQuoteIdentity,
   saveQuoteDraft,
   saveRecipes,
 } from "./storage-service";
@@ -95,6 +97,19 @@ const sampleQuoteDraft: QuoteDraft = {
   updatedAt: "2026-08-10T12:00:00.000Z",
 };
 
+const sampleQuoteIdentity: QuoteIdentity = {
+  brandName: "Doces da Validação",
+  logoDataUrl: "data:image/webp;base64,AAAA",
+  primaryColor: "#7c3aed",
+  secondaryColor: "#f5d0fe",
+  whatsapp: "11999999999",
+  instagram: "@docesdavalidacao",
+  email: "contato@validacao.test",
+  address: "São Paulo — SP",
+  defaultCommercialTerms: "50% de sinal para confirmar.",
+  updatedAt: "2026-08-11T12:00:00.000Z",
+};
+
 /** Escreve uma string crua direto na chave do app (simula dado corrompido/legado). */
 function writeRawState(value: string): void {
   window.localStorage.setItem(APP_STATE_STORAGE_KEY, value);
@@ -132,6 +147,9 @@ export function runStorageValidations(): StorageCheckResult[] {
       empty.fixedCosts.length === 0 &&
       empty.packagings.length === 0 &&
       empty.customChannels.length === 0 &&
+      empty.quoteIdentity.brandName === "" &&
+      empty.quoteIdentity.logoDataUrl === null &&
+      empty.quoteIdentity.primaryColor === "#be123c" &&
       empty.quoteDraft === null &&
       empty.businessSettings.estimatedMonthlyRevenue === null &&
       empty.businessSettings.estimatedMonthlyUnits === null &&
@@ -219,6 +237,19 @@ export function runStorageValidations(): StorageCheckResult[] {
       loadedQuoteDraft.items[0]?.description === sampleQuoteDraft.items[0]?.description,
   });
 
+  // 6d. Round-trip da identidade visual do orçamento (Fase P0-4A).
+  saveQuoteIdentity(sampleQuoteIdentity);
+  const loadedQuoteIdentity = loadQuoteIdentity();
+  checks.push({
+    label: "Identidade do orçamento — round-trip salva/carrega",
+    pass:
+      loadedQuoteIdentity.brandName === sampleQuoteIdentity.brandName &&
+      loadedQuoteIdentity.logoDataUrl === sampleQuoteIdentity.logoDataUrl &&
+      loadedQuoteIdentity.primaryColor === sampleQuoteIdentity.primaryColor &&
+      loadedQuoteIdentity.defaultCommercialTerms ===
+        sampleQuoteIdentity.defaultCommercialTerms,
+  });
+
   // 7. saveAppState grava com sucesso e atualiza updatedAt (ISO válido).
   const saveResult = saveAppState({ ...loadAppState(), ingredients: [] });
   const updatedAtIso = loadAppState().updatedAt;
@@ -238,6 +269,8 @@ export function runStorageValidations(): StorageCheckResult[] {
       afterClear.fixedCosts.length === 0 &&
       afterClear.packagings.length === 0 &&
       afterClear.customChannels.length === 0 &&
+      afterClear.quoteIdentity.logoDataUrl === null &&
+      afterClear.quoteIdentity.primaryColor === "#be123c" &&
       afterClear.quoteDraft === null &&
       afterClear.businessSettings.estimatedMonthlyRevenue === null &&
       afterClear.businessSettings.laborHourlyRate === null,
@@ -299,6 +332,9 @@ export function runStorageValidations(): StorageCheckResult[] {
       partial.packagings.length === 0 &&
       Array.isArray(partial.customChannels) &&
       partial.customChannels.length === 0 &&
+      partial.quoteIdentity.brandName === "" &&
+      partial.quoteIdentity.logoDataUrl === null &&
+      partial.quoteIdentity.primaryColor === "#be123c" &&
       partial.quoteDraft === null &&
       partial.businessSettings.estimatedMonthlyRevenue === null &&
       partial.businessSettings.estimatedMonthlyUnits === null &&
@@ -379,6 +415,29 @@ export function runStorageValidations(): StorageCheckResult[] {
     pass:
       corruptedQuoteDraft.quoteDraft === null &&
       corruptedQuoteDraft.ingredients.length === exampleIngredients.length,
+  });
+
+  writeRawState(
+    JSON.stringify({
+      schemaVersion: 1,
+      ingredients: exampleIngredients,
+      quoteIdentity: {
+        brandName: "Marca preservada",
+        logoDataUrl: "javascript:alert(1)",
+        primaryColor: "branco",
+        secondaryColor: "#ABCDEF",
+      },
+    }),
+  );
+  const corruptedQuoteIdentity = loadAppState();
+  checks.push({
+    label: "Identidade inválida — descarta logo/cores inseguras sem apagar outros dados",
+    pass:
+      corruptedQuoteIdentity.ingredients.length === exampleIngredients.length &&
+      corruptedQuoteIdentity.quoteIdentity.brandName === "Marca preservada" &&
+      corruptedQuoteIdentity.quoteIdentity.logoDataUrl === null &&
+      corruptedQuoteIdentity.quoteIdentity.primaryColor === "#be123c" &&
+      corruptedQuoteIdentity.quoteIdentity.secondaryColor === "#abcdef",
   });
 
   // Não deixa rastro na máquina de quem rodou a validação.

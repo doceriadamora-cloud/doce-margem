@@ -1365,3 +1365,38 @@ precificação quanto do orçamento para cliente.
 
 Nenhuma mudança foi feita no pricing engine, webhook/Kiwify, autenticação,
 licenças, variáveis de ambiente, Supabase, migrations ou SQL.
+
+---
+
+## 2026-08-11 — A identidade do orçamento é local, aditiva e separada da precificação
+
+### Decisão
+
+A personalização comercial fica em `quoteIdentity`, uma nova fatia do `AppState`
+v1. Ela guarda nome da marca, logo como data URL, duas cores, contatos e condições
+comerciais padrão. A seção de edição fica em `/configuracoes`; `/orcamentos`
+consome a mesma fatia reativa e continua persistindo seu rascunho separadamente.
+
+A logo aceita somente PNG, JPG/JPEG e WEBP de até 2 MB. Antes de salvar, o
+navegador decodifica a imagem, limita suas dimensões, compacta em WEBP por canvas
+e recusa o resultado se ele continuar grande demais para a cota local. O mesmo
+canvas amostra pixels para sugerir duas cores, descartando transparência, branco
+e preto puros quando há outras opções. A usuária pode substituir ambas por cores
+hexadecimais; a renderização deriva contraste legível sem mudar a paleta salva.
+
+O documento comercial recebe `QuoteDraft` e `QuoteIdentity`, mas não recebe
+nenhuma estrutura ou resultado da precificação. Assim, logo, marca, contatos e
+cores aparecem na tela e em `window.print()`, enquanto custos de receita,
+embalagem e mão de obra, custo fixo, margem, markup e lucro seguem ausentes.
+
+### Compatibilidade
+
+`quoteIdentity` é aditivo. `APP_STATE_STORAGE_KEY`, `APP_STATE_SCHEMA_VERSION` e
+`BACKUP_FORMAT_VERSION` permanecem inalterados; estado ou backup v1 antigo sem a
+fatia recebe o fallback “Minha Fatia”, cores seguras e logo nula. Backups novos
+incluem a identidade e a logo compactada automaticamente dentro do mesmo
+`AppState`.
+
+Nenhuma dependência foi adicionada. Não houve mudança em fórmulas de
+precificação, webhook/Kiwify, autenticação, licenças, variáveis de ambiente,
+Supabase, migrations ou SQL.

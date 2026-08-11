@@ -387,6 +387,7 @@ Tudo que roda no navegador da cliente, sem nos custar nada por uso, é Essencial
 | **Precificação** | é o produto | idem |
 | **Ficha interna de precificação** | dá à confeiteira um resumo dos custos, margem e preço sugerido para controle próprio | impressão local com `window.print()`, custo marginal zero |
 | **Orçamento simples para cliente** | transforma o preço escolhido em uma proposta comercial sem expor os dados internos da confeiteira | rascunho e impressão locais com `window.print()`, custo marginal zero |
+| **Identidade visual do orçamento** | permite enviar uma proposta coerente com a marca da confeiteira | logo, paleta e contatos processados no navegador e salvos no `AppState`, custo marginal zero |
 | **Backup export/import** | é a rede de segurança dos dados dela; cobrar por isso seria cobrar para ela não perder o próprio trabalho | arquivo local, custo zero |
 | **Modo avançado básico** | o README já promete "avançado básico" nas duas colunas — tirar seria retirar o anunciado | motor pronto desde a Fase 1B |
 | **Sub-receitas** | recheio que entra em bolo é rotina de confeitaria, não recurso de luxo | `modules/pricing/recipes.ts`, já com proteção contra referência circular |
@@ -471,7 +472,7 @@ seguro; "no segundo semestre" é uma promessa que pode virar reclamação.
 > - Ficha interna de precificação para controle de custos, mão de obra, embalagens,
 >   margem e preço sugerido, com opção de salvar em PDF pelo navegador
 > - Orçamento simples para cliente, com itens e valores comerciais, sem mostrar
->   custos internos, margem ou lucro
+>   custos internos, margem ou lucro, personalizado com sua logo, cores e contatos
 > - Backup dos seus dados em arquivo, para você nunca depender de um só aparelho
 > - Modo avançado: fator de correção, perda de produção, sub-receitas e medidas
 >   caseiras *(em desenvolvimento — incluído no que você já comprou)*
@@ -517,11 +518,14 @@ seguro; "no segundo semestre" é uma promessa que pode virar reclamação.
 > não vira dinheiro nem pode ser transferido para outra pessoa. Se você preferir
 > continuar só no Essencial, ele segue seu, do mesmo jeito, para sempre.
 
-### 5.7 P0-4 entregue e próximos passos
+### 5.7 P0-4 e P0-4A entregues; próximos passos
 
 - **P0-4 — Orçamento para cliente:** entregue como visualização comercial separada,
   com itens manuais, rascunho local e impressão, sem expor custos, mão de obra,
   margem, markup ou lucro esperado da confeiteira.
+- **P0-4A — Identidade do orçamento:** entregue com nome da marca, logo local
+  otimizada, contatos, condições padrão e paleta sugerida via canvas/editável,
+  aplicada à visualização e à impressão sem levar dados internos ao documento.
 - **P1 — Orçamentos avançados:** evolução da rota com clientes, histórico, status,
   duplicação de orçamento e reaproveitamento de cliente.
 - **P0/P1 futuro — Imprimir receita:** botão próprio na área de Receitas, separado

@@ -25,6 +25,36 @@ body {
   font-family: Arial, Helvetica, sans-serif;
 }
 
+.quote-document-header {
+  border-color: var(--quote-primary);
+}
+
+.quote-accent-text {
+  color: var(--quote-primary-text);
+}
+
+.quote-number-badge {
+  background: var(--quote-primary);
+  color: var(--quote-on-primary);
+}
+
+.quote-identity-panel {
+  border-color: var(--quote-secondary);
+  background: var(--quote-secondary-tint);
+  color: var(--quote-on-secondary-tint);
+}
+
+.quote-panel-muted,
+.quote-panel-detail {
+  color: inherit;
+  opacity: 0.78;
+}
+
+.quote-table-heading,
+.quote-total-row {
+  border-color: var(--quote-secondary);
+}
+
 @media print {
   @page {
     margin: 16mm;
@@ -74,6 +104,7 @@ body {
     color: #1c1917 !important;
     box-shadow: none !important;
     print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
   }
 
   .quote-builder {

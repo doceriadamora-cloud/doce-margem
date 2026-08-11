@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useSyncExternalStore } from "react";
 import { formatCurrency } from "@/components/pricing/pricing-formatters";
 import { calculateCommercialQuoteTotals } from "@/modules/quotes";
@@ -11,6 +12,11 @@ import {
   subscribeQuoteDraft,
   updateQuoteDraft,
 } from "./quote-draft-store";
+import {
+  getQuoteIdentityServerSnapshot,
+  getQuoteIdentitySnapshot,
+  subscribeQuoteIdentity,
+} from "./quote-identity-store";
 import QuoteDocument, { type QuotePresentationItem } from "./QuoteDocument";
 
 const PAYMENT_METHOD_LABELS: Record<QuotePaymentMethod, string> = {
@@ -44,6 +50,11 @@ export default function QuoteBuilder() {
     getQuoteDraftSnapshot,
     getQuoteDraftServerSnapshot,
   );
+  const identity = useSyncExternalStore(
+    subscribeQuoteIdentity,
+    getQuoteIdentitySnapshot,
+    getQuoteIdentityServerSnapshot,
+  );
 
   const presentationItems: QuotePresentationItem[] = draft.items.map((item) => ({
     id: item.id,
@@ -73,6 +84,22 @@ export default function QuoteBuilder() {
   return (
     <div className="quote-builder grid items-start gap-6 lg:grid-cols-[minmax(0,420px)_minmax(0,1fr)]">
       <div className="quote-print-hidden flex flex-col gap-5">
+        <section className="rounded-2xl border border-stone-200 bg-white p-5 dark:border-stone-800 dark:bg-stone-900">
+          <h2 className="font-semibold text-stone-900 dark:text-stone-50">
+            Identidade visual
+          </h2>
+          <p className="mt-1 text-sm text-stone-500 dark:text-stone-400">
+            Este orçamento usa a marca {identity.brandName.trim() || "Minha Fatia"}
+            {identity.logoDataUrl ? " e sua logo personalizada" : " com o fallback sem logo"}.
+          </p>
+          <Link
+            href="/configuracoes#identidade-orcamento"
+            className="mt-3 inline-flex text-sm font-semibold text-rose-700 hover:underline dark:text-rose-300"
+          >
+            Personalizar logo, cores e contatos
+          </Link>
+        </section>
+
         <section className="rounded-2xl border border-stone-200 bg-white p-5 dark:border-stone-800 dark:bg-stone-900">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
@@ -367,6 +394,7 @@ export default function QuoteBuilder() {
 
         <QuoteDocument
           draft={draft}
+          identity={identity}
           paymentMethodLabel={PAYMENT_METHOD_LABELS[draft.paymentMethod]}
           items={itemsWithTotals}
           subtotal={totals.subtotal}

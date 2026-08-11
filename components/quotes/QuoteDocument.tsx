@@ -1,5 +1,8 @@
+import Image from "next/image";
+import type { CSSProperties } from "react";
 import { formatCurrency } from "@/components/pricing/pricing-formatters";
-import type { QuoteDraft } from "@/types/quotes";
+import { createQuoteColorTheme } from "@/components/quotes/quote-identity-utils";
+import type { QuoteDraft, QuoteIdentity } from "@/types/quotes";
 
 export interface QuotePresentationItem {
   id: string;
@@ -11,6 +14,7 @@ export interface QuotePresentationItem {
 
 interface QuoteDocumentProps {
   draft: QuoteDraft;
+  identity: QuoteIdentity;
   paymentMethodLabel: string;
   items: QuotePresentationItem[];
   subtotal: number;
@@ -66,6 +70,7 @@ function formatQuantity(value: number): string {
 
 export default function QuoteDocument({
   draft,
+  identity,
   paymentMethodLabel,
   items,
   subtotal,
@@ -75,24 +80,64 @@ export default function QuoteDocument({
   const visibleItems = items.filter(
     (item) => item.description.trim() !== "" || item.unitPrice > 0,
   );
+  const displayBrandName = identity.brandName.trim() || "Minha Fatia";
+  const commercialTerms =
+    draft.paymentTerms.trim() || identity.defaultCommercialTerms.trim();
+  const theme = createQuoteColorTheme(identity.primaryColor, identity.secondaryColor);
+  const quoteStyle = {
+    "--quote-primary": theme.primary,
+    "--quote-primary-text": theme.primaryText,
+    "--quote-on-primary": theme.onPrimary,
+    "--quote-secondary": theme.secondary,
+    "--quote-secondary-tint": theme.secondaryTint,
+    "--quote-on-secondary-tint": theme.onSecondaryTint,
+  } as CSSProperties;
 
   return (
     <article
       className="quote-print-document rounded-2xl border border-stone-200 bg-white p-5 text-stone-950 shadow-sm sm:p-8 dark:border-stone-700 dark:bg-white dark:text-stone-950"
       aria-label={"Orçamento " + (draft.quoteNumber || "sem número")}
+      style={quoteStyle}
     >
-      <header className="flex flex-col gap-4 border-b-2 border-rose-700 pb-6 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <p className="text-xl font-semibold tracking-tight text-rose-700">Minha Fatia</p>
-          <h2 className="mt-1 text-3xl font-semibold tracking-tight text-stone-950">
-            Orçamento
-          </h2>
-          <p className="mt-1 text-sm text-stone-500">Proposta comercial</p>
+      <header className="quote-document-header flex flex-col gap-5 border-b-4 pb-6 sm:flex-row sm:items-start sm:justify-between">
+        <div className="flex min-w-0 flex-col gap-4 sm:flex-row sm:items-start">
+          {identity.logoDataUrl && (
+            <Image
+              unoptimized
+              src={identity.logoDataUrl}
+              alt={`Logo de ${displayBrandName}`}
+              width={288}
+              height={144}
+              className="h-20 w-32 shrink-0 object-contain object-left sm:h-24 sm:w-36"
+            />
+          )}
+          <div className="min-w-0">
+            <p className="quote-accent-text text-xl font-semibold tracking-tight">
+              {displayBrandName}
+            </p>
+            <h2 className="mt-1 text-3xl font-semibold tracking-tight text-stone-950">
+              Orçamento
+            </h2>
+            <p className="mt-1 text-sm text-stone-500">Proposta comercial</p>
+            {(identity.whatsapp.trim() ||
+              identity.instagram.trim() ||
+              identity.email.trim() ||
+              identity.address.trim()) && (
+              <div className="mt-3 space-y-0.5 text-xs leading-5 text-stone-600">
+                {identity.whatsapp.trim() && <p>WhatsApp: {identity.whatsapp}</p>}
+                {identity.instagram.trim() && <p>Instagram: {identity.instagram}</p>}
+                {identity.email.trim() && <p>E-mail: {identity.email}</p>}
+                {identity.address.trim() && <p>{identity.address}</p>}
+              </div>
+            )}
+          </div>
         </div>
         <dl className="grid gap-2 text-sm sm:text-right">
           <div>
             <dt className="text-xs uppercase tracking-wide text-stone-500">Número</dt>
-            <dd className="font-semibold text-stone-950">{draft.quoteNumber || "—"}</dd>
+            <dd className="quote-number-badge mt-1 inline-block rounded-full px-3 py-1 font-semibold">
+              {draft.quoteNumber || "—"}
+            </dd>
           </div>
           <div>
             <dt className="text-xs uppercase tracking-wide text-stone-500">Data</dt>
@@ -107,29 +152,29 @@ export default function QuoteDocument({
         </dl>
       </header>
 
-      <section className="mt-6 grid gap-5 rounded-xl bg-stone-50 p-4 sm:grid-cols-2">
+      <section className="quote-identity-panel mt-6 grid gap-5 rounded-xl border-l-4 p-4 sm:grid-cols-2">
         <div>
-          <h3 className="text-xs font-semibold uppercase tracking-wide text-stone-500">
+          <h3 className="quote-panel-muted text-xs font-semibold uppercase tracking-wide">
             Cliente
           </h3>
-          <p className="mt-2 font-semibold text-stone-950">
+          <p className="mt-2 font-semibold">
             {draft.clientName.trim() || "Cliente não informado"}
           </p>
           {draft.clientPhone.trim() && (
-            <p className="mt-1 text-sm text-stone-700">{draft.clientPhone}</p>
+            <p className="quote-panel-detail mt-1 text-sm">{draft.clientPhone}</p>
           )}
           {draft.clientEmail.trim() && (
-            <p className="mt-1 text-sm text-stone-700">{draft.clientEmail}</p>
+            <p className="quote-panel-detail mt-1 text-sm">{draft.clientEmail}</p>
           )}
         </div>
         <div>
-          <h3 className="text-xs font-semibold uppercase tracking-wide text-stone-500">
+          <h3 className="quote-panel-muted text-xs font-semibold uppercase tracking-wide">
             Pagamento
           </h3>
-          <p className="mt-2 font-semibold text-stone-950">{paymentMethodLabel}</p>
-          {draft.paymentTerms.trim() && (
-            <p className="mt-1 whitespace-pre-line text-sm text-stone-700">
-              {draft.paymentTerms}
+          <p className="mt-2 font-semibold">{paymentMethodLabel}</p>
+          {commercialTerms && (
+            <p className="quote-panel-detail mt-1 whitespace-pre-line text-sm">
+              {commercialTerms}
             </p>
           )}
         </div>
@@ -138,14 +183,14 @@ export default function QuoteDocument({
       <section className="mt-7" aria-labelledby="quote-items-title">
         <h3
           id="quote-items-title"
-          className="text-sm font-semibold uppercase tracking-wide text-stone-700"
+          className="quote-accent-text text-sm font-semibold uppercase tracking-wide"
         >
           Itens do orçamento
         </h3>
         <div className="mt-3 overflow-x-auto">
           <table className="w-full min-w-[560px] border-collapse text-sm">
             <thead>
-              <tr className="border-b border-stone-300 text-left text-xs uppercase tracking-wide text-stone-500">
+              <tr className="quote-table-heading border-b text-left text-xs uppercase tracking-wide text-stone-600">
                 <th className="px-2 py-2 font-semibold">Descrição</th>
                 <th className="px-2 py-2 text-right font-semibold">Qtd.</th>
                 <th className="px-2 py-2 text-right font-semibold">Valor unitário</th>
@@ -193,9 +238,9 @@ export default function QuoteDocument({
               <dd className="font-medium text-stone-900">− {formatCurrency(discount)}</dd>
             </div>
           )}
-          <div className="flex items-center justify-between gap-6 border-t-2 border-stone-900 pt-3 text-lg">
+          <div className="quote-total-row flex items-center justify-between gap-6 border-t-4 pt-3 text-lg">
             <dt className="font-semibold text-stone-950">Total final</dt>
-            <dd className="font-semibold text-rose-800">{formatCurrency(total)}</dd>
+            <dd className="quote-accent-text font-semibold">{formatCurrency(total)}</dd>
           </div>
         </dl>
       </section>
@@ -211,8 +256,8 @@ export default function QuoteDocument({
         </section>
       )}
 
-      <footer className="mt-8 border-t border-stone-200 pt-4 text-center text-xs text-stone-500">
-        Orçamento comercial emitido pelo Minha Fatia.
+      <footer className="mt-8 border-t border-stone-200 pt-4 text-center text-[11px] text-stone-400">
+        Gerado no Minha Fatia.
       </footer>
     </article>
   );
