@@ -349,6 +349,13 @@ export default function PricingForm() {
           </select>
         </Field>
 
+        {!selectedRecipe && (
+          <p className="rounded-lg bg-rose-50 px-3 py-3 text-sm text-rose-800 dark:bg-rose-950 dark:text-rose-200">
+            Comece escolhendo uma receita. Depois, inclua embalagens e mão de obra quando se
+            aplicarem e informe custo fixo e lucro desejado para ver o preço sugerido.
+          </p>
+        )}
+
         {selectedRecipe &&
           (recipeCalc?.ok ? (
             <p className="rounded-lg bg-stone-50 px-3 py-2 text-sm text-stone-600 dark:bg-stone-950 dark:text-stone-400">
@@ -644,6 +651,13 @@ export default function PricingForm() {
             ))}
           </div>
         ))}
+
+      {pricingResult === null && selectedRecipe && recipeCalc?.ok && (
+        <p className="pricing-print-hidden rounded-2xl border border-stone-200 bg-stone-50 p-4 text-sm text-stone-600 dark:border-stone-800 dark:bg-stone-900 dark:text-stone-400">
+          Para concluir, preencha o custo fixo sobre o faturamento e o lucro desejado. O resultado
+          e a Ficha interna de precificação aparecerão automaticamente.
+        </p>
+      )}
     </div>
   );
 }

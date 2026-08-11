@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { signOutAction } from "@/app/auth/actions";
 import { requireAuthenticatedAccess } from "@/lib/auth/require-access";
 import type { ActivePlan } from "@/types/access";
@@ -16,9 +17,9 @@ const PLAN_LABEL: Record<ActivePlan, string> = {
 
 const PLAN_DESCRIPTION: Record<ActivePlan, string> = {
   none:
-    "Você ainda não tem uma licença ativa. O Minha Fatia continua funcionando no seu navegador — seus ingredientes, receitas e cálculos estão todos aqui.",
+    "Sua conta está criada, mas ainda não tem uma licença ativa. Dados que já estejam salvos neste navegador permanecem preservados para quando o acesso for liberado.",
   essential:
-    "Acesso vitalício à versão Essencial atual: ingredientes, receitas, embalagens, mão de obra, custos fixos, canais, precificação, ficha interna de precificação e orçamento simples para cliente.",
+    "Acesso vitalício à versão Essencial atual: Ingredientes, Receitas, Embalagens, Mão de obra, custos fixos, canais, Precificação, Ficha interna de precificação, Ficha técnica da receita e Orçamento para cliente.",
   pro_annual:
     "Assinatura anual ativa, com tudo do Essencial mais os recursos avançados do Pro.",
 };
@@ -101,9 +102,18 @@ export default async function ContaPage() {
           )}
 
           <p className="mt-3 text-xs text-stone-400 dark:text-stone-500">
-            Nenhuma tela do app está bloqueada por plano ainda — o controle de acesso por licença
-            entra numa próxima etapa.
+            Os dados do Essencial ficam salvos neste navegador. Exporte um backup em Configurações
+            para manter uma cópia segura.
           </p>
+
+          {access.plan === "none" && (
+            <Link
+              href="/precos"
+              className="mt-4 inline-flex rounded-full bg-rose-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-rose-700"
+            >
+              Ver planos e preços
+            </Link>
+          )}
         </section>
 
         <form action={signOutAction}>

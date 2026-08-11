@@ -21,8 +21,8 @@ export default async function ConfiguracoesPage() {
           Configurações
         </h1>
         <p className="mt-2 text-stone-600 dark:text-stone-400">
-          Personalize seus orçamentos, cadastre custos fixos, estime o faturamento mensal e
-          adicione canais de venda próprios.
+          Organize a identidade dos Orçamentos e as informações gerais usadas na Precificação.
+          Aqui você também exporta e importa o backup dos dados deste navegador.
         </p>
       </header>
 

@@ -1431,3 +1431,28 @@ Nenhum dado novo é persistido. `Recipe`, `AppState`, `APP_STATE_STORAGE_KEY`,
 Também não houve mudança em fórmulas de receita, pricing engine, orçamento,
 webhook/Kiwify, autenticação, licenças, variáveis de ambiente, Supabase,
 migrations ou SQL, nem adição de dependência.
+
+---
+
+## 2026-08-11 — O fluxo pré-lançamento orienta sem criar estado ou regra de negócio
+
+### Decisão
+
+A Fase P0-6 apresenta a jornada principal do Essencial sempre na mesma ordem:
+Ingredientes → Receitas → Embalagens → Precificação → Orçamento. O Painel funciona
+como ponto de partida, com links e textos de ação para todas as etapas já disponíveis;
+as próprias páginas repetem apenas a posição atual e o próximo pré-requisito relevante.
+
+Estados vazios são tratados como orientação de uso. Eles explicam o que falta e levam
+à tela correta, mas não criam progresso persistido nem inferem que uma precificação ou
+um orçamento foi concluído. “Ficha interna de precificação”, “Ficha técnica da receita”
+e “Orçamento” continuam sendo documentos distintos, e Embalagens e Mão de obra
+continuam recursos do Essencial.
+
+### Limites
+
+O polimento altera somente navegação, hierarquia visual, CTAs e microcopy. Nenhum
+cálculo, validação de domínio, fórmula, total comercial ou contrato de persistência é
+alterado. `APP_STATE_STORAGE_KEY`, AppState, backups, dependências, webhook/Kiwify,
+autenticação, licenças, variáveis de ambiente, Supabase, migrations e SQL permanecem
+inalterados.

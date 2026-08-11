@@ -137,42 +137,87 @@ export default function Dashboard() {
       ) : (
         <div className="rounded-2xl border border-rose-200 bg-rose-50 p-6 dark:border-rose-900 dark:bg-rose-950">
           <h2 className="text-lg font-semibold text-rose-900 dark:text-rose-100">
-            Você ainda não cadastrou nada por aqui
+            Comece pelo primeiro ingrediente
           </h2>
           <p className="mt-1 text-sm text-rose-800 dark:text-rose-300">
-            Comece cadastrando seus ingredientes — é o primeiro passo para descobrir o custo real
-            dos seus doces.
+            Informe o nome, a quantidade comprada e o preço pago. Depois disso, você já pode montar
+            sua primeira receita.
           </p>
+          <Link
+            href="/ingredientes"
+            className="mt-4 inline-flex rounded-full bg-rose-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-rose-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-600"
+          >
+            Cadastrar primeiro ingrediente
+          </Link>
         </div>
       )}
 
-      <section aria-label="Próximos passos">
+      <section aria-labelledby="workflow-title">
         <h2 className="text-lg font-semibold text-stone-900 dark:text-stone-50">
-          Próximos passos
+          <span id="workflow-title">Siga esta ordem</span>
         </h2>
+        <p className="mt-1 max-w-2xl text-sm text-stone-500 dark:text-stone-400">
+          Cada etapa aproveita o que você cadastrou na anterior. Você pode voltar e ajustar os
+          dados quando precisar.
+        </p>
         <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
           <NextStepCard
-            title="Cadastre seus ingredientes"
-            description="Informe o que você compra e por quanto, para saber o custo real de cada item."
+            step={1}
+            title="Ingredientes"
+            description="Cadastre o que compra e quanto paga."
+            href="/ingredientes"
+            action={counts.ingredients > 0 ? "Revisar ingredientes" : "Cadastrar ingredientes"}
+            status={
+              counts.ingredients === 0
+                ? "Comece aqui"
+                : counts.ingredients === 1
+                  ? "1 cadastrado"
+                  : `${counts.ingredients} cadastrados`
+            }
           />
           <NextStepCard
-            title="Monte uma receita"
-            description="Junte os ingredientes numa ficha técnica e descubra o custo de cada doce."
+            step={2}
+            title="Receitas"
+            description="Informe ingredientes e rendimento para calcular o custo."
+            href="/receitas"
+            action={counts.recipes > 0 ? "Revisar receitas" : "Cadastrar receita"}
+            status={
+              counts.recipes === 0
+                ? "Depois dos ingredientes"
+                : counts.recipes === 1
+                  ? "1 cadastrada"
+                  : `${counts.recipes} cadastradas`
+            }
           />
           <NextStepCard
-            title="Calcule o preço"
-            description="Inclua embalagens e seu tempo, defina a margem, veja por quanto vender e gere uma ficha interna de precificação."
-            href="/precificacao"
-          />
-          <NextStepCard
-            title="Cadastre suas embalagens"
-            description="Inclua caixas, saquinhos, etiquetas e bandejas no custo final de cada venda."
+            step={3}
+            title="Embalagens"
+            description="Cadastre o que acompanha cada venda."
             href="/embalagens"
+            action={counts.packagings > 0 ? "Revisar embalagens" : "Cadastrar embalagens"}
+            status={
+              counts.packagings === 0
+                ? "Inclua se usar"
+                : counts.packagings === 1
+                  ? "1 cadastrada"
+                  : `${counts.packagings} cadastradas`
+            }
           />
           <NextStepCard
-            title="Crie um orçamento"
-            description="Monte uma proposta comercial com itens, valores e condições para enviar ao cliente."
+            step={4}
+            title="Precificação"
+            description="Some custos e mão de obra para definir o preço."
+            href="/precificacao"
+            action="Calcular preço"
+            status="Use uma receita pronta"
+          />
+          <NextStepCard
+            step={5}
+            title="Orçamento"
+            description="Prepare o documento comercial para o cliente."
             href="/orcamentos"
+            action="Criar orçamento"
+            status="Use o valor final escolhido"
           />
         </div>
       </section>
@@ -185,28 +230,31 @@ export default function Dashboard() {
 }
 
 interface NextStepCardProps {
+  step: number;
   title: string;
   description: string;
-  href?: string;
+  href: string;
+  action: string;
+  status: string;
 }
 
-function NextStepCard({ title, description, href }: NextStepCardProps) {
+function NextStepCard({ step, title, description, href, action, status }: NextStepCardProps) {
   return (
-    <div className="rounded-2xl border border-stone-200 bg-white p-4 dark:border-stone-800 dark:bg-stone-900">
-      <p className="font-medium text-stone-900 dark:text-stone-50">{title}</p>
-      <p className="mt-1 text-sm text-stone-500 dark:text-stone-400">{description}</p>
-      {href ? (
-        <Link
-          href={href}
-          className="mt-3 inline-block rounded-full bg-rose-50 px-2.5 py-0.5 text-xs font-medium text-rose-700 transition-colors hover:bg-rose-100 dark:bg-rose-950 dark:text-rose-300 dark:hover:bg-rose-900"
-        >
-          Disponível
-        </Link>
-      ) : (
-        <span className="mt-3 inline-block rounded-full bg-stone-100 px-2.5 py-0.5 text-xs font-medium text-stone-500 dark:bg-stone-800 dark:text-stone-400">
-          Em breve
+    <Link
+      href={href}
+      className="group rounded-2xl border border-stone-200 bg-white p-4 transition-colors hover:border-rose-300 hover:bg-rose-50/40 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-600 dark:border-stone-800 dark:bg-stone-900 dark:hover:border-rose-800 dark:hover:bg-rose-950/20"
+    >
+      <div className="flex items-center justify-between gap-2">
+        <span className="flex size-7 items-center justify-center rounded-full bg-rose-100 text-xs font-bold text-rose-700 dark:bg-rose-950 dark:text-rose-300">
+          {step}
         </span>
-      )}
-    </div>
+        <span className="text-xs text-stone-400 dark:text-stone-500">{status}</span>
+      </div>
+      <p className="mt-3 font-medium text-stone-900 dark:text-stone-50">{title}</p>
+      <p className="mt-1 text-sm text-stone-500 dark:text-stone-400">{description}</p>
+      <span className="mt-3 inline-flex text-xs font-semibold text-rose-700 group-hover:underline dark:text-rose-300">
+        {action} →
+      </span>
+    </Link>
   );
 }

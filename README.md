@@ -188,6 +188,9 @@ Funções de acesso (Fase 4): `getCurrentUserAccess()`, `hasEssentialAccess()`, 
 
 ## 11. UX: modo simples × modo avançado
 
+- **Jornada principal do Essencial:** Ingredientes → Receitas → Embalagens → Precificação →
+  Orçamento. O Painel apresenta essa sequência com links diretos, e os estados vazios explicam o
+  pré-requisito ou a ação seguinte sem expor termos técnicos desnecessários.
 - **Modo simples** responde 3 perguntas: *Quanto custa produzir? Por quanto vender? Quanto sobra de lucro?* Campos avançados ficam escondidos; valores neutros (fator de correção = 1, perda = 0%, sem multicanal avançado).
 - **Modo avançado** expõe: fator de correção, perdas, medidas caseiras, sub-receitas, múltiplos canais, custos fixos, taxas (pagamento, fixa, comissão, anúncio, mensalidade do canal), preço praticado, margem/markup reais, engenharia de cardápio.
 
@@ -288,4 +291,5 @@ Desenvolvimento **por fases**, com aprovação entre cada uma. Veja [TASKS.md](T
 - **Fase P0-4 — Orçamento para cliente:** implementada com dados comerciais, itens manuais, totais, rascunho local e impressão pelo navegador, sem expor dados internos da precificação.
 - **Fase P0-4A — Personalização visual do orçamento:** implementada em Configurações com nome da marca, logo otimizada localmente, contatos, condições padrão, sugestão de cores via canvas e paleta editável aplicada também à impressão.
 - **Fase P0-5 — Imprimir receita:** implementada na área de Receitas com ficha técnica interna, ingredientes e sub-receitas, rendimento, perda, custos calculados e impressão/PDF pelo navegador.
+- **Fase P0-6 — Polimento final pré-lançamento:** implementada com jornada principal ordenada no Painel, navegação móvel mais clara, nomenclatura consistente, CTAs objetivos e estados vazios orientativos, sem alterar cálculos ou persistência.
 - **P1 recomendado — Orçamentos avançados:** evolução da rota atual com clientes, histórico, status, duplicação de orçamento e reaproveitamento de cliente.

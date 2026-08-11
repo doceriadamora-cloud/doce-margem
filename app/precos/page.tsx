@@ -105,11 +105,43 @@ function FeatureList({ features, includeP0Features = false }: FeatureListProps) 
             </span>
             <span>
               <strong className="font-medium text-stone-800 dark:text-stone-200">
-                Orçamento simples para cliente
+                Ficha técnica da receita
+              </strong>
+              <span className="mt-0.5 block text-stone-500 dark:text-stone-400">
+                Imprima ingredientes, rendimento e custos da receita para consultar na produção.
+              </span>
+            </span>
+          </li>
+          <li className="flex items-start gap-3 text-sm">
+            <span
+              aria-hidden="true"
+              className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-xs font-bold text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
+            >
+              ✓
+            </span>
+            <span>
+              <strong className="font-medium text-stone-800 dark:text-stone-200">
+                Orçamento para cliente
               </strong>
               <span className="mt-0.5 block text-stone-500 dark:text-stone-400">
                 Monte uma proposta comercial com itens e valores finais para imprimir ou salvar
                 em PDF.
+              </span>
+            </span>
+          </li>
+          <li className="flex items-start gap-3 text-sm">
+            <span
+              aria-hidden="true"
+              className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-xs font-bold text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
+            >
+              ✓
+            </span>
+            <span>
+              <strong className="font-medium text-stone-800 dark:text-stone-200">
+                Identidade visual do orçamento
+              </strong>
+              <span className="mt-0.5 block text-stone-500 dark:text-stone-400">
+                Use nome da marca, logo, cores e contatos no documento enviado ao cliente.
               </span>
             </span>
           </li>
@@ -168,7 +200,7 @@ export default function PrecosPage() {
       </header>
 
       <div className="mt-10 grid items-start gap-6 lg:grid-cols-2">
-        <article className="rounded-lg border border-stone-200 bg-white p-6 shadow-sm dark:border-stone-800 dark:bg-stone-900">
+        <article className="rounded-2xl border border-stone-200 bg-white p-6 shadow-sm dark:border-stone-800 dark:bg-stone-900">
           <header className="border-b border-stone-200 pb-5 dark:border-stone-800">
             <p className="text-sm font-semibold text-rose-600 dark:text-rose-400">
               Compra única
@@ -192,7 +224,7 @@ export default function PrecosPage() {
           <PurchaseCta href={essentialUrl} label="Comprar Essencial" />
         </article>
 
-        <article className="rounded-lg border border-rose-200 bg-white p-6 shadow-sm dark:border-rose-900 dark:bg-stone-900">
+        <article className="rounded-2xl border border-rose-200 bg-white p-6 shadow-sm dark:border-rose-900 dark:bg-stone-900">
           <header className="border-b border-stone-200 pb-5 dark:border-stone-800">
             <p className="text-sm font-semibold text-rose-600 dark:text-rose-400">Plano anual</p>
             <h2 className="mt-1 text-2xl font-semibold text-stone-950 dark:text-white">

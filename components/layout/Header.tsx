@@ -52,23 +52,27 @@ export default function Header({ isAuthenticated, authEnabled }: HeaderProps) {
 
   return (
     <header className="border-b border-stone-200 bg-white dark:border-stone-800 dark:bg-stone-950">
-      <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-6">
-        <span className="text-lg font-semibold tracking-tight text-rose-600 dark:text-rose-400">
+      <div className="mx-auto flex max-w-5xl flex-col items-stretch gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+        <Link
+          href="/"
+          aria-label="Minha Fatia — ir para o Painel"
+          className="w-fit text-lg font-semibold tracking-tight text-rose-600 transition-colors hover:text-rose-700 dark:text-rose-400 dark:hover:text-rose-300"
+        >
           Minha Fatia
-        </span>
+        </Link>
 
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
           {showAuthenticatedNavigation && (
             <nav
               aria-label="Navegação principal"
-              className="flex flex-wrap items-center gap-1 text-sm"
+              className="-mx-1 flex items-center gap-1 overflow-x-auto px-1 pb-1 text-sm sm:mx-0 sm:overflow-visible sm:px-0 sm:pb-0"
             >
               {availableSections.map((item) => (
                 <Link
                   key={item.href}
                   href={item.href}
                   aria-current={pathname === item.href ? "page" : undefined}
-                  className={linkClass(item.href)}
+                  className={`${linkClass(item.href)} whitespace-nowrap`}
                 >
                   {item.label}
                 </Link>
@@ -80,7 +84,7 @@ export default function Header({ isAuthenticated, authEnabled }: HeaderProps) {
             aria-label="Conta"
             className={`flex flex-wrap items-center gap-1 text-sm ${
               showAuthenticatedNavigation
-                ? "border-l border-stone-200 pl-3 dark:border-stone-800"
+                ? "border-t border-stone-200 pt-2 sm:border-t-0 sm:border-l sm:pt-0 sm:pl-3 dark:border-stone-800"
                 : ""
             }`}
           >

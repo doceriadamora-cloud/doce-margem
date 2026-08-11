@@ -70,6 +70,9 @@ export default function QuoteBuilder() {
     total: totals.itemTotals[index] ?? 0,
   }));
   const discountWasLimited = requestedDiscount > totals.subtotal;
+  const hasCommercialItem = presentationItems.some(
+    (item) => item.description.trim() !== "" || item.unitPrice > 0,
+  );
 
   function updateItem(itemId: string, values: Partial<Omit<QuoteDraftItem, "id">>): void {
     updateQuoteDraft({
@@ -391,6 +394,13 @@ export default function QuoteBuilder() {
             Imprimir / salvar PDF
           </button>
         </div>
+
+        {!hasCommercialItem && (
+          <p className="quote-print-hidden mb-3 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800 dark:border-rose-900 dark:bg-rose-950 dark:text-rose-200">
+            Comece preenchendo o cliente e o primeiro item. A visualização abaixo é atualizada
+            enquanto você digita.
+          </p>
+        )}
 
         <QuoteDocument
           draft={draft}

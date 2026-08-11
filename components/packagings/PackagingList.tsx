@@ -32,7 +32,8 @@ export default function PackagingList() {
           Nenhuma embalagem cadastrada ainda
         </p>
         <p className="mt-1 max-w-xs text-sm text-stone-500 dark:text-stone-400">
-          Cadastre a primeira para incluir esse custo na sua precificação.
+          Preencha o formulário ao lado. Você poderá selecionar esta embalagem e a quantidade
+          usada na Precificação.
         </p>
       </div>
     );

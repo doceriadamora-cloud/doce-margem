@@ -519,7 +519,7 @@ seguro; "no segundo semestre" é uma promessa que pode virar reclamação.
 > não vira dinheiro nem pode ser transferido para outra pessoa. Se você preferir
 > continuar só no Essencial, ele segue seu, do mesmo jeito, para sempre.
 
-### 5.7 P0-4, P0-4A e P0-5 entregues; próximos passos
+### 5.7 P0-4 a P0-6 entregues; próximos passos
 
 - **P0-4 — Orçamento para cliente:** entregue como visualização comercial separada,
   com itens manuais, rascunho local e impressão, sem expor custos, mão de obra,
@@ -530,6 +530,9 @@ seguro; "no segundo semestre" é uma promessa que pode virar reclamação.
 - **P0-5 — Ficha técnica da receita:** entregue na área de Receitas com seleção,
   detalhamento de ingredientes/sub-receitas, rendimento, perda, custos existentes
   e impressão local separada dos documentos de orçamento e precificação.
+- **P0-6 — Polimento final pré-lançamento:** entregue nas páginas principais com
+  jornada ordenada, CTAs claros, estados vazios orientativos, nomenclatura consistente
+  e navegação móvel ajustada, sem alterar cálculos, dados ou controle de acesso.
 - **P1 — Orçamentos avançados:** evolução da rota com clientes, histórico, status,
   duplicação de orçamento e reaproveitamento de cliente.
 
@@ -744,6 +747,9 @@ Considerando **~4 h úteis por dia**.
 ### Fase 4-9 — Polimento comercial do Essencial
 
 - **Objetivo:** deixar a oferta apresentável.
+- **Estado do código:** a P0-6 concluiu a revisão de jornada, microcopy, estados
+  vazios, nomenclatura e navegação. Preço publicado, suporte e ajustes externos de
+  lançamento continuam no checklist operacional.
 - **Permitido:** preço, copy da seção 5, `Header` sem links que rebatem, canal de
   suporte, apagar as contas e linhas de teste.
 - **Proibido:** recurso novo; mexer em `modules/pricing`.

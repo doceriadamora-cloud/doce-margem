@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useSyncExternalStore } from "react";
 import { calculateRecipe } from "@/modules/pricing";
 import type { HouseholdMeasure, Ingredient, Recipe, RecipeItem } from "@/types/pricing";
@@ -87,14 +88,26 @@ export default function RecipeList({
   const recipesById = buildRecipesById(recipes);
 
   if (recipes.length === 0) {
+    const needsIngredients = ingredients.length === 0;
+
     return (
       <div className="flex h-full flex-col items-center justify-center rounded-2xl border border-stone-200 bg-white p-8 text-center dark:border-stone-800 dark:bg-stone-900">
         <p className="font-medium text-stone-900 dark:text-stone-50">
           Nenhuma receita cadastrada ainda
         </p>
         <p className="mt-1 max-w-xs text-sm text-stone-500 dark:text-stone-400">
-          Use o formulário para montar a primeira, com os ingredientes que você já cadastrou.
+          {needsIngredients
+            ? "Cadastre pelo menos um ingrediente antes de montar a primeira receita."
+            : "Use o formulário ao lado para montar a primeira com os ingredientes cadastrados."}
         </p>
+        {needsIngredients && (
+          <Link
+            href="/ingredientes"
+            className="mt-4 inline-flex rounded-full bg-rose-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-rose-700"
+          >
+            Cadastrar ingrediente
+          </Link>
+        )}
       </div>
     );
   }

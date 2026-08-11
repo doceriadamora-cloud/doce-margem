@@ -117,7 +117,7 @@ export default async function AcessoBloqueadoPage() {
               <FeatureItem key={feature.key} feature={feature} />
             ))}
             <li className="text-stone-700 dark:text-stone-300">
-              Cadastro e custo de embalagens
+              Embalagens
             </li>
             <li className="text-stone-700 dark:text-stone-300">
               Mão de obra e tempo de produção
@@ -126,7 +126,10 @@ export default async function AcessoBloqueadoPage() {
               Ficha interna de precificação
             </li>
             <li className="text-stone-700 dark:text-stone-300">
-              Orçamento simples para cliente
+              Ficha técnica da receita
+            </li>
+            <li className="text-stone-700 dark:text-stone-300">
+              Orçamento para cliente com identidade visual
             </li>
           </ul>
         </section>
@@ -147,10 +150,19 @@ export default async function AcessoBloqueadoPage() {
         </section>
 
         <nav aria-label="O que fazer agora" className="flex flex-wrap items-center gap-3">
+          {(reason === "no_license" || reason === "no_pro") && (
+            <Link
+              href="/precos"
+              className="rounded-full bg-rose-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-rose-700"
+            >
+              Ver planos e preços
+            </Link>
+          )}
+
           {access.isAuthenticated ? (
             <Link
               href="/conta"
-              className="rounded-full bg-rose-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-rose-700"
+              className="rounded-full border border-stone-300 px-4 py-2 text-sm font-medium text-stone-600 transition-colors hover:bg-stone-50 dark:border-stone-700 dark:text-stone-300 dark:hover:bg-stone-800"
             >
               Ir para minha conta
             </Link>

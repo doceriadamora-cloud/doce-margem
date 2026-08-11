@@ -6,8 +6,8 @@
 > Marcar `[x]` ao concluir. Adicionar novas tarefas quando surgirem.
 > Antes de iniciar uma nova fase: parar, resumir o que foi feito e aguardar aprovação.
 
-**Fase atual:** P0-5 — Impressão da ficha técnica da receita implementada antes do lançamento. Compra, convite, senha, acesso, reembolso e bloqueio continuam preservados de ponta a ponta.
-**Próximo passo recomendado:** P1 — Orçamentos avançados, além da revisão de copy, checkout, suporte e política de reembolso antes de abrir oficialmente a venda.
+**Fase atual:** P0-6 — Polimento final pré-lançamento implementado nas páginas principais, com fluxo orientado, estados vazios e nomenclatura consistentes. Compra, convite, senha, acesso, reembolso e bloqueio continuam preservados de ponta a ponta.
+**Próximo passo recomendado:** concluir a validação comercial em navegador real, checkout, suporte e política de reembolso antes de abrir oficialmente a venda; P1 permanece como evolução dos Orçamentos.
 
 > 📋 **Auditoria pré-lançamento (2026-08-07): `GO-LIVE-AND-PRO-ROADMAP.md`** —
 > estado do produto, 10 bloqueadores críticos, diagnóstico do webhook, fronteira
@@ -82,13 +82,6 @@
 - [x] Preservar pricing engine, webhook/Kiwify, autenticação, licenças, envs, Supabase, migrations e SQL
 - [x] Rodar `typecheck`, `lint`, `build` e `git diff --check`
 
-### P1 recomendado — Orçamentos avançados
-- [ ] Evoluir a rota `/orcamentos` sem remover o orçamento simples do Essencial
-- [ ] Adicionar cadastro, vínculo e reaproveitamento de clientes
-- [ ] Manter histórico dos orçamentos emitidos
-- [ ] Acompanhar status de cada orçamento
-- [ ] Permitir duplicar um orçamento existente
-
 ### Fase P0-5 — Imprimir receita / ficha técnica ✅
 - [x] Adicionar “Imprimir receita” a cada receita válida cadastrada
 - [x] Abrir `window.print()` somente após renderizar a receita selecionada
@@ -101,6 +94,25 @@
 - [x] Manter cadastro, edição, remoção, AppState e backups existentes inalterados
 - [x] Preservar orçamento, ficha de precificação, webhook/Kiwify, auth, licenças, envs, Supabase, migrations, SQL e `APP_STATE_STORAGE_KEY`
 - [x] Rodar `typecheck`, `lint`, `build` e `git diff --check`
+
+### Fase P0-6 — Polimento final pré-lançamento ✅
+- [x] Ordenar a jornada do Painel: Ingredientes → Receitas → Embalagens → Precificação → Orçamento
+- [x] Substituir selos antigos de “Em breve” por links e CTAs claros para as telas já disponíveis
+- [x] Identificar as cinco etapas nas páginas principais e simplificar suas orientações
+- [x] Melhorar estados vazios de Ingredientes, Receitas, Embalagens, Precificação e Orçamento
+- [x] Tornar a marca clicável e melhorar a navegação horizontal em telas pequenas
+- [x] Padronizar “Ficha interna de precificação”, “Ficha técnica da receita”, “Orçamento”, “Mão de obra” e “Embalagens”
+- [x] Atualizar Conta, Planos e Acesso bloqueado com informações e próximos passos atuais
+- [x] Preservar fórmulas, pricing engine, `calculateRecipe`, persistência e `APP_STATE_STORAGE_KEY`
+- [x] Preservar Supabase, webhook/Kiwify, autenticação, licenças, envs, migrations e SQL
+- [x] Rodar `typecheck`, `lint`, `build` e `git diff --check`
+
+### P1 recomendado — Orçamentos avançados
+- [ ] Evoluir a rota `/orcamentos` sem remover o orçamento simples do Essencial
+- [ ] Adicionar cadastro, vínculo e reaproveitamento de clientes
+- [ ] Manter histórico dos orçamentos emitidos
+- [ ] Acompanhar status de cada orçamento
+- [ ] Permitir duplicar um orçamento existente
 
 ## Fase 0 — Setup e documentação ✅
 - [x] Criar projeto em C:\dev\doce-margem

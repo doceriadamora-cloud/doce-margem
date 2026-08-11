@@ -40,7 +40,8 @@ export default function IngredientList({ editingId = null, onEdit }: IngredientL
           Nenhum ingrediente cadastrado ainda
         </p>
         <p className="mt-1 max-w-xs text-sm text-stone-500 dark:text-stone-400">
-          Use o formulário para cadastrar o primeiro — ex.: Chocolate ao leite, 1 kg por R$ 38.
+          Preencha o formulário ao lado. Por exemplo: Chocolate ao leite, pacote de 1 kg por
+          R$ 38,00.
         </p>
       </div>
     );
