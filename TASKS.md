@@ -6,7 +6,7 @@
 > Marcar `[x]` ao concluir. Adicionar novas tarefas quando surgirem.
 > Antes de iniciar uma nova fase: parar, resumir o que foi feito e aguardar aprovação.
 
-**Fase atual:** P0-4A — Personalização visual do orçamento implementada antes do lançamento. Compra, convite, senha, acesso, reembolso e bloqueio continuam preservados de ponta a ponta.
+**Fase atual:** P0-5 — Impressão da ficha técnica da receita implementada antes do lançamento. Compra, convite, senha, acesso, reembolso e bloqueio continuam preservados de ponta a ponta.
 **Próximo passo recomendado:** P1 — Orçamentos avançados, além da revisão de copy, checkout, suporte e política de reembolso antes de abrir oficialmente a venda.
 
 > 📋 **Auditoria pré-lançamento (2026-08-07): `GO-LIVE-AND-PRO-ROADMAP.md`** —
@@ -89,8 +89,18 @@
 - [ ] Acompanhar status de cada orçamento
 - [ ] Permitir duplicar um orçamento existente
 
-### P0/P1 futuro — Imprimir receita
-- [ ] Adicionar um botão “Imprimir receita” na área de Receitas, separado da ficha interna de precificação e do orçamento para cliente
+### Fase P0-5 — Imprimir receita / ficha técnica ✅
+- [x] Adicionar “Imprimir receita” a cada receita válida cadastrada
+- [x] Abrir `window.print()` somente após renderizar a receita selecionada
+- [x] Mostrar marca, nome, data de geração, rendimento e perda de produção
+- [x] Listar ingredientes, medidas caseiras e sub-receitas com quantidade e custo calculado
+- [x] Mostrar custo dos itens, custo total com perda e custo por unidade de rendimento
+- [x] Exibir observações quando já existirem no modelo da receita
+- [x] Criar CSS de impressão em fundo claro que oculta navegação, formulário, lista e botões
+- [x] Reutilizar exclusivamente `calculateRecipe`/`CalculatedRecipe`, sem alterar fórmulas ou pricing engine
+- [x] Manter cadastro, edição, remoção, AppState e backups existentes inalterados
+- [x] Preservar orçamento, ficha de precificação, webhook/Kiwify, auth, licenças, envs, Supabase, migrations, SQL e `APP_STATE_STORAGE_KEY`
+- [x] Rodar `typecheck`, `lint`, `build` e `git diff --check`
 
 ## Fase 0 — Setup e documentação ✅
 - [x] Criar projeto em C:\dev\doce-margem

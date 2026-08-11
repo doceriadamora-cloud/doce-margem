@@ -1400,3 +1400,34 @@ incluem a identidade e a logo compactada automaticamente dentro do mesmo
 Nenhuma dependência foi adicionada. Não houve mudança em fórmulas de
 precificação, webhook/Kiwify, autenticação, licenças, variáveis de ambiente,
 Supabase, migrations ou SQL.
+
+---
+
+## 2026-08-11 — A ficha técnica imprimível apresenta o cálculo da receita sem criar outro cálculo
+
+### Decisão
+
+A Fase P0-5 adiciona um terceiro documento interno e independente: a ficha
+técnica da receita. Cada receita válida em `/receitas` oferece “Imprimir receita”.
+O clique seleciona o cadastro, calcula-o pela função pública `calculateRecipe`
+com os mapas atuais de ingredientes e receitas e só então chama `window.print()`.
+
+O novo `RecipePrintableSheet` recebe um `CalculatedRecipe` pronto. Ele não
+converte unidades, não calcula perdas e não soma custos por conta própria: apenas
+formata os itens calculados, o custo bruto, o custo total com perda e o custo por
+unidade. Itens de ingrediente, medida caseira e sub-receita usam o detalhamento
+da união `CalculatedRecipeItem`, mantendo inclusive o custo correspondente da
+sub-receita. Observações aparecem somente quando já existem no modelo salvo.
+
+CSS específico oculta navegação, formulário, listagem, botões e elementos
+auxiliares na impressão. O resultado é separado tanto da ficha interna de
+precificação — que inclui mão de obra, embalagens, margem e preço — quanto do
+orçamento comercial para cliente.
+
+### Compatibilidade
+
+Nenhum dado novo é persistido. `Recipe`, `AppState`, `APP_STATE_STORAGE_KEY`,
+`APP_STATE_SCHEMA_VERSION` e `BACKUP_FORMAT_VERSION` permanecem inalterados.
+Também não houve mudança em fórmulas de receita, pricing engine, orçamento,
+webhook/Kiwify, autenticação, licenças, variáveis de ambiente, Supabase,
+migrations ou SQL, nem adição de dependência.

@@ -11,8 +11,8 @@ export default async function ReceitasPage() {
   await requireEssentialAccess();
 
   return (
-    <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6 sm:py-12">
-      <header className="mb-8 max-w-lg">
+    <div className="recipe-page mx-auto max-w-5xl px-4 py-8 sm:px-6 sm:py-12">
+      <header className="recipe-print-hidden mb-8 max-w-lg">
         <h1 className="text-3xl font-semibold tracking-tight text-stone-900 dark:text-stone-50">
           Receitas
         </h1>
@@ -21,7 +21,7 @@ export default async function ReceitasPage() {
           custo unitário de cada doce.
         </p>
       </header>
-      <div className="grid gap-6 lg:grid-cols-[380px_1fr]">
+      <div className="recipe-layout grid gap-6 lg:grid-cols-[380px_1fr]">
         <RecipesScreen />
       </div>
     </div>

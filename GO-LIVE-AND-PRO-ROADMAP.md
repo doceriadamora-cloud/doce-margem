@@ -381,7 +381,7 @@ Tudo que roda no navegador da cliente, sem nos custar nada por uso, é Essencial
 | Recurso | Justificativa comercial | Justificativa técnica |
 |---|---|---|
 | **Ingredientes** | é a porta de entrada; sem isso não há produto | `localStorage`, custo marginal zero |
-| **Receitas / ficha técnica** | a promessa central ("quanto custa produzir") | idem |
+| **Receitas / ficha técnica** | a promessa central ("quanto custa produzir") e apoia a produção diária | cálculo puro e impressão local com `window.print()`, custo marginal zero |
 | **Custos fixos** | sem rateio, o preço sugerido mente | cálculo puro, `modules/pricing` |
 | **Canais e taxas** | quem vende no iFood **precisa** disso para não vender no prejuízo | idem |
 | **Precificação** | é o produto | idem |
@@ -466,6 +466,7 @@ seguro; "no segundo semestre" é uma promessa que pode virar reclamação.
 >
 > - Cadastro de ingredientes com custo real por grama, ml ou unidade
 > - Ficha técnica das suas receitas, com rendimento e custo por unidade
+> - Ficha técnica interna imprimível, com ingredientes, quantidades e custos
 > - Custos fixos rateados no preço (aluguel, energia, gás, internet)
 > - Canais de venda com as taxas certas — balcão, Pix, cartão, iFood, WhatsApp
 > - Preço sugerido, margem, markup e comparação com o preço que você já cobra
@@ -518,7 +519,7 @@ seguro; "no segundo semestre" é uma promessa que pode virar reclamação.
 > não vira dinheiro nem pode ser transferido para outra pessoa. Se você preferir
 > continuar só no Essencial, ele segue seu, do mesmo jeito, para sempre.
 
-### 5.7 P0-4 e P0-4A entregues; próximos passos
+### 5.7 P0-4, P0-4A e P0-5 entregues; próximos passos
 
 - **P0-4 — Orçamento para cliente:** entregue como visualização comercial separada,
   com itens manuais, rascunho local e impressão, sem expor custos, mão de obra,
@@ -526,10 +527,11 @@ seguro; "no segundo semestre" é uma promessa que pode virar reclamação.
 - **P0-4A — Identidade do orçamento:** entregue com nome da marca, logo local
   otimizada, contatos, condições padrão e paleta sugerida via canvas/editável,
   aplicada à visualização e à impressão sem levar dados internos ao documento.
+- **P0-5 — Ficha técnica da receita:** entregue na área de Receitas com seleção,
+  detalhamento de ingredientes/sub-receitas, rendimento, perda, custos existentes
+  e impressão local separada dos documentos de orçamento e precificação.
 - **P1 — Orçamentos avançados:** evolução da rota com clientes, histórico, status,
   duplicação de orçamento e reaproveitamento de cliente.
-- **P0/P1 futuro — Imprimir receita:** botão próprio na área de Receitas, separado
-  da ficha interna de precificação e do orçamento comercial.
 
 ### 5.8 FAQ
 

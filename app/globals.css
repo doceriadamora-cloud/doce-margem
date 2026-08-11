@@ -78,7 +78,8 @@ body {
 
   body > header,
   .pricing-print-hidden,
-  .quote-print-hidden {
+  .quote-print-hidden,
+  .recipe-print-hidden {
     display: none !important;
   }
 
@@ -87,7 +88,8 @@ body {
   }
 
   .pricing-page,
-  .quote-page {
+  .quote-page,
+  .recipe-page {
     width: 100% !important;
     max-width: none !important;
     margin: 0 !important;
@@ -132,6 +134,35 @@ body {
   }
 
   .quote-print-document tr {
+    break-inside: avoid;
+  }
+
+  .recipe-layout {
+    display: block !important;
+  }
+
+  .recipe-print-preview {
+    width: 100% !important;
+  }
+
+  .recipe-print-sheet {
+    width: 100% !important;
+    margin: 0 !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: #ffffff !important;
+    padding: 0 !important;
+    color: #1c1917 !important;
+    box-shadow: none !important;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+
+  .recipe-print-sheet thead {
+    display: table-header-group;
+  }
+
+  .recipe-print-sheet tr {
     break-inside: avoid;
   }
 }
