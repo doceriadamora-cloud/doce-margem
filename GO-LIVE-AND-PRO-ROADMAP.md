@@ -42,7 +42,8 @@
 - Perfis antigos de teste permanecem, mas sem licença ativa.
 - Chargeback não foi testado manualmente de ponta a ponta, embora use o mesmo mecanismo de revogação validado pelo reembolso.
 - A venda oficial do app ainda não foi aberta.
-- Antes de abrir a venda, revisar copy, checkout, domínio, suporte e política de reembolso.
+- A copy do app foi revisada na P0-7; antes de abrir a venda, ainda é preciso validar o
+  checkout publicado, domínio, suporte e política de reembolso.
 
 ---
 
@@ -71,8 +72,9 @@ rotas protegidas abriram; o reembolso revogou a licença e enviou a usuária par
 `/acesso-bloqueado`.
 
 A presença do deploy e a integração Kiwify → app → Supabase → Resend deixaram de
-ser inferência. Isso **não significa venda aberta**: a revisão comercial de copy,
-checkout, domínio, suporte e política de reembolso continua pendente.
+ser inferência. Isso **não significa venda aberta**: a copy do app foi concluída na
+P0-7, mas checkout publicado, domínio, suporte e política de reembolso ainda precisam
+da validação operacional final.
 
 ### 1.3 O que roda local
 
@@ -90,11 +92,11 @@ navegador perde os dados**, e a rede de segurança é o backup manual em
 |---|---|
 | Aplicar migrations 0001–0004 | ✅ feito |
 | Validar autenticação do webhook da Kiwify | ✅ compra e reembolso reais retornaram 200 e foram processados |
-| Definir o preço do Essencial | ❌ `/precos` mostra "Preço de lançamento em breve" |
+| Definir e comunicar o preço do Essencial | ✅ R$ 97 à vista no crédito ou Pix, ou 12x de R$ 10,03; copy revisada na P0-7 |
 | Cadastrar a URL e os eventos do webhook na Kiwify | ✅ compra e reembolso reais chegaram ao app |
 | Configurar SMTP próprio no Supabase | ✅ Resend/Supabase SMTP entregou o convite; entregabilidade/spam ainda exige atenção |
 | Conceder e revogar licença automaticamente | ✅ validado com compra e reembolso reais |
-| Abrir a venda oficial | ❌ revisar copy, checkout, domínio, suporte e política de reembolso antes |
+| Abrir a venda oficial | ❌ validar checkout publicado, domínio, suporte e política de reembolso antes |
 
 ### 1.5 Não implementado
 
@@ -131,7 +133,7 @@ verificar**, e por isso pesam mais do que o tamanho delas sugere:
 | # | Bloqueador | Por quê |
 |---|---|---|
 | C1 | ~~**Compra aprovada não libera licença**~~ | ✅ **Resolvido e validado em produção.** Compra real sem conta prévia criou usuária, entregou convite, ativou licença e liberou acesso. |
-| C2 | **Preço não definido** | `/precos` diz "Preço de lançamento em breve" e o CTA depende de `NEXT_PUBLIC_BUY_ESSENTIAL_URL`. Sem preço não há oferta. |
+| C2 | ~~**Preço não definido**~~ | ✅ **Resolvido na P0-7.** `/precos` comunica R$ 97 à vista no crédito ou Pix, ou 12x de R$ 10,03, com compra única, ausência de mensalidade no Essencial e CTA dependente da URL de checkout já existente. |
 | C3 | ~~**Webhook não confirmado em produção**~~ | ✅ **Resolvido.** Teste do painel, compra real e reembolso real retornaram 200; compra e reembolso ficaram `processed`. |
 | C4 | ~~**Payload real da Kiwify não capturado**~~ | ✅ **Resolvido e confirmado.** Compra e reembolso reais foram normalizados e processados em produção. |
 | C5 | ~~**Autenticação real do webhook não comprovada**~~ | ✅ **Resolvido.** Compra e reembolso reais da Kiwify foram autenticados e processados em produção. |
@@ -447,18 +449,15 @@ seguro; "no segundo semestre" é uma promessa que pode virar reclamação.
 
 ### 5.2 Aviso honesto para `/precos`
 
-> **O que você compra hoje é seu para sempre.**
+> **O Essencial é a oferta disponível hoje.**
 >
-> O Minha Fatia Essencial é compra única. Você paga uma vez e usa para sempre,
-> sem mensalidade — não existe plano mensal aqui, e não vai existir.
+> O Minha Fatia Essencial custa R$ 97 à vista no crédito ou Pix, ou 12x de
+> R$ 10,03. É uma compra única, sem mensalidade ou renovação no Essencial, com
+> acesso vitalício à versão Essencial atual.
 >
-> Estamos construindo uma versão Pro, com sincronização em nuvem, relatórios e
-> leitura de nota fiscal por inteligência artificial. Ela será uma assinatura
-> anual, porque esses recursos têm custo todo mês para manter no ar.
->
-> **Comprar o Essencial hoje não te deixa para trás:** o valor que você pagar
-> agora será abatido do primeiro ano do Pro, se um dia você quiser assinar. E se
-> não quiser, o Essencial continua seu, funcionando, para sempre.
+> Recursos avançados de nuvem, automação, inteligência artificial e relatórios
+> poderão fazer parte de um Pro Anual futuro. O Pro não está disponível hoje e
+> não tem preço ou data anunciados.
 
 ### 5.3 "O que está incluso no Essencial"
 
@@ -466,7 +465,7 @@ seguro; "no segundo semestre" é uma promessa que pode virar reclamação.
 >
 > - Cadastro de ingredientes com custo real por grama, ml ou unidade
 > - Ficha técnica das suas receitas, com rendimento e custo por unidade
-> - Ficha técnica interna imprimível, com ingredientes, quantidades e custos
+> - Ficha técnica da receita imprimível, com ingredientes, quantidades e custos
 > - Custos fixos rateados no preço (aluguel, energia, gás, internet)
 > - Canais de venda com as taxas certas — balcão, Pix, cartão, iFood, WhatsApp
 > - Preço sugerido, margem, markup e comparação com o preço que você já cobra
@@ -474,7 +473,8 @@ seguro; "no segundo semestre" é uma promessa que pode virar reclamação.
 >   margem e preço sugerido, com opção de salvar em PDF pelo navegador
 > - Orçamento simples para cliente, com itens e valores comerciais, sem mostrar
 >   custos internos, margem ou lucro, personalizado com sua logo, cores e contatos
-> - Backup dos seus dados em arquivo, para você nunca depender de um só aparelho
+> - Backup dos seus dados em arquivo, para guardar uma cópia e levar os cadastros
+>   a outro aparelho
 > - Modo avançado: fator de correção, perda de produção, sub-receitas e medidas
 >   caseiras *(em desenvolvimento — incluído no que você já comprou)*
 >
@@ -495,19 +495,18 @@ seguro; "no segundo semestre" é uma promessa que pode virar reclamação.
 > **Nenhum desses recursos existe ainda.** Estão listados aqui para você saber
 > exatamente o que é e o que não é o Essencial — não para te vender uma promessa.
 
-### 5.5 Garantia de compra única
+### 5.5 Compromisso de compra única
 
 > **Compra única quer dizer compra única.**
 >
 > Você paga uma vez pelo Minha Fatia Essencial e tem acesso vitalício à versão
-> Essencial. Não cobramos mensalidade, não cobramos renovação e não vamos tirar
-> recursos que você já usa para colocar num plano pago.
+> Essencial atual. Não há mensalidade nem renovação no Essencial.
 >
-> O que a compra única inclui: tudo que está na lista do Essencial, incluindo as
-> melhorias que fizermos nesses recursos. O que ela não inclui: os recursos do
-> Pro, que dependem de servidor e de custo mensal para funcionar.
+> A compra inclui o que está identificado na oferta atual. Recursos novos e
+> avançados que dependam de serviços contínuos poderão pertencer ao Pro Anual
+> futuro; não se promete que toda função criada depois fará parte do Essencial.
 
-### 5.6 Crédito de upgrade
+### 5.6 Proposta de crédito de upgrade — não publicada
 
 > **Comprou o Essencial e depois quis o Pro? O valor volta para você.**
 >
@@ -519,7 +518,11 @@ seguro; "no segundo semestre" é uma promessa que pode virar reclamação.
 > não vira dinheiro nem pode ser transferido para outra pessoa. Se você preferir
 > continuar só no Essencial, ele segue seu, do mesmo jeito, para sempre.
 
-### 5.7 P0-4 a P0-6 entregues; próximos passos
+> **Estado na P0-7:** esta proposta não foi levada à página de preços nem à copy
+> de compra. Ela depende de aprovação comercial e mecanismo operacional antes de
+> virar promessa pública.
+
+### 5.7 P0-4 a P0-7 entregues; próximos passos
 
 - **P0-4 — Orçamento para cliente:** entregue como visualização comercial separada,
   com itens manuais, rascunho local e impressão, sem expor custos, mão de obra,
@@ -533,6 +536,9 @@ seguro; "no segundo semestre" é uma promessa que pode virar reclamação.
 - **P0-6 — Polimento final pré-lançamento:** entregue nas páginas principais com
   jornada ordenada, CTAs claros, estados vazios orientativos, nomenclatura consistente
   e navegação móvel ajustada, sem alterar cálculos, dados ou controle de acesso.
+- **P0-7 — Oferta, preços e copy de lançamento:** entregue com o Essencial como
+  oferta atual, preço preservado, compra e acesso explicados, Pro identificado como
+  futuro, expectativas sobre dados locais e backup e aviso contábil discreto.
 - **P1 — Orçamentos avançados:** evolução da rota com clientes, histórico, status,
   duplicação de orçamento e reaproveitamento de cliente.
 
@@ -552,34 +558,42 @@ Se você não tiver feito backup, sim. Exporte o arquivo em Configurações ante
 trocar e importe no aparelho novo. Sincronização automática entre aparelhos será
 um recurso do Pro.
 
-**4. Vou ter que comprar de novo quando o Pro sair?**
-Não. O Essencial continua funcionando para sempre. E se você quiser o Pro, o valor
-que pagou pelo Essencial é abatido da primeira anuidade.
+**4. O que acontece com meu Essencial quando o Pro sair?**
+O acesso vitalício à versão Essencial atual continua sendo uma compra separada.
+O Pro, quando existir, será opcional e terá condições próprias. A proposta de
+crédito de upgrade ainda não faz parte da oferta pública e não deve ser prometida.
 
 **5. Sub-receitas e medidas caseiras são do Pro?**
 Não, são do Essencial. Os cálculos já estão prontos e as telas estão em
 desenvolvimento — quem comprou vai receber sem pagar nada a mais.
 
 **6. Preciso de internet para usar?**
-Só para entrar na sua conta. Depois disso, os cálculos rodam no seu aparelho.
+Você precisa de internet para entrar e abrir as áreas protegidas. Os cálculos e o
+armazenamento dos dados do Essencial acontecem no navegador.
 
 **7. E se eu pedir reembolso?**
-Você recebe o valor de volta conforme a política da plataforma de pagamento e o
-acesso é encerrado. Seus dados ficam no seu navegador — dá para exportar o backup
-antes.
+O pedido segue a política apresentada no checkout. Quando o reembolso é aprovado,
+o acesso é encerrado. Os dados continuam no navegador; enquanto ainda houver
+acesso, é possível exportar o backup.
 
 **8. Comprei com um e-mail e me cadastrei com outro. E agora?**
 Fale com o suporte com o número do pedido. A liberação é feita pelo e-mail da
 compra, então o jeito mais simples é usar o mesmo nos dois.
 
 **9. Serve para quem está começando?**
-Sim — o modo simples é o padrão. O modo avançado existe, mas fica fora do caminho
-até você querer.
+Sim. O fluxo principal orienta Ingredientes → Receitas → Embalagens → Precificação
+→ Orçamento, e os recursos avançados ainda em desenvolvimento aparecem separados.
 
 **10. Posso usar em mais de um aparelho?**
 Sua conta funciona em qualquer aparelho, mas os dados ficam salvos em cada um
 separadamente. Para usar os mesmos dados nos dois, hoje é exportar e importar o
-backup. Sincronização automática será recurso do Pro.
+backup. Sincronização automática poderá fazer parte do Pro futuro.
+
+**11. O Minha Fatia substitui contador?**
+Não. É uma ferramenta de apoio à gestão e precificação. Impostos, regime tributário
+e obrigações fiscais variam conforme o negócio e precisam de avaliação própria.
+Um possível recurso “Fale com contador” fica apenas no backlog e não foi implementado
+na P0-7.
 
 ---
 
@@ -603,7 +617,7 @@ Considerando **~4 h úteis por dia**.
 | A6 | Teste ponta a ponta: comprar → e-mail → cadastrar → entrar → usar | **4–6** | A3, A5 |
 | A7 | Teste em navegador real (celular e desktop) — **dívida desde a Fase 2-2** | **4–8** | — |
 | A8 | Correções do que A6/A7 revelarem | **6–12** | A6, A7 |
-| A9 | Preço, copy final, `Header`, suporte | **3–5** | — |
+| A9 | Preço, copy final e `Header` ✅; suporte ainda pendente | **3–5** | — |
 | | **Total** | **35–60 h** | |
 
 > **≈ 9 a 15 dias úteis.** Chamar de **2 a 3 semanas** é honesto. A faixa é larga
@@ -747,9 +761,9 @@ Considerando **~4 h úteis por dia**.
 ### Fase 4-9 — Polimento comercial do Essencial
 
 - **Objetivo:** deixar a oferta apresentável.
-- **Estado do código:** a P0-6 concluiu a revisão de jornada, microcopy, estados
-  vazios, nomenclatura e navegação. Preço publicado, suporte e ajustes externos de
-  lançamento continuam no checklist operacional.
+- **Estado do código:** a P0-6 concluiu a jornada e os estados de uso; a P0-7
+  concluiu oferta, preço, CTAs e expectativas de compra no app. Checkout publicado,
+  suporte e ajustes externos de lançamento continuam no checklist operacional.
 - **Permitido:** preço, copy da seção 5, `Header` sem links que rebatem, canal de
   suporte, apagar as contas e linhas de teste.
 - **Proibido:** recurso novo; mexer em `modules/pricing`.

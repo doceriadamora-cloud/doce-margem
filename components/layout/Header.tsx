@@ -94,17 +94,15 @@ export default function Header({ isAuthenticated, authEnabled }: HeaderProps) {
               </Link>
             ) : (
               <>
-                <Link href="/precos" className={linkClass("/precos")}>
-                  Preços
-                </Link>
                 <Link href="/login" className={linkClass("/login")}>
                   Entrar
                 </Link>
                 <Link
-                  href="/cadastro"
+                  href="/precos"
+                  aria-current={pathname === "/precos" ? "page" : undefined}
                   className="rounded-full bg-rose-600 px-3 py-1 font-medium text-white transition-colors hover:bg-rose-700"
                 >
-                  Criar conta
+                  Ver planos
                 </Link>
               </>
             )}

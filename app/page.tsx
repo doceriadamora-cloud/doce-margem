@@ -11,13 +11,21 @@ export default async function Home() {
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6 sm:py-12">
-      <header className="mb-8 max-w-lg">
+      <header className="mb-8 max-w-3xl">
+        <p className="mb-2 text-sm font-semibold text-rose-600 dark:text-rose-400">
+          Gestão e precificação para produção artesanal
+        </p>
         <h1 className="text-3xl font-semibold tracking-tight text-stone-900 dark:text-stone-50">
-          Sua precificação começa aqui.
+          Organize seus custos e forme preços com mais clareza.
         </h1>
-        <p className="mt-2 text-stone-600 dark:text-stone-400">
-          Acompanhe seus cadastros e siga as etapas para descobrir o custo real, definir o preço
-          e preparar o orçamento para o cliente.
+        <p className="mt-3 max-w-2xl text-stone-600 dark:text-stone-400">
+          O Minha Fatia ajuda confeiteiras, doceiras e pequenos negócios de produção e delivery
+          artesanal a reunir ingredientes, receitas, embalagens e mão de obra antes de decidir
+          quanto cobrar.
+        </p>
+        <p className="mt-2 max-w-2xl text-sm text-stone-500 dark:text-stone-500">
+          Siga o fluxo abaixo com os dados do seu negócio: o app organiza as informações e apoia
+          sua decisão, sem prometer resultado ou lucro garantido.
         </p>
       </header>
       <Dashboard />

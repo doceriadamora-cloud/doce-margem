@@ -89,7 +89,8 @@ const FEATURES: Record<FeatureKey, FeatureDefinition> = {
   recipes: {
     key: "recipes",
     label: "Receitas",
-    description: "Monte a ficha técnica e veja o custo total e o custo por unidade de cada doce.",
+    description:
+      "Monte a Ficha técnica da receita e veja o custo total e o custo por unidade produzida.",
     minimumPlan: "essential",
     status: "available",
   },
@@ -110,7 +111,8 @@ const FEATURES: Record<FeatureKey, FeatureDefinition> = {
   pricing: {
     key: "pricing",
     label: "Precificação",
-    description: "Preço sugerido, margem e markup, com ou sem taxas de canal.",
+    description:
+      "Calcule um preço sugerido e confira custos, margem e taxas de cada canal de venda.",
     minimumPlan: "essential",
     status: "available",
   },

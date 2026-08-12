@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { getCurrentUserAccess } from "@/lib/auth/dal";
-import { ALL_FEATURES, type FeatureDefinition } from "@/lib/features";
 import type { UserAccess } from "@/types/access";
 
 export const metadata: Metadata = {
@@ -24,8 +23,8 @@ export const metadata: Metadata = {
  *    parâmetro na URL é escrito por quem quiser e mostraria à usuária um
  *    diagnóstico falso. O estado real vem do DAL, na mesma requisição.
  *
- * ⚠️ **Não é a página de preços** (Fase 4-6): sem valores, sem botão de compra.
- * Aqui só se explica o que cada plano abre.
+ * A página não executa compra nem muda acesso. Ela explica o estado atual e
+ * encaminha para `/precos`, `/login`, `/conta` ou o Painel conforme o caso.
  */
 
 type DeniedReason = "unauthenticated" | "blocked" | "no_license" | "no_pro" | "none";
@@ -41,47 +40,27 @@ function resolveReason(access: UserAccess): DeniedReason {
 
 const HEADLINE: Record<DeniedReason, string> = {
   unauthenticated: "Entre na sua conta para continuar",
-  blocked: "Sua conta está bloqueada",
-  no_license: "Você ainda não tem uma licença ativa",
-  no_pro: "Este recurso faz parte do Pro Anual",
+  blocked: "Seu acesso está suspenso",
+  no_license: "Seu acesso ao Minha Fatia ainda não está liberado",
+  no_pro: "Este recurso não faz parte do Essencial atual",
   none: "Seu acesso está em dia",
 };
 
 const EXPLANATION: Record<DeniedReason, string> = {
   unauthenticated:
-    "Esta parte do Minha Fatia precisa de uma conta. Entre com seu e-mail e senha, ou crie uma conta em um minuto.",
+    "Esta parte do Minha Fatia precisa de uma conta. Entre com o e-mail usado na compra ou crie uma conta para continuar.",
   blocked:
-    "O acesso desta conta foi suspenso, e por isso nenhuma licença está valendo agora. Se você acha que houve engano, fale com o suporte — a gente resolve.",
+    "Esta conta não pode acessar o app neste momento. Consulte a página Minha conta e, se você acredita que houve um engano, procure o suporte.",
   no_license:
-    "Sua conta existe e está tudo certo com ela: falta apenas uma licença para liberar esta parte do app.",
+    "Sua conta está pronta, mas ainda não tem acesso ao Essencial. Veja a oferta de compra única ou, se já comprou, confirme se entrou com o mesmo e-mail usado no pagamento.",
   no_pro:
-    "Sua licença do Essencial continua valendo normalmente. O recurso que você tentou abrir é do Pro Anual.",
+    "Seu acesso ao Essencial continua funcionando normalmente. Recursos avançados de nuvem, automação, IA e relatórios poderão fazer parte de um Pro Anual futuro.",
   none: "Você tem acesso liberado. Provavelmente chegou aqui por um link antigo ou digitando o endereço.",
 };
-
-/** Um item da lista de plano. `planned` recebe selo — não prometer o que não existe. */
-function FeatureItem({ feature }: { feature: FeatureDefinition }) {
-  return (
-    <li className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-      <span className="text-stone-700 dark:text-stone-300">{feature.label}</span>
-      {feature.status === "planned" && (
-        <span className="rounded-full bg-stone-100 px-2 py-0.5 text-xs font-medium text-stone-500 dark:bg-stone-800 dark:text-stone-400">
-          em breve
-        </span>
-      )}
-    </li>
-  );
-}
 
 export default async function AcessoBloqueadoPage() {
   const access = await getCurrentUserAccess();
   const reason = resolveReason(access);
-
-  // As duas listas saem da matriz da Fase 4-4A — fonte única da verdade. Se um
-  // recurso mudar de plano lá, esta tela acompanha sozinha, sem risco de a
-  // página prometer uma divisão diferente da que o gating aplica.
-  const essentialFeatures = ALL_FEATURES.filter((f) => f.minimumPlan === "essential");
-  const proFeatures = ALL_FEATURES.filter((f) => f.minimumPlan === "pro_annual");
 
   // O link para o painel só aparece para quem realmente entra lá. Hoje o painel
   // é aberto, mas a Fase 4-5B pode exigir Essencial nele — e aí este botão
@@ -100,54 +79,35 @@ export default async function AcessoBloqueadoPage() {
       <div className="flex flex-col gap-4">
         {reason === "blocked" && (
           <p className="rounded-2xl border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-800 dark:border-red-800 dark:bg-red-950 dark:text-red-200">
-            Enquanto o bloqueio estiver ativo, nenhuma licença é considerada — nem a compra única,
-            nem a assinatura Pro.
+            Enquanto a suspensão estiver ativa, o acesso ao Minha Fatia permanece indisponível.
+            Comprar novamente não remove esse bloqueio.
           </p>
         )}
 
-        <section className="rounded-2xl border border-stone-200 bg-white p-5 dark:border-stone-800 dark:bg-stone-900">
-          <h2 className="text-base font-semibold text-stone-900 dark:text-stone-50">
-            Minha Fatia Essencial
-          </h2>
-          <p className="mt-1 text-sm text-stone-500 dark:text-stone-400">
-            Compra única, acesso vitalício à versão Essencial atual.
-          </p>
-          <ul className="mt-3 flex flex-col gap-1.5 text-sm">
-            {essentialFeatures.map((feature) => (
-              <FeatureItem key={feature.key} feature={feature} />
-            ))}
-            <li className="text-stone-700 dark:text-stone-300">
-              Embalagens
-            </li>
-            <li className="text-stone-700 dark:text-stone-300">
-              Mão de obra e tempo de produção
-            </li>
-            <li className="text-stone-700 dark:text-stone-300">
-              Ficha interna de precificação
-            </li>
-            <li className="text-stone-700 dark:text-stone-300">
-              Ficha técnica da receita
-            </li>
-            <li className="text-stone-700 dark:text-stone-300">
-              Orçamento para cliente com identidade visual
-            </li>
-          </ul>
-        </section>
+        {reason === "no_license" && (
+          <section className="rounded-2xl border border-rose-200 bg-rose-50 p-5 dark:border-rose-900 dark:bg-rose-950">
+            <h2 className="text-base font-semibold text-rose-900 dark:text-rose-100">
+              Minha Fatia Essencial
+            </h2>
+            <p className="mt-1 text-sm leading-6 text-rose-800 dark:text-rose-200">
+              Compra única, sem mensalidade, com acesso vitalício à versão Essencial atual para
+              organizar custos, precificar e gerar documentos para o seu negócio.
+            </p>
+          </section>
+        )}
 
-        <section className="rounded-2xl border border-stone-200 bg-white p-5 dark:border-stone-800 dark:bg-stone-900">
-          <h2 className="text-base font-semibold text-stone-900 dark:text-stone-50">
-            Minha Fatia Pro Anual
-          </h2>
-          <p className="mt-1 text-sm text-stone-500 dark:text-stone-400">
-            Tudo do Essencial, mais os recursos de nuvem, automação, inteligência artificial e
-            relatórios — todos ainda em desenvolvimento.
-          </p>
-          <ul className="mt-3 flex flex-col gap-1.5 text-sm">
-            {proFeatures.map((feature) => (
-              <FeatureItem key={feature.key} feature={feature} />
-            ))}
-          </ul>
-        </section>
+        {reason === "no_pro" && (
+          <section className="rounded-2xl border border-stone-200 bg-white p-5 dark:border-stone-800 dark:bg-stone-900">
+            <h2 className="text-base font-semibold text-stone-900 dark:text-stone-50">
+              Sobre o Pro Anual futuro
+            </h2>
+            <p className="mt-1 text-sm leading-6 text-stone-500 dark:text-stone-400">
+              O Pro ainda não faz parte da oferta atual. Quando existir, será um plano anual
+              separado para recursos que dependem de serviços contínuos. Nenhuma data está sendo
+              prometida neste momento.
+            </p>
+          </section>
+        )}
 
         <nav aria-label="O que fazer agora" className="flex flex-wrap items-center gap-3">
           {(reason === "no_license" || reason === "no_pro") && (
@@ -155,7 +115,7 @@ export default async function AcessoBloqueadoPage() {
               href="/precos"
               className="rounded-full bg-rose-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-rose-700"
             >
-              Ver planos e preços
+              Ver planos
             </Link>
           )}
 

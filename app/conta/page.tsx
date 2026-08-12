@@ -10,18 +10,18 @@ export const metadata: Metadata = {
 
 /** Nome comercial de cada plano, do jeito que a usuária reconhece. */
 const PLAN_LABEL: Record<ActivePlan, string> = {
-  none: "Sem licença ativa",
+  none: "Acesso ao Essencial ainda não liberado",
   essential: "Minha Fatia Essencial",
   pro_annual: "Minha Fatia Pro Anual",
 };
 
 const PLAN_DESCRIPTION: Record<ActivePlan, string> = {
   none:
-    "Sua conta está criada, mas ainda não tem uma licença ativa. Dados que já estejam salvos neste navegador permanecem preservados para quando o acesso for liberado.",
+    "Sua conta está pronta, mas o acesso ainda não foi liberado. Se você ainda não comprou, conheça o Essencial; se já comprou, confirme se entrou com o mesmo e-mail usado no pagamento.",
   essential:
-    "Acesso vitalício à versão Essencial atual: Ingredientes, Receitas, Embalagens, Mão de obra, custos fixos, canais, Precificação, Ficha interna de precificação, Ficha técnica da receita e Orçamento para cliente.",
+    "Compra única, sem mensalidade, com acesso vitalício à versão Essencial atual do Minha Fatia.",
   pro_annual:
-    "Assinatura anual ativa, com tudo do Essencial mais os recursos avançados do Pro.",
+    "Assinatura anual ativa, com o Essencial e os recursos avançados disponíveis no Pro.",
 };
 
 function formatDate(iso: string): string {
@@ -35,6 +35,11 @@ export default async function ContaPage() {
   // aqui para ver o próprio status e sair da conta. O guarda já devolve o
   // `UserAccess` resolvido (identidade, perfil, bloqueio e licenças).
   const access = await requireAuthenticatedAccess();
+  const accessStatus = access.isBlocked
+    ? "Suspenso"
+    : access.hasEssential
+      ? "Liberado"
+      : "Ainda não liberado";
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-8 sm:px-6 sm:py-12">
@@ -43,7 +48,7 @@ export default async function ContaPage() {
           Minha conta
         </h1>
         <p className="mt-2 text-stone-600 dark:text-stone-400">
-          Seus dados de acesso ao Minha Fatia.
+          Consulte sua conta e veja, em linguagem simples, qual acesso está disponível para você.
         </p>
       </header>
 
@@ -71,9 +76,17 @@ export default async function ContaPage() {
               </div>
             )}
             <div>
-              <dt className="text-xs text-stone-400 dark:text-stone-500">Status da conta</dt>
+              <dt className="text-xs text-stone-400 dark:text-stone-500">Conta</dt>
               <dd className="font-medium text-stone-800 dark:text-stone-200">
                 {access.isBlocked ? "Bloqueada" : "Ativa"}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-xs text-stone-400 dark:text-stone-500">
+                Acesso ao Minha Fatia
+              </dt>
+              <dd className="font-medium text-stone-800 dark:text-stone-200">
+                {accessStatus}
               </dd>
             </div>
           </dl>
@@ -81,7 +94,7 @@ export default async function ContaPage() {
 
         <section className="rounded-2xl border border-stone-200 bg-white p-5 dark:border-stone-800 dark:bg-stone-900">
           <h2 className="text-base font-semibold text-stone-900 dark:text-stone-50">
-            Plano e licença
+            Seu plano
           </h2>
 
           <p className="mt-2 text-lg font-semibold text-rose-600 dark:text-rose-400">
@@ -111,7 +124,16 @@ export default async function ContaPage() {
               href="/precos"
               className="mt-4 inline-flex rounded-full bg-rose-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-rose-700"
             >
-              Ver planos e preços
+              Ver planos
+            </Link>
+          )}
+
+          {access.hasEssential && !access.isBlocked && (
+            <Link
+              href="/"
+              className="mt-4 inline-flex rounded-full bg-rose-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-rose-700"
+            >
+              Acessar Minha Fatia
             </Link>
           )}
         </section>

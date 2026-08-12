@@ -1,8 +1,8 @@
 # Minha Fatia
 
-> **Pare de vender doce no achismo.** Descubra quanto custa produzir, quanto cobrar e qual margem sobra em cada venda.
+> **Organize seus custos e forme preços com mais clareza.** Uma ferramenta prática para apoiar as decisões do seu negócio artesanal.
 
-App de **precificação para confeiteiras**. Calcula custo real de ingredientes, receitas, embalagens e mão de obra, ficha técnica, rendimento, CMV, custo unitário, preço sugerido, margem e markup — do jeito simples para quem está começando, e robusto para quem já é profissional.
+App de **gestão de custos e precificação para pequenos negócios de produção artesanal**. Reúne ingredientes, receitas, embalagens e mão de obra, calcula custos e preços sugeridos e gera documentos internos e Orçamentos para cliente — sem prometer lucro ou substituir a decisão de quem conhece o próprio negócio.
 
 > Este README é a **especificação viva** do projeto. Sempre que uma decisão estrutural importante for tomada, ele deve ser atualizado.
 
@@ -12,38 +12,39 @@ App de **precificação para confeiteiras**. Calcula custo real de ingredientes,
 
 ## 1. Visão geral
 
-Confeiteiras frequentemente precificam no "achismo": colocam um preço sem saber o custo real de produção, e descobrem tarde demais que a margem é baixa ou negativa. O **Minha Fatia** resolve isso transformando ingredientes, receitas e canais de venda em números claros.
+Quem produz doces, salgados e encomendas artesanais frequentemente define preços sem reunir todos os custos. O **Minha Fatia** ajuda a organizar esses dados e transformá-los em números claros para apoiar a formação do preço.
 
-- **Objetivo do produto:** dar à confeiteira clareza sobre custo, preço e margem de cada doce.
-- **Público-alvo:** confeiteiras e doceiras (de iniciantes a profissionais), que vendem por encomenda, balcão e/ou marketplaces.
-- **Promessa principal:** "Pare de vender doce no achismo. Descubra quanto custa produzir, quanto cobrar e qual margem sobra em cada venda."
+- **Objetivo do produto:** dar clareza sobre custos, preço sugerido e margem a pequenos negócios de produção artesanal.
+- **Público-alvo:** confeiteiras, doceiras, produtoras de salgados e pequenos negócios de encomendas e delivery artesanal.
+- **Promessa principal:** "Organize seus custos e forme preços com mais clareza."
+- **Limite da ferramenta:** o Minha Fatia apoia a gestão e a precificação; não garante lucro e não substitui orientação contábil. Impostos, regime tributário e obrigações fiscais variam conforme o negócio.
 
 ---
 
 ## 2. Modelo comercial
 
-Duas formas de venda. **Não existe plano mensal.**
+A oferta disponível hoje é o **Minha Fatia Essencial**. O Pro Anual é uma possibilidade futura para recursos avançados; não há data nem preço anunciados.
 
 ### Minha Fatia Essencial — compra única
 - Pagamento único.
+- **Sem mensalidade e sem renovação no Essencial.**
 - **Acesso vitalício à versão Essencial atual** (não promete funções futuras).
 - Acesso com login, controlado por licença.
 - Sem arquivo baixável e sem link público aberto.
 - Acesso vinculado ao status da compra: **reembolso, chargeback ou bloqueio manual removem o acesso.**
 
-### Minha Fatia Pro Anual — assinatura anual
-- Plano **anual** (renovação anual). Sem mensal.
-- Recursos avançados, dados em nuvem, múltiplos dispositivos.
-- Expiração automática se não renovar.
-- Bloqueio por reembolso, chargeback ou inadimplência.
+### Minha Fatia Pro Anual — futuro
+- Ainda não está disponível para compra e não tem data ou preço anunciados.
+- Poderá reunir recursos avançados, dados em nuvem, múltiplos dispositivos, automação, IA e relatórios.
+- Quando existir, será um plano anual separado, sem opção mensal.
 
-**Regra comercial importante:** a compra única é "acesso vitalício à versão Essencial **atual**". Funções futuras e mais robustas pertencem ao Pro Anual.
+**Regra comercial importante:** a compra única é "acesso vitalício à versão Essencial **atual**". Recursos novos e avançados poderão pertencer ao Pro Anual futuro.
 
 ---
 
 ## 3. Recursos por plano (feature flags)
 
-| Recurso | Essencial | Pro Anual |
+| Recurso | Essencial | Pro Anual futuro |
 |---|:---:|:---:|
 | Cadastro de ingredientes | ✅ | ✅ |
 | Ficha técnica / receitas | ✅ | ✅ |
@@ -72,6 +73,8 @@ Duas formas de venda. **Não existe plano mensal.**
 | Colaboração/comunidade (futuro) | — | ✅ |
 
 As permissões são centralizadas em **feature flags** (`lib/features.ts` — Fase 4) e checadas por uma função única `canAccessFeature(userAccess, featureKey)`. **Nunca espalhar condicionais de plano pelo app.**
+
+Os itens avançados da coluna Pro são planejamento, não uma oferta disponível. Os recursos do Essencial marcados como ainda em desenvolvimento permanecem identificados dessa forma na página pública de preços.
 
 ---
 
@@ -292,4 +295,5 @@ Desenvolvimento **por fases**, com aprovação entre cada uma. Veja [TASKS.md](T
 - **Fase P0-4A — Personalização visual do orçamento:** implementada em Configurações com nome da marca, logo otimizada localmente, contatos, condições padrão, sugestão de cores via canvas e paleta editável aplicada também à impressão.
 - **Fase P0-5 — Imprimir receita:** implementada na área de Receitas com ficha técnica interna, ingredientes e sub-receitas, rendimento, perda, custos calculados e impressão/PDF pelo navegador.
 - **Fase P0-6 — Polimento final pré-lançamento:** implementada com jornada principal ordenada no Painel, navegação móvel mais clara, nomenclatura consistente, CTAs objetivos e estados vazios orientativos, sem alterar cálculos ou persistência.
+- **Fase P0-7 — Oferta e copy de lançamento:** implementada com o Essencial como oferta atual, preço e acesso explicados, Pro identificado como futuro, expectativas pós-compra e de armazenamento local claras e aviso contábil discreto.
 - **P1 recomendado — Orçamentos avançados:** evolução da rota atual com clientes, histórico, status, duplicação de orçamento e reaproveitamento de cliente.

@@ -6,8 +6,8 @@
 > Marcar `[x]` ao concluir. Adicionar novas tarefas quando surgirem.
 > Antes de iniciar uma nova fase: parar, resumir o que foi feito e aguardar aprovação.
 
-**Fase atual:** P0-6 — Polimento final pré-lançamento implementado nas páginas principais, com fluxo orientado, estados vazios e nomenclatura consistentes. Compra, convite, senha, acesso, reembolso e bloqueio continuam preservados de ponta a ponta.
-**Próximo passo recomendado:** concluir a validação comercial em navegador real, checkout, suporte e política de reembolso antes de abrir oficialmente a venda; P1 permanece como evolução dos Orçamentos.
+**Fase atual:** P0-7 — Revisão final da oferta, preços, checkout e copy de lançamento implementada. O Essencial é a oferta atual; compra única, acesso, dados locais e limites da ferramenta estão explicados sem alterar o ciclo técnico já validado.
+**Próximo passo recomendado:** validar a experiência e o checkout publicados em navegador real, além de concluir domínio, suporte e política de reembolso antes de abrir oficialmente a venda; P1 permanece como evolução dos Orçamentos.
 
 > 📋 **Auditoria pré-lançamento (2026-08-07): `GO-LIVE-AND-PRO-ROADMAP.md`** —
 > estado do produto, 10 bloqueadores críticos, diagnóstico do webhook, fronteira
@@ -106,6 +106,25 @@
 - [x] Preservar fórmulas, pricing engine, `calculateRecipe`, persistência e `APP_STATE_STORAGE_KEY`
 - [x] Preservar Supabase, webhook/Kiwify, autenticação, licenças, envs, migrations e SQL
 - [x] Rodar `typecheck`, `lint`, `build` e `git diff --check`
+
+### Fase P0-7 — Oferta, preços, checkout e copy de lançamento ✅
+- [x] Posicionar o Minha Fatia como ferramenta prática de apoio à gestão e precificação de pequenos negócios artesanais
+- [x] Evitar promessa de lucro garantido e explicar que o preço final continua sendo decisão do negócio
+- [x] Apresentar o Minha Fatia Essencial como a oferta atual, por R$ 97 à vista ou 12x de R$ 10,03
+- [x] Destacar compra única, ausência de mensalidade no Essencial e acesso vitalício à versão Essencial atual
+- [x] Explicar convite, uso do e-mail da compra e entrada no app sem alterar o checkout
+- [x] Informar que os dados do Essencial ficam no navegador e orientar o backup manual
+- [x] Identificar o Pro Anual como futuro, sem preço ou data prometidos, e separar seus recursos avançados
+- [x] Padronizar “Ver planos”, “Entrar”, “Comprar acesso ao Essencial” e “Acessar Minha Fatia”
+- [x] Simplificar as mensagens de `/acesso-bloqueado` e o status mostrado em `/conta`
+- [x] Exibir aviso discreto de que o app não substitui contador nem cobre particularidades fiscais
+- [x] Não implementar o recurso ou CTA “Fale com contador” nesta fase
+- [x] Preservar Kiwify, webhook, product ID, envs, Supabase, auth, licenças, banco, migrations e SQL
+- [x] Preservar fórmulas, pricing engine, `calculateRecipe`, persistência e `APP_STATE_STORAGE_KEY`
+- [x] Rodar `typecheck`, `lint`, `build` e `git diff --check`
+
+### Futuro — orientação contábil contextual
+- [ ] Avaliar um recurso “Fale com contador” ou conteúdo contextual, com escopo, responsabilidade e encaminhamento definidos antes de implementar
 
 ### P1 recomendado — Orçamentos avançados
 - [ ] Evoluir a rota `/orcamentos` sem remover o orçamento simples do Essencial
@@ -481,8 +500,8 @@
 - [x] Criar `/precos` pública, sem guarda de acesso e sem redirect para login
 - [x] Separar Minha Fatia Essencial (compra única) e Minha Fatia Pro Anual
 - [x] Gerar listas de recursos a partir de `ALL_FEATURES`, incluindo status planejado
-- [x] Usar `NEXT_PUBLIC_BUY_ESSENTIAL_URL` e `NEXT_PUBLIC_BUY_PRO_ANNUAL_URL`; fallback visual `Em breve`
-- [x] Não inventar preço: exibir `Preço de lançamento em breve`
+- [x] Usar `NEXT_PUBLIC_BUY_ESSENTIAL_URL` e `NEXT_PUBLIC_BUY_PRO_ANNUAL_URL`; o fallback genérico `Em breve` desta fase foi substituído por mensagens específicas na P0-7
+- [x] Não inventar preço enquanto ele não estava definido; a P0-7 preserva o valor comercial posteriormente aprovado
 - [x] Confirmar zero oferta mensal
 - [x] Adicionar `Preços` ao Header somente para visitante
 - [x] Rodar `typecheck` + `lint` + `build` — 12 rotas, `/precos` incluída

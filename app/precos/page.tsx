@@ -1,10 +1,11 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { ALL_FEATURES, type FeatureDefinition } from "@/lib/features";
 
 export const metadata: Metadata = {
   title: "Planos — Minha Fatia",
   description:
-    "Conheça o Minha Fatia Essencial, com compra única, e o Minha Fatia Pro Anual.",
+    "Conheça o Minha Fatia Essencial, com compra única e sem mensalidade, e saiba o que poderá fazer parte de um Pro Anual futuro.",
 };
 
 const essentialFeatures = ALL_FEATURES.filter(
@@ -17,18 +18,27 @@ const proFeatures = ALL_FEATURES.filter(
 interface FeatureListProps {
   features: readonly FeatureDefinition[];
   includeP0Features?: boolean;
+  plannedLabel: string;
 }
 
-function FeatureList({ features, includeP0Features = false }: FeatureListProps) {
+function FeatureList({
+  features,
+  includeP0Features = false,
+  plannedLabel,
+}: FeatureListProps) {
   return (
     <ul className="grid gap-3">
       {features.map((feature) => (
         <li key={feature.key} className="flex items-start gap-3 text-sm">
           <span
             aria-hidden="true"
-            className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-xs font-bold text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
+            className={`mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full text-xs font-bold ${
+              feature.status === "planned"
+                ? "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300"
+                : "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
+            }`}
           >
-            ✓
+            {feature.status === "planned" ? "•" : "✓"}
           </span>
           <span>
             <strong className="font-medium text-stone-800 dark:text-stone-200">
@@ -39,7 +49,7 @@ function FeatureList({ features, includeP0Features = false }: FeatureListProps) 
             </span>
             {feature.status === "planned" && (
               <span className="mt-1 inline-block text-xs font-medium text-amber-700 dark:text-amber-300">
-                Planejado
+                {plannedLabel}
               </span>
             )}
           </span>
@@ -154,9 +164,10 @@ function FeatureList({ features, includeP0Features = false }: FeatureListProps) 
 interface PurchaseCtaProps {
   href: string | undefined;
   label: string;
+  unavailableLabel: string;
 }
 
-function PurchaseCta({ href, label }: PurchaseCtaProps) {
+function PurchaseCta({ href, label, unavailableLabel }: PurchaseCtaProps) {
   if (!href) {
     return (
       <button
@@ -164,7 +175,7 @@ function PurchaseCta({ href, label }: PurchaseCtaProps) {
         disabled
         className="w-full cursor-not-allowed rounded-lg bg-stone-200 px-4 py-3 text-sm font-semibold text-stone-500 dark:bg-stone-800 dark:text-stone-500"
       >
-        Em breve
+        {unavailableLabel}
       </button>
     );
   }
@@ -185,75 +196,151 @@ export default function PrecosPage() {
 
   return (
     <div className="mx-auto w-full max-w-5xl px-4 py-10 sm:px-6 sm:py-14">
-      <header className="max-w-2xl">
-        <p className="text-sm font-semibold text-rose-600 dark:text-rose-400">Planos</p>
+      <header className="max-w-3xl">
+        <p className="text-sm font-semibold text-rose-600 dark:text-rose-400">Oferta atual</p>
         <h1 className="mt-2 text-3xl font-semibold tracking-tight text-stone-950 sm:text-4xl dark:text-white">
-          Planos do Minha Fatia
+          Comece com o Minha Fatia Essencial
         </h1>
         <p className="mt-3 text-base leading-7 text-stone-600 dark:text-stone-400">
-          Comece com a precificação completa do Essencial ou escolha o Pro Anual para os
-          recursos futuros de nuvem, automação, IA e relatórios.
+          Uma ferramenta prática de apoio à gestão e precificação para quem produz doces,
+          salgados e encomendas artesanais. Organize custos, forme preços e prepare documentos
+          para o dia a dia do negócio.
         </p>
-        <p className="mt-2 text-sm font-medium text-stone-700 dark:text-stone-300">
-          Não existe plano mensal.
-        </p>
+        <div className="mt-4 flex flex-wrap gap-2 text-xs font-semibold">
+          <span className="rounded-full bg-rose-50 px-3 py-1 text-rose-700 dark:bg-rose-950 dark:text-rose-300">
+            Compra única
+          </span>
+          <span className="rounded-full bg-stone-100 px-3 py-1 text-stone-700 dark:bg-stone-800 dark:text-stone-300">
+            Sem mensalidade no Essencial
+          </span>
+          <span className="rounded-full bg-stone-100 px-3 py-1 text-stone-700 dark:bg-stone-800 dark:text-stone-300">
+            Acesso vitalício à versão Essencial atual
+          </span>
+        </div>
       </header>
 
       <div className="mt-10 grid items-start gap-6 lg:grid-cols-2">
-        <article className="rounded-2xl border border-stone-200 bg-white p-6 shadow-sm dark:border-stone-800 dark:bg-stone-900">
+        <article className="rounded-2xl border border-rose-300 bg-white p-6 shadow-sm dark:border-rose-800 dark:bg-stone-900">
           <header className="border-b border-stone-200 pb-5 dark:border-stone-800">
             <p className="text-sm font-semibold text-rose-600 dark:text-rose-400">
-              Compra única
+              Oferta disponível agora
             </p>
             <h2 className="mt-1 text-2xl font-semibold text-stone-950 dark:text-white">
               Minha Fatia Essencial
             </h2>
             <p className="mt-2 text-sm leading-6 text-stone-600 dark:text-stone-400">
-              Acesso vitalício à versão Essencial atual, com os dados salvos neste navegador e
-              backup manual.
+              Pague uma vez e tenha acesso vitalício à versão Essencial atual. Não há mensalidade
+              nem renovação no Essencial.
             </p>
             <p className="mt-5 text-lg font-semibold text-stone-900 dark:text-stone-100">
-              R$97 à vista (crédito ou pix) ou 12x de R$10,03
-            </p>
-          </header>
-
-          <div className="py-6">
-            <FeatureList features={essentialFeatures} includeP0Features />
-          </div>
-
-          <PurchaseCta href={essentialUrl} label="Comprar Essencial" />
-        </article>
-
-        <article className="rounded-2xl border border-rose-200 bg-white p-6 shadow-sm dark:border-rose-900 dark:bg-stone-900">
-          <header className="border-b border-stone-200 pb-5 dark:border-stone-800">
-            <p className="text-sm font-semibold text-rose-600 dark:text-rose-400">Plano anual</p>
-            <h2 className="mt-1 text-2xl font-semibold text-stone-950 dark:text-white">
-              Minha Fatia Pro Anual
-            </h2>
-            <p className="mt-2 text-sm leading-6 text-stone-600 dark:text-stone-400">
-              Tudo do Essencial, mais recursos planejados para acompanhar o negócio ao longo do
-              tempo. Renovação anual, sem opção mensal.
-            </p>
-            <p className="mt-5 text-lg font-semibold text-stone-900 dark:text-stone-100">
-              Preço de lançamento em breve
+              R$ 97 à vista no crédito ou Pix, ou 12x de R$ 10,03
             </p>
           </header>
 
           <div className="py-6">
             <p className="mb-4 text-sm font-medium text-stone-700 dark:text-stone-300">
-              Inclui tudo do Essencial e, quando disponíveis:
+              O que está incluído no Essencial:
             </p>
-            <FeatureList features={proFeatures} />
+            <FeatureList
+              features={essentialFeatures}
+              includeP0Features
+              plannedLabel="Em desenvolvimento — incluído no Essencial"
+            />
           </div>
 
-          <PurchaseCta href={proAnnualUrl} label="Assinar Pro Anual" />
+          <PurchaseCta
+            href={essentialUrl}
+            label="Comprar acesso ao Essencial"
+            unavailableLabel="Compra indisponível no momento"
+          />
+          <p className="mt-3 text-center text-xs leading-5 text-stone-500 dark:text-stone-400">
+            Depois da aprovação, o acesso é enviado para o e-mail usado na compra. Use esse mesmo
+            e-mail para entrar no Minha Fatia e confira também a caixa de spam.
+          </p>
+          <p className="mt-3 text-center text-sm text-stone-600 dark:text-stone-400">
+            Já comprou ou já tem acesso?{" "}
+            <Link href="/login" className="font-semibold text-rose-600 hover:underline dark:text-rose-400">
+              Entrar
+            </Link>
+          </p>
+        </article>
+
+        <article className="rounded-2xl border border-stone-200 bg-white p-6 shadow-sm dark:border-stone-800 dark:bg-stone-900">
+          <header className="border-b border-stone-200 pb-5 dark:border-stone-800">
+            <p className="text-sm font-semibold text-stone-500 dark:text-stone-400">
+              {proAnnualUrl ? "Plano anual" : "Futuro — ainda não disponível"}
+            </p>
+            <h2 className="mt-1 text-2xl font-semibold text-stone-950 dark:text-white">
+              Minha Fatia Pro Anual
+            </h2>
+            <p className="mt-2 text-sm leading-6 text-stone-600 dark:text-stone-400">
+              Recursos avançados que dependem de serviços contínuos, como nuvem, automação, IA e
+              relatórios, poderão fazer parte de um plano anual separado no futuro.
+            </p>
+            <p className="mt-5 text-lg font-semibold text-stone-900 dark:text-stone-100">
+              {proAnnualUrl ? "Consulte as condições atuais" : "Sem preço ou data anunciados"}
+            </p>
+          </header>
+
+          <div className="py-6">
+            <p className="mb-4 text-sm font-medium text-stone-700 dark:text-stone-300">
+              Recursos planejados para o Pro futuro:
+            </p>
+            <FeatureList features={proFeatures} plannedLabel="Planejado para o Pro futuro" />
+          </div>
+
+          <PurchaseCta
+            href={proAnnualUrl}
+            label="Assinar Pro Anual"
+            unavailableLabel="Pro Anual ainda não disponível"
+          />
+          <p className="mt-3 text-center text-xs leading-5 text-stone-500 dark:text-stone-400">
+            A compra do Essencial dá acesso à versão Essencial atual. Recursos novos e avançados
+            poderão pertencer ao Pro Anual futuro.
+          </p>
         </article>
       </div>
 
-      <p className="mx-auto mt-8 max-w-3xl text-center text-xs leading-5 text-stone-500 dark:text-stone-500">
-        Os recursos marcados como planejados ainda não estão disponíveis. A compra única garante
-        acesso vitalício à versão Essencial atual; novidades futuras podem pertencer ao Pro Anual.
-      </p>
+      <section className="mt-8 rounded-2xl border border-stone-200 bg-white p-6 dark:border-stone-800 dark:bg-stone-900">
+        <h2 className="text-lg font-semibold text-stone-900 dark:text-stone-50">
+          Antes de comprar
+        </h2>
+        <div className="mt-4 grid gap-5 sm:grid-cols-3">
+          <div>
+            <p className="text-sm font-semibold text-stone-800 dark:text-stone-200">
+              1. Compra e acesso
+            </p>
+            <p className="mt-1 text-sm leading-6 text-stone-500 dark:text-stone-400">
+              Use seu melhor e-mail no checkout. É por ele que você recebe o convite e acessa sua
+              conta.
+            </p>
+          </div>
+          <div>
+            <p className="text-sm font-semibold text-stone-800 dark:text-stone-200">
+              2. Dados neste navegador
+            </p>
+            <p className="mt-1 text-sm leading-6 text-stone-500 dark:text-stone-400">
+              No Essencial, seus cadastros ficam salvos neste navegador. Exporte um backup em
+              Configurações antes de trocar de aparelho ou limpar os dados do navegador.
+            </p>
+          </div>
+          <div>
+            <p className="text-sm font-semibold text-stone-800 dark:text-stone-200">
+              3. Apoio à decisão
+            </p>
+            <p className="mt-1 text-sm leading-6 text-stone-500 dark:text-stone-400">
+              O Minha Fatia organiza os números que você informa e ajuda a formar preços; o valor
+              final continua sendo uma decisão do seu negócio.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <aside className="mx-auto mt-6 max-w-3xl text-center text-xs leading-5 text-stone-500 dark:text-stone-500">
+        O Minha Fatia é uma ferramenta de apoio à gestão e precificação e não substitui a
+        orientação de um contador. Impostos, regime tributário e obrigações fiscais variam conforme
+        o negócio e devem ser avaliados separadamente.
+      </aside>
     </div>
   );
 }

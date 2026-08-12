@@ -693,6 +693,11 @@ Visitantes veem no Header somente `Preços`, `Entrar` e `Criar conta`. Usuárias
 
 Os CTAs de compra são configurados exclusivamente por `NEXT_PUBLIC_BUY_ESSENTIAL_URL` e `NEXT_PUBLIC_BUY_PRO_ANNUAL_URL`. Enquanto uma URL estiver vazia, o CTA correspondente fica desabilitado com o texto **“Em breve”**. Sem preço comercial definido, a página usa **“Preço de lançamento em breve”** e nunca inventa valor numérico.
 
+**Atualização em 2026-08-12 (P0-7):** a regra de não inventar preço permanece,
+mas o preço do Essencial já foi definido em R$ 97 à vista no crédito ou Pix, ou
+12x de R$ 10,03. A página agora exibe esse valor e usa mensagens indisponíveis
+específicas para cada oferta. As variáveis e seus destinos não foram alterados.
+
 ### Contexto
 A Fase 4-5B protegeu `/` e as demais telas locais, deixando o domínio sem vitrine pública. A Fase 4-6A precisava apresentar Essencial e Pro Anual sem reabrir as telas protegidas, criar uma landing completa ou antecipar checkout, webhooks e admin.
 
@@ -1455,4 +1460,41 @@ O polimento altera somente navegação, hierarquia visual, CTAs e microcopy. Nen
 cálculo, validação de domínio, fórmula, total comercial ou contrato de persistência é
 alterado. `APP_STATE_STORAGE_KEY`, AppState, backups, dependências, webhook/Kiwify,
 autenticação, licenças, variáveis de ambiente, Supabase, migrations e SQL permanecem
+inalterados.
+
+---
+
+## 2026-08-12 — A oferta atual é o Essencial; o Pro é futuro e não compõe a promessa de compra
+
+### Decisão
+
+A comunicação comercial da Fase P0-7 apresenta o Minha Fatia como ferramenta de
+apoio à gestão e precificação para pequenos negócios de produção artesanal. A promessa
+é organizar custos e apoiar a formação do preço com os dados informados pela usuária;
+não há promessa de lucro garantido ou substituição da decisão do negócio.
+
+O Minha Fatia Essencial é a única oferta principal atual: R$ 97 à vista no crédito ou
+Pix, ou 12x de R$ 10,03, em compra única, sem mensalidade no Essencial e com acesso
+vitalício à versão Essencial atual. O Pro Anual é comunicado como possibilidade futura
+para nuvem, automação, IA e relatórios, sem preço ou data anunciados. A página não
+promete que toda evolução futura fará parte da compra atual.
+
+### Expectativas de compra e uso
+
+A copy explica que o e-mail usado no checkout recebe o convite de acesso e deve ser o
+mesmo usado para entrar. Também torna explícito que os dados operacionais do Essencial
+ficam neste navegador e exigem backup manual antes de trocar de aparelho ou limpar os
+dados locais.
+
+O aviso contábil é informativo: o Minha Fatia não substitui contador, e impostos,
+regime tributário e obrigações fiscais precisam ser avaliados conforme o negócio. Não
+foi criado CTA, integração ou fluxo “Fale com contador”; essa possibilidade fica apenas
+no backlog para definição futura.
+
+### Limites técnicos
+
+Esta fase altera somente copy, CTAs internos e hierarquia visual. O endereço de checkout
+já configurado continua sendo consumido pela mesma variável pública; nenhum env, product
+ID, webhook/Kiwify, Supabase, autenticação, licença, banco, migration ou SQL foi alterado.
+Fórmulas, pricing engine, `calculateRecipe`, persistência e dependências também permanecem
 inalterados.
