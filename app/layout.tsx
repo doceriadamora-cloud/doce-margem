@@ -16,8 +16,10 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "Minha Fatia",
+  // Descrição padrão do site (busca e prévia de link). Mantida alinhada à
+  // promessa aprovada na P0-7 e ao README: apoio à decisão, sem prometer lucro.
   description:
-    "Pare de vender doce no achismo. Descubra quanto custa produzir, quanto cobrar e qual margem sobra em cada venda.",
+    "Organize seus custos e forme preços com mais clareza. Ferramenta de apoio à gestão e precificação para pequenos negócios de produção artesanal.",
 };
 
 export default async function RootLayout({

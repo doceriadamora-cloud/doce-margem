@@ -1797,3 +1797,69 @@ Nenhuma alteração em pricing engine, migrations, schema do Supabase, endpoint 
 - `npm run lint`: passou (`eslint`).
 - `npm run build`: passou no Next.js 16.2.9; 16 páginas geradas. A primeira tentativa no sandbox não alcançou o Google Fonts; a repetição com rede permitida baixou Geist/Geist Mono e concluiu sem erros.
 - `git diff --check`: passou sem erros.
+
+---
+
+## Fase P0-8 — Auditoria final de lançamento (2026-08-12)
+
+> Auditoria de leitura, com olhar de usuária nova comprando o Essencial. Nenhuma
+> fórmula, rota, migration, env, licença ou integração foi alterada. Só duas
+> correções de copy factualmente erradas (listadas ao final).
+
+### Veredito
+**Pode vender com pequenos ajustes.** O ciclo compra → convite → senha → acesso →
+reembolso já está validado em produção e o fluxo de trabalho do app está coerente
+e bem sinalizado. O que trava não é o produto: é a **recuperação de acesso** e a
+**ausência de canal de suporte e de páginas legais**.
+
+### Bloqueadores de lançamento
+1. **Não existe recuperação de senha.** Nenhum `resetPasswordForEmail`, nenhum link
+   "Esqueci minha senha" em `/login`, nenhuma tela de troca de senha em `/conta`.
+   Quem paga, cria a senha pelo convite e a esquece fica permanentemente fora de um
+   produto pago. É o gerador clássico de chargeback.
+2. **Nenhum canal de suporte no app.** Quatro mensagens mandam a usuária "falar com
+   o suporte" (`/conta` bloqueada, três estados de `AcceptInviteClient`) e não há
+   e-mail nem WhatsApp em lugar nenhum. `NEXT_PUBLIC_SUPPORT_WHATSAPP` existe no
+   `.env.example` e **não é lida por nenhum arquivo**.
+3. **Sem política de reembolso, termos de uso e política de privacidade.** Venda
+   online com login e e-mail armazenado, sem CDC art. 49 visível e sem aviso LGPD.
+   O app não tem rodapé nem rota legal.
+
+### Ajustes recomendados antes de vender
+- `/precos` anuncia "12x de R$ 10,03" sem informar o total (R$ 120,36) nem indicar
+  juros da operadora.
+- `/` é rota protegida: quem digita o domínio cai em `/login`. A vitrine pública é
+  só `/precos` — toda divulgação precisa apontar para lá.
+- Contradição aparente em `/precos`: a lista do Essencial traz três recursos
+  "Em desenvolvimento — incluído no Essencial" e o rodapé do cartão Pro diz que
+  "recursos novos e avançados poderão pertencer ao Pro Anual futuro".
+- Ingredientes e Receitas usam `type="number"`; Embalagens, Precificação e
+  Orçamento usam texto com normalização de vírgula. Pendência antiga da Fase 2-8,
+  agora nas duas primeiras telas da jornada.
+- A Ficha interna de precificação não tem data de geração nem rodapé de documento
+  interno — a Ficha técnica da receita tem os dois.
+- Em Orçamentos, o campo "Observações" fica no cartão **Cliente** e é impresso no
+  documento enviado ao cliente, sem aviso disso no formulário.
+
+### Confirmações de fronteira
+- O Orçamento imprime apenas marca, contatos, cliente, itens, quantidade, valor
+  unitário, subtotal, desconto e total. Nenhum custo, mão de obra, embalagem,
+  margem, markup ou lucro atravessa para o documento do cliente.
+- Ficha interna de precificação e Ficha técnica da receita se identificam como
+  internas; a segunda ainda fecha com "Documento interno de produção".
+- A impressão esconde cabeçalho do site, formulários, listas e botões
+  (`body > header`, `.pricing-print-hidden`, `.quote-print-hidden`,
+  `.recipe-print-hidden`).
+
+### Alterações feitas nesta fase (somente copy)
+- `app/layout.tsx` — a descrição padrão do site ainda era a promessa antiga
+  ("Pare de vender doce no achismo…"), que aparece em busca e prévia de link e
+  contradizia o posicionamento aprovado na P0-7.
+- `components/auth/AcceptInviteClient.tsx` — o rodapé prometia trocar a senha
+  depois "na sua conta"; `/conta` não tem essa funcionalidade.
+
+### Validação
+- `npm run typecheck`: passou.
+- `npm run lint`: passou.
+- `npm run build`: passou no Next.js 16.2.9; 16 rotas, todas dinâmicas.
+- `git diff --check`: passou sem erros.

@@ -146,7 +146,9 @@ export default function AcceptInviteClient() {
       action={formAction}
       submitLabel="Salvar senha e entrar"
       pendingLabel="Salvando…"
-      footer={<>Você poderá trocar essa senha depois, na sua conta.</>}
+      footer={
+        <>Guarde bem esta senha: é com ela e com o e-mail da compra que você entra no Minha Fatia.</>
+      }
     >
       <AuthField label="Senha" hint="Mínimo de 6 caracteres.">
         <input

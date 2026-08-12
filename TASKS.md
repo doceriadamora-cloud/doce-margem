@@ -6,8 +6,8 @@
 > Marcar `[x]` ao concluir. Adicionar novas tarefas quando surgirem.
 > Antes de iniciar uma nova fase: parar, resumir o que foi feito e aguardar aprovação.
 
-**Fase atual:** P0-7 — Revisão final da oferta, preços, checkout e copy de lançamento implementada. O Essencial é a oferta atual; compra única, acesso, dados locais e limites da ferramenta estão explicados sem alterar o ciclo técnico já validado.
-**Próximo passo recomendado:** validar a experiência e o checkout publicados em navegador real, além de concluir domínio, suporte e política de reembolso antes de abrir oficialmente a venda; P1 permanece como evolução dos Orçamentos.
+**Fase atual:** P0-8 — Auditoria final de lançamento concluída (2026-08-12). Veredito: **pode vender com pequenos ajustes**. Achados completos em `REVIEW.md`.
+**Próximo passo recomendado:** resolver os três bloqueadores da P0-8 (recuperação de senha, canal de suporte visível e páginas legais/política de reembolso) antes de abrir a venda; depois, teste em navegador real; P1 permanece como evolução dos Orçamentos.
 
 > 📋 **Auditoria pré-lançamento (2026-08-07): `GO-LIVE-AND-PRO-ROADMAP.md`** —
 > estado do produto, 10 bloqueadores críticos, diagnóstico do webhook, fronteira
@@ -122,6 +122,28 @@
 - [x] Preservar Kiwify, webhook, product ID, envs, Supabase, auth, licenças, banco, migrations e SQL
 - [x] Preservar fórmulas, pricing engine, `calculateRecipe`, persistência e `APP_STATE_STORAGE_KEY`
 - [x] Rodar `typecheck`, `lint`, `build` e `git diff --check`
+
+### Fase P0-8 — Auditoria final de lançamento ✅ (somente revisão)
+- [x] Revisar `/`, `/precos`, `/acesso-bloqueado`, `/conta`, `/login`, `/cadastro`, `/auth/accept-invite` e as seis telas do Essencial
+- [x] Percorrer a jornada de compra → convite → senha → acesso → cadastro → precificação → impressão → orçamento → backup
+- [x] Confirmar que o Orçamento não expõe custo, mão de obra, embalagem, margem, markup ou lucro
+- [x] Confirmar que Ficha interna de precificação e Ficha técnica da receita se identificam como documentos internos
+- [x] Confirmar que a impressão esconde navegação, formulários, listas e botões
+- [x] Corrigir a descrição padrão do site, que ainda usava a promessa anterior ao reposicionamento da P0-7
+- [x] Corrigir o rodapé do convite, que prometia troca de senha inexistente em `/conta`
+- [x] Preservar fórmulas, pricing engine, `calculateRecipe`, Supabase, auth, licenças, Kiwify, webhook, product ID e envs
+- [x] Rodar `typecheck`, `lint`, `build` e `git diff --check`
+- [ ] 🔴 **Bloqueador:** criar recuperação de senha (`/login` sem "Esqueci minha senha"; `/conta` sem troca de senha)
+- [ ] 🔴 **Bloqueador:** publicar um canal de suporte visível — quatro mensagens mandam "falar com o suporte" e `NEXT_PUBLIC_SUPPORT_WHATSAPP` não é lida por nenhum arquivo
+- [ ] 🔴 **Bloqueador:** publicar política de reembolso, termos de uso e política de privacidade
+- [ ] Informar o total do parcelamento em `/precos` (12x de R$ 10,03 = R$ 120,36)
+- [ ] Decidir a vitrine pública: `/` é protegida e leva visitante ao login
+- [ ] Reforçar em `/precos` que os três recursos "em desenvolvimento" do Essencial não viram Pro
+- [ ] Padronizar entrada decimal em Ingredientes e Receitas (`type="number"` × texto com vírgula)
+- [ ] Acrescentar data de geração e rodapé "documento interno" à Ficha interna de precificação
+- [ ] Avisar, no formulário de Orçamento, que "Observações" aparece no documento do cliente
+- [ ] Permitir editar embalagem (hoje é a única entidade sem "Editar")
+- [ ] Registrar as fases P0-1 a P0-7 em `REVIEW.md`, que só tem entradas até o rebrand
 
 ### Futuro — orientação contábil contextual
 - [ ] Avaliar um recurso “Fale com contador” ou conteúdo contextual, com escopo, responsabilidade e encaminhamento definidos antes de implementar
