@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import LoginForm from "@/components/auth/LoginForm";
 import InviteHashRescue from "@/components/auth/InviteHashRescue";
+import SupportLink from "@/components/support/SupportLink";
 import { getAuthUser } from "@/services/supabase/server";
 
 export const metadata: Metadata = {
@@ -30,6 +31,11 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
         </p>
       )}
       <LoginForm />
+
+      <p className="text-center text-sm text-stone-500 dark:text-stone-400">
+        Comprou e não consegue entrar?{" "}
+        <SupportLink variant="quiet" label="Fale com o suporte" />
+      </p>
     </div>
   );
 }

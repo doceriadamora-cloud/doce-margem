@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect } from "react";
+import { ACCEPT_INVITE_PATH, NEW_PASSWORD_PATH } from "./auth-routes";
 
 /**
- * Resgate de convite que caiu em `/login` — Fase 4-7G-convite.
+ * Resgate de convite que caiu em `/login` — Fase 4-7G-convite, ampliado na P0-8A.
  *
  * Existe por causa de um caso real: antes de `/auth/accept-invite` existir, o
  * convite do Supabase mandava a compradora para `/login#access_token=…`. Ela via
@@ -12,8 +13,14 @@ import { useEffect } from "react";
  *
  * Convites já enviados continuam apontando para lá, e o Site URL do painel pode
  * voltar a mandar gente para cá se `redirectTo` não estiver na lista de Redirect
- * URLs. Este componente cobre os dois: detecta o fragment de convite e
- * reencaminha, preservando-o.
+ * URLs. Este componente cobre os dois: detecta o fragment e reencaminha,
+ * preservando-o.
+ *
+ * **P0-8A:** com a recuperação de senha, o mesmo fragment passou a ter dois
+ * destinos possíveis. O `type` decide: `recovery` vai para a tela de nova senha,
+ * qualquer outro caso segue para o convite — que era o único destino até aqui e
+ * continua sendo o padrão. Sem isso, quem pedisse nova senha cairia numa tela
+ * escrita "Sua compra foi confirmada".
  *
  * `window.location.replace` em vez do router do Next, por dois motivos: o
  * fragment sobrevive à navegação, e a entrada some do histórico — voltar não
@@ -27,13 +34,16 @@ export default function InviteHashRescue() {
     if (rawHash === "") return;
 
     const params = new URLSearchParams(rawHash);
+    const tipo = params.get("type");
     // Só reencaminha quando há de fato o que consumir. Um `#secao` qualquer na
     // URL de login não pode virar redirecionamento.
     const temToken = params.get("access_token") !== null && params.get("refresh_token") !== null;
-    const temErroDeConvite = params.get("error") !== null && params.get("type") === "invite";
-    if (!temToken && !temErroDeConvite) return;
+    const temErroConhecido =
+      params.get("error") !== null && (tipo === "invite" || tipo === "recovery");
+    if (!temToken && !temErroConhecido) return;
 
-    window.location.replace(`/auth/accept-invite#${rawHash}`);
+    const destino = tipo === "recovery" ? NEW_PASSWORD_PATH : ACCEPT_INVITE_PATH;
+    window.location.replace(`${destino}#${rawHash}`);
   }, []);
 
   return null;

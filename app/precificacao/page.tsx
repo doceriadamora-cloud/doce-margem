@@ -25,6 +25,28 @@ export default async function PrecificacaoPage() {
         </p>
       </header>
       <PricingForm />
+
+      {/*
+        Aviso fiscal — Fase P0-8A.
+
+        Fica na página, e não dentro de `PricingForm`, para não encostar em nada
+        que participe do cálculo: este bloco é texto puro, sem estado e sem
+        dependência do pricing engine.
+
+        `pricing-print-hidden` é obrigatório aqui. A Ficha interna de
+        precificação é impressa a partir desta mesma página, e um aviso solto no
+        papel confundiria mais do que ajudaria.
+
+        Não é um CTA: não leva a lugar nenhum, não indica profissional e não
+        promete encaminhamento. É informação, por decisão registrada em
+        DECISIONS.md.
+      */}
+      <aside className="pricing-print-hidden mt-8 rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-xs leading-6 text-stone-500 dark:border-stone-800 dark:bg-stone-900 dark:text-stone-400">
+        O Minha Fatia ajuda a organizar custos e formar preços com mais clareza. Impostos, regime
+        tributário e obrigações fiscais podem variar conforme o negócio e não entram
+        automaticamente neste cálculo — se você paga imposto sobre o faturamento, considere
+        incluí-lo no campo de custo fixo. Em caso de dúvida, consulte um contador.
+      </aside>
     </div>
   );
 }

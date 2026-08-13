@@ -76,7 +76,10 @@ body {
     min-height: auto !important;
   }
 
+  /* `body > footer` entrou na P0-8A: sem ele, o rodapé com links legais e
+     suporte sairia impresso no orçamento enviado ao cliente. */
   body > header,
+  body > footer,
   .pricing-print-hidden,
   .quote-print-hidden,
   .recipe-print-hidden {

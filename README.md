@@ -180,6 +180,30 @@ A lógica de cálculo deve cobrir:
 
 Funções de acesso (Fase 4): `getCurrentUserAccess()`, `hasEssentialAccess()`, `hasProAccess()`, `requireEssentialAccess()`, `requireProAccess()`. **Validar no backend.**
 
+### Recuperação de senha (Fase P0-8A)
+
+Quem compra define a senha pelo convite (`/auth/accept-invite`). Se ela se perder, o caminho é:
+
+```
+/login → "Esqueci minha senha"
+  → /auth/esqueci-senha          // pede o link; resposta idêntica exista ou não a conta
+    → e-mail do Supabase
+      → /auth/nova-senha         // aceita fragment, ?code= (PKCE) ou sessão já ativa
+        → /conta
+```
+
+`/conta` oferece "Trocar minha senha" pelo mesmo caminho. Nenhuma tabela, migration ou SQL foi criada: o fluxo usa `resetPasswordForEmail` e `updateUser` do Supabase Auth.
+
+> ⚠️ **Configuração externa:** `https://<domínio>/auth/nova-senha` precisa estar nas **Redirect URLs** do painel do Supabase. Sem isso, o Supabase manda a usuária para o Site URL — `InviteHashRescue`, montado em `/login`, reconhece `type=recovery` e reencaminha, mas com um salto a mais.
+
+### Suporte e páginas legais (Fase P0-8A)
+
+O canal de suporte é uma constante única em `lib/support.ts`, consumida pelo componente `SupportLink`. Aparece em `/precos`, `/acesso-bloqueado`, `/conta`, `/login`, nas duas telas de senha, no convite com erro e no rodapé de todas as páginas.
+
+O WhatsApp oficial de atendimento é **+55 21 95905-4988** (`wa.me/5521959054988`). Trocar o canal é editar apenas `lib/support.ts`.
+
+As páginas `/termos`, `/privacidade` e `/reembolso` são públicas, compartilham a casca `components/legal/LegalPage.tsx` e uma única data de atualização. `/reembolso` remete às condições do checkout e **não cria garantia própria**.
+
 ---
 
 ## 10. Diferenças Essencial × Pro Anual
@@ -255,7 +279,7 @@ Antes de qualquer deploy: `npm run lint`, `npm run typecheck` e `npm run build` 
 
 ## 15. Rotas planejadas
 
-**Públicas:** `/`, `/login`, `/cadastro`, `/precos`, `/acesso-bloqueado`
+**Públicas:** `/login`, `/cadastro`, `/precos`, `/acesso-bloqueado`, `/termos`, `/privacidade`, `/reembolso`, `/auth/esqueci-senha`, `/auth/nova-senha`, `/auth/accept-invite`
 **App atual:** `/`, `/ingredientes`, `/receitas`, `/embalagens`, `/precificacao`, `/orcamentos`, `/configuracoes`, `/conta`
 **Pro (futuro/bloqueável):** `/app/historico-precos`, `/app/scanner`, `/app/relatorios`
 **Admin:** `/admin`, `/admin/usuarios`, `/admin/licencas`, `/admin/webhooks`
@@ -296,4 +320,6 @@ Desenvolvimento **por fases**, com aprovação entre cada uma. Veja [TASKS.md](T
 - **Fase P0-5 — Imprimir receita:** implementada na área de Receitas com ficha técnica interna, ingredientes e sub-receitas, rendimento, perda, custos calculados e impressão/PDF pelo navegador.
 - **Fase P0-6 — Polimento final pré-lançamento:** implementada com jornada principal ordenada no Painel, navegação móvel mais clara, nomenclatura consistente, CTAs objetivos e estados vazios orientativos, sem alterar cálculos ou persistência.
 - **Fase P0-7 — Oferta e copy de lançamento:** implementada com o Essencial como oferta atual, preço e acesso explicados, Pro identificado como futuro, expectativas pós-compra e de armazenamento local claras e aviso contábil discreto.
+- **Fase P0-8 — Auditoria final de lançamento:** revisão completa do produto com olhar de compradora nova. Veredito: pode vender com pequenos ajustes; três bloqueadores de pós-venda registrados em `REVIEW.md`.
+- **Fase P0-8A — Pós-venda mínimo:** implementada com recuperação de senha, canal de suporte visível (WhatsApp oficial já configurado), páginas legais (`/termos`, `/privacidade`, `/reembolso`), aviso fiscal dentro da Precificação e total do parcelamento em `/precos`. Antes da venda pública, restam duas validações manuais em produção: o botão de compra em `/precos` e o e-mail de recuperação de senha.
 - **P1 recomendado — Orçamentos avançados:** evolução da rota atual com clientes, histórico, status, duplicação de orçamento e reaproveitamento de cliente.

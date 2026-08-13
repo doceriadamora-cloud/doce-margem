@@ -6,8 +6,13 @@
 > Marcar `[x]` ao concluir. Adicionar novas tarefas quando surgirem.
 > Antes de iniciar uma nova fase: parar, resumir o que foi feito e aguardar aprovação.
 
-**Fase atual:** P0-8 — Auditoria final de lançamento concluída (2026-08-12). Veredito: **pode vender com pequenos ajustes**. Achados completos em `REVIEW.md`.
-**Próximo passo recomendado:** resolver os três bloqueadores da P0-8 (recuperação de senha, canal de suporte visível e páginas legais/política de reembolso) antes de abrir a venda; depois, teste em navegador real; P1 permanece como evolução dos Orçamentos.
+**Fase atual:** P0-8A — Pós-venda mínimo implementado (2026-08-12): recuperação de senha, suporte visível com o WhatsApp oficial já configurado, páginas legais, aviso fiscal na Precificação e total do parcelamento. Os três bloqueadores da auditoria P0-8 estão resolvidos em código.
+**Próximo passo recomendado:** duas validações manuais em produção antes de abrir a venda — o botão de compra de `/precos` e o e-mail de recuperação de senha. Depois, teste em navegador real; P1 permanece como evolução dos Orçamentos.
+
+> 🚨 **Antes da venda pública — validações externas, não resolvíveis em código:**
+> 1. Abrir `/precos` em produção, clicar em "Comprar acesso ao Essencial" e confirmar que vai para o checkout correto da Kiwify. **Não concluir nova compra de teste sem decisão do dono.**
+> 2. Cadastrar `https://<domínio>/auth/nova-senha` nas Redirect URLs do painel do Supabase e enviar um link de recuperação real para uma conta de teste.
+> 3. Mandar uma mensagem de teste para o WhatsApp de suporte (`wa.me/5521959054988`) por um dos CTAs do app e confirmar que ela chega ao aparelho certo.
 
 > 📋 **Auditoria pré-lançamento (2026-08-07): `GO-LIVE-AND-PRO-ROADMAP.md`** —
 > estado do produto, 10 bloqueadores críticos, diagnóstico do webhook, fronteira
@@ -144,6 +149,31 @@
 - [ ] Avisar, no formulário de Orçamento, que "Observações" aparece no documento do cliente
 - [ ] Permitir editar embalagem (hoje é a única entidade sem "Editar")
 - [ ] Registrar as fases P0-1 a P0-7 em `REVIEW.md`, que só tem entradas até o rebrand
+
+### Fase P0-8A — Pós-venda mínimo antes da venda pública ✅
+- [x] Criar `/auth/esqueci-senha` com pedido de link por e-mail e mensagem idêntica para conta existente e inexistente
+- [x] Criar `/auth/nova-senha` aceitando fragment, `?code=` do PKCE e sessão já ativa
+- [x] Adicionar "Esqueci minha senha" na tela de login, junto do campo de senha
+- [x] Adicionar `requestPasswordResetAction` e `setRecoveryPasswordAction` sem compartilhar código com o convite de compra
+- [x] Ensinar `InviteHashRescue` a distinguir `type=recovery` de convite, para o link que cair em `/login` chegar à tela certa
+- [x] Oferecer troca de senha em `/conta`, reaproveitando o mesmo link por e-mail
+- [x] Centralizar o canal de suporte em `lib/support.ts` e criar `SupportLink`
+- [x] Exibir suporte em `/precos`, `/acesso-bloqueado`, `/conta`, `/login`, `/auth/esqueci-senha`, `/auth/nova-senha`, no convite com erro e no rodapé
+- [x] Criar `/termos`, `/privacidade` e `/reembolso` com casca compartilhada e data única
+- [x] Criar rodapé global com links legais e suporte, escondido na impressão por `body > footer`
+- [x] Informar o total aproximado do parcelamento em `/precos`, sem alterar preço nem link de compra
+- [x] Adicionar aviso fiscal discreto em `/precificacao`, fora do `PricingForm` e fora da impressão
+- [x] Conferir no código a leitura de `NEXT_PUBLIC_BUY_ESSENTIAL_URL` e o comportamento quando ela falta
+- [x] Não implementar "Fale com contador", CTA para contador ou indicação de profissional
+- [x] Preservar Kiwify, webhook, product ID, envs, Supabase, banco, migrations, SQL, licenças e regras de acesso
+- [x] Preservar fórmulas, pricing engine, `calculateRecipe` e persistência — nenhum arquivo de `modules/` alterado
+- [x] Rodar `typecheck`, `lint`, `build` e `git diff --check`
+- [x] Testar por HTTP: as 5 rotas novas devolvem 200 e as protegidas continuam em 307 para `/login`
+- [x] Configurar o WhatsApp oficial de suporte em `lib/support.ts` (`wa.me/5521959054988`)
+- [ ] 🚨 Validar em produção o botão de compra de `/precos` (sem concluir compra de teste sem decisão do dono)
+- [ ] 🚨 Cadastrar `/auth/nova-senha` nas Redirect URLs do Supabase e testar um e-mail de recuperação real
+- [ ] 🚨 Mandar uma mensagem de teste por um CTA do app e confirmar que chega ao WhatsApp de atendimento
+- [ ] Revisar as páginas legais com apoio jurídico quando o volume de vendas justificar
 
 ### Futuro — orientação contábil contextual
 - [ ] Avaliar um recurso “Fale com contador” ou conteúdo contextual, com escopo, responsabilidade e encaminhamento definidos antes de implementar

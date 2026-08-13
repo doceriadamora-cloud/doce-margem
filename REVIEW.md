@@ -1863,3 +1863,100 @@ e bem sinalizado. O que trava não é o produto: é a **recuperação de acesso*
 - `npm run lint`: passou.
 - `npm run build`: passou no Next.js 16.2.9; 16 rotas, todas dinâmicas.
 - `git diff --check`: passou sem erros.
+
+---
+
+## Fase P0-8A — Pós-venda mínimo antes da venda pública (2026-08-12)
+
+> Responde aos três bloqueadores da auditoria P0-8. Critério de corte: entra o que
+> evita cliente pagante sem produto ou sem interlocutor; melhoria de experiência
+> não entra.
+
+### 1. Recuperação de senha — bloqueador B1 resolvido
+
+Fluxo novo, sem tabela, migration ou SQL:
+
+```
+/login → "Esqueci minha senha" → /auth/esqueci-senha → e-mail → /auth/nova-senha → /conta
+```
+
+- `requestPasswordResetAction` chama `resetPasswordForEmail` com `redirectTo` para
+  `/auth/nova-senha`. **Resposta idêntica exista ou não a conta** — a tela é pública e
+  mensagens diferentes a transformariam num verificador de base de usuárias. Só o
+  limite de tentativas tem mensagem própria, e ele não revela existência nenhuma.
+- `/auth/nova-senha` aceita as **três** formas em que a sessão pode chegar: fragment
+  (fluxo implícito), `?code=` (PKCE) e sessão já ativa. O formato depende de
+  configuração do painel do Supabase que o código não controla, e uma tela que só
+  funciona num deles trava exatamente quem já está travada.
+- Hash e `code` são apagados da URL **antes de qualquer `await`**, como no convite:
+  fecha `Referer`, histórico e print de tela de uma vez.
+- `setRecoveryPasswordAction` revalida com `getUser()` antes de `updateUser` — nunca
+  `getSession()`, que só lê o cookie e é forjável.
+- **`setInvitedPasswordAction` não foi tocada.** A duplicação entre as duas actions é
+  deliberada e está comentada nos dois lados (ver `DECISIONS.md`).
+- `InviteHashRescue` passou a escolher o destino pelo `type` do fragment: `recovery`
+  vai para a tela nova, qualquer outro caso segue para o convite, como antes.
+- `/conta` ganhou "Trocar minha senha", que reaproveita o mesmo link por e-mail.
+
+### 2. Suporte visível — bloqueador B2 resolvido
+
+Canal centralizado em `lib/support.ts` e exibido por `SupportLink` em `/precos`,
+`/acesso-bloqueado`, `/conta`, `/login`, `/auth/esqueci-senha`, `/auth/nova-senha`, na
+tela de convite com erro e no rodapé de todas as páginas. Cada ponto manda uma mensagem
+de WhatsApp já escrita com o contexto daquela tela.
+
+O WhatsApp oficial de atendimento — **+55 21 95905-4988**, `wa.me/5521959054988` — foi
+configurado ao fechar a fase, substituindo o placeholder usado durante a implementação.
+A troca custou a edição de uma constante e nenhuma outra alteração no app, que era o
+resultado esperado de centralizar o canal.
+
+### 3. Páginas legais — bloqueador B3 resolvido
+
+`/termos`, `/privacidade` e `/reembolso`, públicas, com casca compartilhada e data única
+em `LEGAL_UPDATED_AT`. Descrevem o produto **como ele é hoje**: dados no navegador,
+conta e licença no servidor, sem cartão armazenado. `/reembolso` remete ao checkout e
+cita o direito de arrependimento do art. 49 do CDC, que existe por lei — não cria
+garantia própria.
+
+### 4. Parcelamento e aviso fiscal
+
+- `/precos` passou a informar o total aproximado de R$ 120,36 e que juros e condições
+  são da plataforma de pagamento. Preço à vista e link de compra inalterados.
+- `/precificacao` ganhou aviso discreto de que impostos não entram automaticamente no
+  cálculo, sugerindo considerá-los no custo fixo. Fica **na página**, não no
+  `PricingForm`, para não encostar em nada que participe do cálculo, e carrega
+  `pricing-print-hidden` para não sair na Ficha interna impressa. Não é CTA: nenhum
+  "Fale com contador" foi criado.
+
+### 5. Botão de compra — verificação de código
+
+`NEXT_PUBLIC_BUY_ESSENTIAL_URL` é lida em um único lugar, `app/precos/page.tsx`, e
+passada ao `PurchaseCta`. Sem a variável, o CTA vira botão desabilitado escrito "Compra
+indisponível no momento" — sem erro e sem log. A copy é clara sobre o estado, e agora há
+um link de suporte logo abaixo. **A validação em produção continua sendo manual e
+obrigatória.**
+
+### Fronteira preservada
+
+Nenhum arquivo de `modules/` foi editado. Nenhuma dependência nova. Nenhum env, product
+ID, webhook/Kiwify, migration, SQL, licença ou regra de liberação/revogação de acesso
+foi alterado. O rodapé novo é escondido na impressão por `body > footer`, para não sair
+no orçamento enviado ao cliente.
+
+### Validação
+- `npm run typecheck`: passou.
+- `npm run lint`: passou.
+- `npm run build`: passou no Next.js 16.2.9; **21 rotas** (eram 16), todas dinâmicas.
+- Teste HTTP no build de produção: `/termos`, `/privacidade`, `/reembolso`,
+  `/auth/esqueci-senha` e `/auth/nova-senha` devolveram **200**; `/conta` e
+  `/ingredientes` continuaram em **307** para `/login`. Gating intacto.
+- `git diff --check`: passou sem erros.
+
+### Pendências desta fase
+- ✅ WhatsApp oficial de suporte configurado em `lib/support.ts`.
+- 🚨 Validar o botão de compra em `/precos` no ambiente de produção.
+- 🚨 Cadastrar `/auth/nova-senha` nas Redirect URLs do Supabase e disparar um e-mail de
+  recuperação real — o envio do e-mail **não foi exercido** nesta fase.
+- 🚨 Mandar uma mensagem de teste por um dos CTAs e confirmar que ela chega ao aparelho
+  de atendimento. O link foi verificado no HTML renderizado; a entrega, não.
+- Revisar as páginas legais com apoio jurídico quando o volume justificar.

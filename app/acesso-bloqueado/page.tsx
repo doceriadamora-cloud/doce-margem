@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import SupportLink from "@/components/support/SupportLink";
 import { getCurrentUserAccess } from "@/lib/auth/dal";
 import type { UserAccess } from "@/types/access";
 
@@ -83,6 +84,26 @@ export default async function AcessoBloqueadoPage() {
             Comprar novamente não remove esse bloqueio.
           </p>
         )}
+
+        {/* P0-8A: esta tela pede para "procurar o suporte" desde a Fase 4-5A.
+            Quem chega aqui já comprou ou acha que comprou — é o ponto do app com
+            maior risco de virar chargeback sem um canal à mão. */}
+        <section className="rounded-2xl border border-stone-200 bg-white p-5 dark:border-stone-800 dark:bg-stone-900">
+          <h2 className="text-base font-semibold text-stone-900 dark:text-stone-50">
+            Comprou e não conseguiu entrar?
+          </h2>
+          <p className="mt-1 text-sm leading-6 text-stone-500 dark:text-stone-400">
+            Se você já pagou, confira se entrou com o mesmo e-mail usado no pagamento. Se estiver
+            certo e o acesso continuar bloqueado, fale com a gente com o número do seu pedido em
+            mãos — a maioria dos casos se resolve rápido.
+          </p>
+          <SupportLink
+            className="mt-3"
+            variant="button"
+            label="Preciso de ajuda com meu acesso"
+            message="Olá! Comprei o Minha Fatia e meu acesso aparece como bloqueado. Pode verificar?"
+          />
+        </section>
 
         {reason === "no_license" && (
           <section className="rounded-2xl border border-rose-200 bg-rose-50 p-5 dark:border-rose-900 dark:bg-rose-950">

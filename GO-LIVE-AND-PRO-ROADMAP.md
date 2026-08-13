@@ -43,7 +43,44 @@
 - Chargeback não foi testado manualmente de ponta a ponta, embora use o mesmo mecanismo de revogação validado pelo reembolso.
 - A venda oficial do app ainda não foi aberta.
 - A copy do app foi revisada na P0-7; antes de abrir a venda, ainda é preciso validar o
-  checkout publicado, domínio, suporte e política de reembolso.
+  checkout publicado e o domínio.
+
+## Atualização P0-8A — pós-venda mínimo (2026-08-12)
+
+A auditoria P0-8 concluiu que o maior risco antes da venda pública estava no pós-venda,
+não no produto. A Fase P0-8A fechou os três bloqueadores **em código**:
+
+| # | Bloqueador P0-8 | Estado |
+|---|---|---|
+| B1 | Sem recuperação de senha | ✅ `/auth/esqueci-senha` + `/auth/nova-senha` + "Trocar minha senha" em `/conta`, usando `resetPasswordForEmail` e `updateUser` do Supabase Auth. Sem tabela, migration ou SQL. |
+| B2 | Sem canal de suporte | ✅ `lib/support.ts` + `SupportLink` em `/precos`, `/acesso-bloqueado`, `/conta`, `/login`, nas duas telas de senha, no convite com erro e no rodapé. WhatsApp oficial configurado: **+55 21 95905-4988**. |
+| B3 | Sem páginas legais | ✅ `/termos`, `/privacidade` e `/reembolso`, públicas. |
+
+Também entraram o total aproximado do parcelamento em `/precos` e o aviso fiscal dentro
+de `/precificacao` (informativo, sem CTA para contador).
+
+### 🚨 Validações externas obrigatórias antes de abrir a venda
+
+Nenhuma delas é resolvível em código, e a venda **não deve abrir** sem as três:
+
+1. **Validar o botão de compra em produção.** Abrir `/precos`, clicar em "Comprar acesso
+   ao Essencial" e confirmar que vai para o checkout correto da Kiwify. Se
+   `NEXT_PUBLIC_BUY_ESSENTIAL_URL` faltar na Vercel, o botão aparece desabilitado, sem
+   erro e sem log. **Não concluir nova compra de teste sem decisão do dono.**
+2. **Cadastrar `https://<domínio>/auth/nova-senha` nas Redirect URLs do Supabase** e
+   disparar um e-mail de recuperação real para uma conta de teste. O envio do e-mail não
+   foi exercido na P0-8A. Sem o cadastro o fluxo ainda se conserta — o hash cai em
+   `/login` e `InviteHashRescue` reencaminha —, mas com um salto a mais.
+3. **Testar a chegada da mensagem de suporte.** Clicar em um dos CTAs do app e confirmar
+   que a conversa abre no WhatsApp de atendimento certo, com a mensagem já preenchida.
+
+> ✅ O WhatsApp oficial de suporte (**+55 21 95905-4988**) já está configurado em
+> `lib/support.ts`; o placeholder da implementação saiu do projeto.
+
+> ℹ️ Correção de registro: o item **I4** ("`Header` mostra 5 links que rebatem para
+> `/login`") já estava resolvido antes da P0-8 — o cabeçalho só mostra a navegação
+> completa para sessão autenticada. O item **I5** ("sem canal de suporte") foi resolvido
+> pela P0-8A, ressalvada a troca do número.
 
 ---
 

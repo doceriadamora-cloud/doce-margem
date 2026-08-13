@@ -1498,3 +1498,80 @@ já configurado continua sendo consumido pela mesma variável pública; nenhum e
 ID, webhook/Kiwify, Supabase, autenticação, licença, banco, migration ou SQL foi alterado.
 Fórmulas, pricing engine, `calculateRecipe`, persistência e dependências também permanecem
 inalterados.
+
+---
+
+## 2026-08-12 — O pós-venda mínimo precede a venda pública
+
+### Decisão
+
+A Fase P0-8A entrega os quatro itens de pós-venda que a auditoria P0-8 apontou como o
+maior risco antes de abrir a venda: **recuperação de senha**, **canal de suporte
+visível**, **páginas legais mínimas** (`/termos`, `/privacidade`, `/reembolso`) e
+**aviso fiscal dentro da Precificação**, além do total do parcelamento em `/precos`.
+
+O critério que separa o que entrou do que ficou de fora: entra o que evita cliente
+pagante sem produto ou sem interlocutor. Melhoria de experiência não entra.
+
+### Recuperação de senha reaproveita o Supabase Auth existente
+
+Nenhuma tabela, migration ou SQL foi criada. O fluxo usa `resetPasswordForEmail` e
+`updateUser`, as mesmas APIs que o convite de compra já usa desde a Fase 4-7G-convite.
+
+Duas decisões dentro dele:
+
+1. **A resposta do pedido de link é sempre a mesma**, exista ou não a conta. A tela é
+   pública; diferenciar as mensagens a transformaria num verificador de base de
+   usuárias. A única exceção é o limite de tentativas, que não revela existência
+   nenhuma.
+2. **`setRecoveryPasswordAction` não compartilha código com `setInvitedPasswordAction`.**
+   São os dois momentos em que uma senha nasce, e cada um tem a sua mensagem de
+   expiração. Unificá-las economizaria dez linhas e criaria um ponto onde um ajuste na
+   recuperação quebra, sem aviso, a entrega de quem acabou de comprar — o fluxo mais
+   caro do produto. A duplicação é deliberada e está comentada nos dois lados.
+
+`/auth/nova-senha` aceita as três formas em que a sessão de recuperação pode chegar
+(fragment, `?code=` do PKCE e sessão já ativa), porque o formato depende de configuração
+do painel do Supabase que o código não controla — e uma tela de recuperação que só
+funciona num dos formatos trava exatamente quem já está travada. `InviteHashRescue`
+passou a decidir o destino pelo `type` do fragment: `recovery` vai para a nova tela,
+qualquer outro caso segue para o convite, como antes.
+
+### Suporte como constante em código, não como env
+
+O canal vive em `lib/support.ts`, ponto único que sabe como falar com o suporte. Não
+virou env por duas razões: `.env` não podia ser alterado nesta fase, e uma env ausente
+em produção deixaria todos os CTAs apontando para lugar nenhum, em silêncio — que é
+exatamente o defeito que a fase veio corrigir. Migrar para env continua sendo uma troca
+de uma linha, se um dia fizer sentido.
+
+O WhatsApp oficial de atendimento é **+55 21 95905-4988** (`wa.me/5521959054988`),
+configurado ao fechar a P0-8A. O placeholder usado durante a implementação saiu do
+projeto com a edição de uma única constante — que era justamente o teste da decisão de
+centralizar o canal.
+
+### Aviso fiscal é informação, não encaminhamento
+
+O aviso em `/precificacao` diz que impostos não entram automaticamente no cálculo e
+sugere considerá-los no custo fixo. **Não** é um CTA: não leva a lugar nenhum, não
+indica profissional e não promete encaminhamento. "Fale com contador" continua fora do
+produto, apenas no backlog, como decidido na P0-7.
+
+Ele fica na página, e não dentro de `PricingForm`, para não encostar em nada que
+participe do cálculo, e carrega `pricing-print-hidden` para não sair impresso na Ficha
+interna de precificação.
+
+### Política de reembolso não cria garantia própria
+
+`/reembolso` remete às condições apresentadas no checkout e cita o direito de
+arrependimento de 7 dias do artigo 49 do CDC, que existe por lei e não por promessa
+nossa. Prometer prazo próprio diferente do checkout é a divergência que vira reclamação.
+A página afirma sobre acesso apenas o que o produto comprovadamente faz: reembolso e
+chargeback processados encerram o acesso (Fase 4-7H, validada em produção).
+
+### Limites técnicos
+
+Nenhuma dependência nova. Nenhum env, product ID, webhook/Kiwify, migration, SQL,
+licença ou regra de liberação/revogação de acesso foi alterado. Fórmulas, pricing
+engine, `calculateRecipe` e a persistência local permanecem intocados — nenhum arquivo
+de `modules/` foi editado.

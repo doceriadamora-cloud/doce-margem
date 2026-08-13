@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { signOutAction } from "@/app/auth/actions";
+import { FORGOT_PASSWORD_PATH } from "@/components/auth/auth-routes";
+import SupportLink from "@/components/support/SupportLink";
 import { requireAuthenticatedAccess } from "@/lib/auth/require-access";
 import type { ActivePlan } from "@/types/access";
 
@@ -54,9 +56,15 @@ export default async function ContaPage() {
 
       <div className="flex flex-col gap-4">
         {access.isBlocked && (
-          <p className="rounded-2xl border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-800 dark:border-red-800 dark:bg-red-950 dark:text-red-200">
-            Sua conta está bloqueada. Fale com o suporte para entender o motivo.
-          </p>
+          <div className="rounded-2xl border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-800 dark:border-red-800 dark:bg-red-950 dark:text-red-200">
+            <p>Sua conta está bloqueada. Fale com o suporte para entender o motivo.</p>
+            <SupportLink
+              className="mt-3"
+              variant="button"
+              label="Falar com suporte"
+              message="Olá! Minha conta do Minha Fatia aparece como bloqueada. Pode verificar?"
+            />
+          </div>
         )}
 
         <section className="rounded-2xl border border-stone-200 bg-white p-5 dark:border-stone-800 dark:bg-stone-900">
@@ -136,6 +144,28 @@ export default async function ContaPage() {
               Acessar Minha Fatia
             </Link>
           )}
+        </section>
+
+        {/* P0-8A: até aqui, `/conta` não oferecia nem troca de senha nem canal de
+            suporte — quem perdia a senha não tinha saída dentro do app. A troca
+            reaproveita o mesmo link por e-mail da recuperação, sem tela nova. */}
+        <section className="rounded-2xl border border-stone-200 bg-white p-5 dark:border-stone-800 dark:bg-stone-900">
+          <h2 className="text-base font-semibold text-stone-900 dark:text-stone-50">
+            Senha e ajuda
+          </h2>
+          <p className="mt-1 text-sm text-stone-500 dark:text-stone-400">
+            Para trocar sua senha, enviamos um link para o e-mail da sua conta. Se algo não estiver
+            funcionando, fale com a gente pelo WhatsApp.
+          </p>
+          <div className="mt-3 flex flex-wrap items-center gap-3">
+            <Link
+              href={FORGOT_PASSWORD_PATH}
+              className="inline-flex w-fit items-center rounded-full border border-stone-300 px-4 py-2 text-sm font-medium text-stone-600 transition-colors hover:bg-stone-50 dark:border-stone-700 dark:text-stone-300 dark:hover:bg-stone-800"
+            >
+              Trocar minha senha
+            </Link>
+            <SupportLink label="Falar com suporte" />
+          </div>
         </section>
 
         <form action={signOutAction}>

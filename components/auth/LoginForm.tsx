@@ -3,6 +3,7 @@
 import { useActionState } from "react";
 import Link from "next/link";
 import { signInAction } from "@/app/auth/actions";
+import { FORGOT_PASSWORD_PATH } from "./auth-routes";
 import { initialAuthFormState } from "./form-state";
 import AuthFormShell, { AuthField, authInputClass } from "./AuthFormShell";
 
@@ -54,6 +55,15 @@ export default function LoginForm() {
           className={authInputClass}
         />
       </AuthField>
+
+      {/* Fora do `footer` de propósito: quem esqueceu a senha precisa achar
+          isto junto do campo, não depois do botão de entrar. */}
+      <Link
+        href={FORGOT_PASSWORD_PATH}
+        className="w-fit text-sm font-medium text-rose-600 hover:underline dark:text-rose-400"
+      >
+        Esqueci minha senha
+      </Link>
     </AuthFormShell>
   );
 }

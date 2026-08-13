@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/services/supabase/server";
 import type { AuthFormState } from "@/components/auth/form-state";
+import { NEW_PASSWORD_PATH } from "@/components/auth/auth-routes";
 
 /**
  * Server Actions de autenticação — Fase 4-1B.
@@ -198,6 +199,114 @@ export async function setInvitedPasswordAction(
       status: "error",
       message:
         "Seu convite expirou antes de você salvar a senha. Abra o link do e-mail de novo, ou peça um novo convite.",
+    };
+  }
+
+  const { error } = await supabase.auth.updateUser({ password });
+  if (error !== null) {
+    return {
+      status: "error",
+      message: "Não foi possível salvar a senha. Tente outra, com pelo menos 6 caracteres.",
+    };
+  }
+
+  redirect("/conta");
+}
+
+/**
+ * Pede o link de nova senha — Fase P0-8A.
+ *
+ * A auditoria P0-8 registrou isto como bloqueador: quem comprava, criava a
+ * senha pelo convite e a esquecia ficava permanentemente fora de um produto
+ * pago, sem caminho nenhum dentro do app.
+ *
+ * **A resposta é sempre a mesma, exista ou não a conta.** Dizer "não achamos
+ * este e-mail" transformaria esta tela num verificador de base de usuárias, e
+ * ela é pública. O Supabase segue a mesma regra do lado dele: `resetPasswordForEmail`
+ * devolve sucesso para endereço desconhecido, sem enviar nada.
+ *
+ * A única exceção é o limite de tentativas, que não revela existência nenhuma —
+ * vale para o endpoint, não para o endereço — e cuja mensagem específica evita
+ * a usuária pedir o link cinco vezes achando que ele vem.
+ */
+export async function requestPasswordResetAction(
+  _prevState: AuthFormState,
+  formData: FormData,
+): Promise<AuthFormState> {
+  const email = readText(formData, "email");
+  if (email === "") {
+    return { status: "error", message: "Informe o e-mail que você usa para entrar." };
+  }
+
+  const supabase = await createSupabaseServerClient();
+  if (supabase === null) {
+    return { status: "error", message: SUPABASE_OFF_MESSAGE };
+  }
+
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "";
+
+  const { error } = await supabase.auth.resetPasswordForEmail(email, {
+    // Sem `NEXT_PUBLIC_APP_URL` o Supabase usa o Site URL do painel. O hash cai
+    // em `/login`, onde `InviteHashRescue` reconhece `type=recovery` e
+    // reencaminha para cá — o fluxo se conserta sozinho em vez de travar.
+    ...(appUrl === "" ? {} : { redirectTo: `${appUrl}${NEW_PASSWORD_PATH}` }),
+  });
+
+  if (error !== null && isRateLimitError(error)) {
+    return {
+      status: "error",
+      message: "Muitas tentativas seguidas. Espere alguns minutos antes de pedir outro link.",
+    };
+  }
+
+  return {
+    status: "info",
+    message:
+      "Se existir uma conta com este e-mail, o link para criar uma nova senha já está a caminho. Confira também a caixa de spam ou lixo eletrônico.",
+  };
+}
+
+/**
+ * Salva a nova senha de quem chegou pelo link de recuperação — Fase P0-8A.
+ *
+ * Gêmea de `setInvitedPasswordAction`, e **de propósito não compartilha código
+ * com ela**: são os dois momentos em que uma senha nasce, e cada um tem a sua
+ * mensagem de expiração. Unificá-las economizaria dez linhas e criaria um ponto
+ * onde um ajuste na recuperação quebra, sem aviso, a entrega de quem acabou de
+ * comprar — o fluxo mais caro do produto.
+ *
+ * A sessão é revalidada com `getUser()` antes da troca, nunca `getSession()`:
+ * cookie é forjável, e sem essa checagem um cookie fabricado trocaria a senha de
+ * outra pessoa.
+ */
+export async function setRecoveryPasswordAction(
+  _prevState: AuthFormState,
+  formData: FormData,
+): Promise<AuthFormState> {
+  const password = formData.get("password");
+  const confirmation = formData.get("passwordConfirm");
+
+  if (typeof password !== "string" || password === "") {
+    return { status: "error", message: "Informe uma senha." };
+  }
+  if (password.length < 6) {
+    return { status: "error", message: "A senha precisa ter pelo menos 6 caracteres." };
+  }
+  if (password !== confirmation) {
+    return { status: "error", message: "As duas senhas não são iguais." };
+  }
+
+  const supabase = await createSupabaseServerClient();
+  if (supabase === null) {
+    return { status: "error", message: SUPABASE_OFF_MESSAGE };
+  }
+
+  const { data, error: sessionError } = await supabase.auth.getUser();
+  if (sessionError !== null || data.user === null) {
+    return {
+      status: "error",
+      message:
+        "Este link de recuperação expirou antes de você salvar a senha. Peça um novo link e tente de novo.",
     };
   }
 

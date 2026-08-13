@@ -4,6 +4,7 @@ import { useActionState, useEffect, useState } from "react";
 import Link from "next/link";
 import { setInvitedPasswordAction } from "@/app/auth/actions";
 import { createSupabaseBrowserClient } from "@/services/supabase/client";
+import SupportLink from "@/components/support/SupportLink";
 import { initialAuthFormState } from "./form-state";
 import AuthFormShell, { AuthField, authInputClass } from "./AuthFormShell";
 
@@ -126,6 +127,13 @@ export default function AcceptInviteClient() {
         >
           {phase.message}
         </p>
+        {/* As mensagens acima mandam "pedir um novo convite ao suporte" — desde
+            a P0-8A o canal existe aqui, em vez de ficar subentendido. */}
+        <SupportLink
+          variant="button"
+          label="Pedir ajuda no WhatsApp"
+          message="Olá! Comprei o Minha Fatia e o link do convite não funcionou. Pode me ajudar a acessar?"
+        />
         <p className="text-sm text-stone-500 dark:text-stone-400">
           Se você já criou sua senha antes,{" "}
           <Link href="/login" className="font-medium text-rose-600 hover:underline dark:text-rose-400">

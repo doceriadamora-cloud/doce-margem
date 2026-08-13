@@ -1,6 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import SupportLink from "@/components/support/SupportLink";
 import { ALL_FEATURES, type FeatureDefinition } from "@/lib/features";
+
+/** Quem ainda não comprou chega ao suporte com o contexto certo. */
+const PRE_SALE_MESSAGE = "Olá! Tenho uma dúvida sobre o Minha Fatia Essencial antes de comprar.";
 
 export const metadata: Metadata = {
   title: "Planos — Minha Fatia",
@@ -235,6 +239,13 @@ export default function PrecosPage() {
             <p className="mt-5 text-lg font-semibold text-stone-900 dark:text-stone-100">
               R$ 97 à vista no crédito ou Pix, ou 12x de R$ 10,03
             </p>
+            {/* P0-8A: parcelamento sem total era achado da auditoria. O valor à
+                vista não muda; o que muda é a usuária saber quanto paga no fim. */}
+            <p className="mt-1 text-sm text-stone-500 dark:text-stone-400">
+              No parcelado, o total fica em aproximadamente R$ 120,36. As condições de
+              parcelamento e os juros são da plataforma de pagamento e podem variar — confira os
+              valores exatos no checkout antes de concluir.
+            </p>
           </header>
 
           <div className="py-6">
@@ -262,6 +273,10 @@ export default function PrecosPage() {
             <Link href="/login" className="font-semibold text-rose-600 hover:underline dark:text-rose-400">
               Entrar
             </Link>
+          </p>
+          <p className="mt-2 text-center text-sm text-stone-600 dark:text-stone-400">
+            Ficou com dúvida antes de comprar?{" "}
+            <SupportLink variant="quiet" label="Falar com o suporte" message={PRE_SALE_MESSAGE} />
           </p>
         </article>
 
@@ -337,9 +352,32 @@ export default function PrecosPage() {
       </section>
 
       <aside className="mx-auto mt-6 max-w-3xl text-center text-xs leading-5 text-stone-500 dark:text-stone-500">
-        O Minha Fatia é uma ferramenta de apoio à gestão e precificação e não substitui a
-        orientação de um contador. Impostos, regime tributário e obrigações fiscais variam conforme
-        o negócio e devem ser avaliados separadamente.
+        <p>
+          O Minha Fatia é uma ferramenta de apoio à gestão e precificação e não substitui a
+          orientação de um contador. Impostos, regime tributário e obrigações fiscais variam
+          conforme o negócio e devem ser avaliados separadamente.
+        </p>
+        <p className="mt-3">
+          Antes de comprar, veja os{" "}
+          <Link href="/termos" className="font-medium text-rose-600 hover:underline dark:text-rose-400">
+            Termos de uso
+          </Link>
+          , a{" "}
+          <Link
+            href="/privacidade"
+            className="font-medium text-rose-600 hover:underline dark:text-rose-400"
+          >
+            Política de privacidade
+          </Link>{" "}
+          e a{" "}
+          <Link
+            href="/reembolso"
+            className="font-medium text-rose-600 hover:underline dark:text-rose-400"
+          >
+            Política de reembolso
+          </Link>
+          .
+        </p>
       </aside>
     </div>
   );
