@@ -6,8 +6,8 @@
 > Marcar `[x]` ao concluir. Adicionar novas tarefas quando surgirem.
 > Antes de iniciar uma nova fase: parar, resumir o que foi feito e aguardar aprovação.
 
-**Fase atual:** P0-8A — Pós-venda mínimo implementado (2026-08-12): recuperação de senha, suporte visível com o WhatsApp oficial já configurado, páginas legais, aviso fiscal na Precificação e total do parcelamento. Os três bloqueadores da auditoria P0-8 estão resolvidos em código.
-**Próximo passo recomendado:** duas validações manuais em produção antes de abrir a venda — o botão de compra de `/precos` e o e-mail de recuperação de senha. Depois, teste em navegador real; P1 permanece como evolução dos Orçamentos.
+**Fase atual:** P0-9A — Modo avançado implementado (2026-08-12): fator de correção, perda de produção e observações técnicas reunidos numa área opcional e recolhida, refletidos na Ficha técnica e na Precificação. `advanced_mode` saiu de "planejado" na página de planos.
+**Próximo passo recomendado:** validações manuais em produção pendentes da P0-8A (botão de compra e e-mail de recuperação); depois P0-9B (Sub-receitas) e P0-9C (Medidas caseiras); P1 permanece como evolução dos Orçamentos.
 
 > 🚨 **Antes da venda pública — validações externas, não resolvíveis em código:**
 > 1. Abrir `/precos` em produção, clicar em "Comprar acesso ao Essencial" e confirmar que vai para o checkout correto da Kiwify. **Não concluir nova compra de teste sem decisão do dono.**
@@ -174,6 +174,33 @@
 - [ ] 🚨 Cadastrar `/auth/nova-senha` nas Redirect URLs do Supabase e testar um e-mail de recuperação real
 - [ ] 🚨 Mandar uma mensagem de teste por um CTA do app e confirmar que chega ao WhatsApp de atendimento
 - [ ] Revisar as páginas legais com apoio jurídico quando o volume de vendas justificar
+
+### Fase P0-9A — Modo avançado ✅
+- [x] Criar `components/advanced/AdvancedSection.tsx` — `<details>` nativo, recolhido por padrão, com selo "opcional" e resumo do que já está preenchido
+- [x] Abrir a seção automaticamente quando o item em edição já tem ajuste aplicado, congelando esse estado no primeiro render para não fechar no meio da digitação
+- [x] Mover o fator de correção do Ingrediente para dentro do Modo avançado, com explicação de verdade no lugar de "deixe 1 se não sabe o que é isso"
+- [x] Mostrar o efeito do fator antes de salvar, calculado por `applyCorrectionFactor`, sem repetir a multiplicação na UI
+- [x] Mover a perda de produção da Receita para dentro do Modo avançado, com microcopy sobre forno, corte, manuseio e acabamento
+- [x] Mostrar o efeito da perda no custo (bruto → com perda), lido de `calculateRecipe`
+- [x] Adicionar "Observações técnicas (uso interno)" à receita, gravando o campo `notes` que já existia no tipo desde a Fase 1B-1
+- [x] Corrigir perda silenciosa: `RecipeForm` não preservava `notes` ao editar uma receita
+- [x] Exibir na Ficha técnica o fator por item (quando ≠ 1), a nota explicando que ele já está no custo, e renomear a seção para "Observações técnicas"
+- [x] Exibir a perda considerada na Precificação e na Ficha interna de precificação, sem alterar o pricing engine
+- [x] Reclassificar `advanced_mode` para `available` em `lib/features.ts` e confirmar na `MATRIZ_APROVADA`
+- [x] Manter Sub-receitas e Medidas caseiras como planejadas na página de planos
+- [x] Preservar fórmulas, pricing engine, `calculateRecipe`, `APP_STATE_STORAGE_KEY` e compatibilidade com dados antigos — nenhum arquivo de `modules/` ou `services/` alterado
+- [x] Preservar Supabase, auth, licenças, Kiwify, webhook, product ID e envs
+- [x] Rodar `typecheck`, `lint`, `build` e `git diff --check`
+
+### Fase P0-9B — Sub-receitas (pendente)
+- [ ] Interface para usar uma receita dentro de outra; o motor e a proteção contra referência circular existem desde a Fase 1B-2
+- [ ] `RecipeForm` hoje descarta itens que não são `kind: "ingredient"` ao editar — resolver junto, senão editar uma receita apaga suas sub-receitas
+- [ ] Manter `sub_recipes` como `planned` até a interface existir
+
+### Fase P0-9C — Medidas caseiras (pendente)
+- [ ] Interface para xícaras e colheres; tabela de densidades e validações existem desde a Fase 1B-3
+- [ ] Mesmo cuidado do P0-9B com o descarte de itens na edição
+- [ ] Manter `household_measures` como `planned` até a interface existir
 
 ### Futuro — orientação contábil contextual
 - [ ] Avaliar um recurso “Fale com contador” ou conteúdo contextual, com escopo, responsabilidade e encaminhamento definidos antes de implementar
@@ -394,13 +421,15 @@
 ## Fase 3 — Modo avançado
 > Fica **depois** da Fase 4 na ordem de execução (decisão de 2026-08-05). O número
 > foi mantido para preservar a rastreabilidade das referências já registradas.
-- [ ] Criar fator de correção
-- [ ] Criar perda de produção
-- [ ] Criar medidas caseiras
-- [ ] Criar sub-receitas
-- [ ] Criar multicanal
-- [ ] Criar custos fixos
-- [ ] Criar engenharia de cardápio
+> **Entregue por partes:** fator de correção e perda de produção saíram na P0-9A;
+> multicanal e custos fixos já existiam desde as Fases 2-5 e 2-6.
+- [x] Criar fator de correção — interface entregue na P0-9A
+- [x] Criar perda de produção — interface entregue na P0-9A
+- [ ] Criar medidas caseiras — P0-9C
+- [ ] Criar sub-receitas — P0-9B
+- [x] Criar multicanal — canais padrão e customizados (Fases 2-5 e 2-6)
+- [x] Criar custos fixos — cadastro e rateio (Fase 2-6)
+- [ ] Criar engenharia de cardápio — Pro Anual futuro
 
 ## Fase 4 — Acesso e licenças
 > 📋 **Planejada em `PLAN-FASE-4.md`** (2026-08-05) — arquitetura, tabelas, RLS,

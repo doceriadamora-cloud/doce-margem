@@ -61,6 +61,7 @@ A oferta disponível hoje é o **Minha Fatia Essencial**. O Pro Anual é uma pos
 | Backup export / import | ✅ | ✅ |
 | Templates básicos de receitas | ✅ | ✅ |
 | Modo simples + avançado básico | ✅ | ✅ |
+| Modo avançado (fator de correção, perda, observações) | ✅ | ✅ |
 | Histórico de preços dos ingredientes | — | ✅ |
 | Alerta de aumento de custo | — | ✅ |
 | Sincronização em nuvem / multi-dispositivo | — | ✅ |
@@ -223,6 +224,26 @@ As páginas `/termos`, `/privacidade` e `/reembolso` são públicas, compartilha
 
 A lógica avançada **nunca** é removida — apenas a experiência é organizada.
 
+### Modo avançado na interface (Fase P0-9A)
+
+O componente `components/advanced/AdvancedSection.tsx` é a casca única dos ajustes finos: `<details>` nativo, **recolhido por padrão**, com selo "opcional" e um resumo do que já está preenchido. Ele abre sozinho quando o item em edição já tem ajuste aplicado — esconder um valor que mexe no custo seria pior do que mostrá-lo.
+
+| Onde | Campo | Efeito no cálculo |
+|---|---|---|
+| Ingredientes | Fator de correção | `quantidade corrigida = quantidade × fator` (Fase 1A) |
+| Receitas | Perda de produção (%) | `custo com perda = custo bruto / (1 − perda/100)` (Fase 1B-1) |
+| Receitas | Observações técnicas | Nenhum — texto interno, só na Ficha técnica |
+
+Os três campos já existiam em `types/pricing.ts` e no motor desde a Fase 1; a P0-9A entregou a **interface**, sem tocar em fórmula, schema ou `APP_STATE_STORAGE_KEY`. Antes dela, fator de correção e perda eram campos fixos com a dica "deixe 1/0 se não sabe o que é isso" — pedir para ignorar um campo é pior do que recolhê-lo.
+
+Onde os ajustes aparecem depois de aplicados:
+
+- **Ficha técnica da receita:** perda de produção, fator por item (quando ≠ 1) e observações técnicas.
+- **Precificação e Ficha interna de precificação:** o percentual de perda considerado, já embutido no custo da receita.
+- **Orçamento para cliente:** em lugar nenhum — nada disso atravessa para o documento comercial.
+
+**Fora do escopo da P0-9A:** sub-receitas (P0-9B) e medidas caseiras (P0-9C) seguem com motor pronto e sem interface.
+
 ---
 
 ## 12. Rodar localmente
@@ -322,4 +343,6 @@ Desenvolvimento **por fases**, com aprovação entre cada uma. Veja [TASKS.md](T
 - **Fase P0-7 — Oferta e copy de lançamento:** implementada com o Essencial como oferta atual, preço e acesso explicados, Pro identificado como futuro, expectativas pós-compra e de armazenamento local claras e aviso contábil discreto.
 - **Fase P0-8 — Auditoria final de lançamento:** revisão completa do produto com olhar de compradora nova. Veredito: pode vender com pequenos ajustes; três bloqueadores de pós-venda registrados em `REVIEW.md`.
 - **Fase P0-8A — Pós-venda mínimo:** implementada com recuperação de senha, canal de suporte visível (WhatsApp oficial já configurado), páginas legais (`/termos`, `/privacidade`, `/reembolso`), aviso fiscal dentro da Precificação e total do parcelamento em `/precos`. Antes da venda pública, restam duas validações manuais em produção: o botão de compra em `/precos` e o e-mail de recuperação de senha.
+- **Fase P0-9A — Modo avançado:** implementada como área opcional e recolhida em Ingredientes (fator de correção) e Receitas (perda de produção e observações técnicas), refletida na Ficha técnica e na Precificação. `advanced_mode` deixou de ser recurso planejado na página de planos.
+- **Fases P0-9B e P0-9C — Sub-receitas e Medidas caseiras:** ainda planejadas. O motor existe desde a Fase 1B; falta a interface.
 - **P1 recomendado — Orçamentos avançados:** evolução da rota atual com clientes, histórico, status, duplicação de orçamento e reaproveitamento de cliente.

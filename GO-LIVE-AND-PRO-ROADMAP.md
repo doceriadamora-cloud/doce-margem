@@ -77,6 +77,34 @@ Nenhuma delas é resolvível em código, e a venda **não deve abrir** sem as tr
 > ✅ O WhatsApp oficial de suporte (**+55 21 95905-4988**) já está configurado em
 > `lib/support.ts`; o placeholder da implementação saiu do projeto.
 
+## Atualização P0-9A — Modo avançado (2026-08-12)
+
+Dos três recursos que a página de planos anunciava como "Em desenvolvimento — incluído
+no Essencial", o primeiro deixou de ser promessa:
+
+| Recurso | Antes | Agora |
+|---|---|---|
+| **Modo avançado** | `essential / planned` | ✅ `essential / available` — interface entregue |
+| Sub-receitas | `essential / planned` | 🔸 continua planejado (**P0-9B**) |
+| Medidas caseiras | `essential / planned` | 🔸 continua planejado (**P0-9C**) |
+
+O Modo avançado reúne, numa área opcional e recolhida, o **fator de correção** do
+ingrediente, a **perda de produção** e as **observações técnicas** da receita. Os três já
+existiam no motor desde a Fase 1 e já afetavam o custo — o que faltava era interface,
+explicação e visibilidade do efeito. Nenhuma fórmula foi alterada.
+
+Efeito comercial: a lista do Essencial em `/precos` tem um item a menos marcado como em
+desenvolvimento, o que reduz a distância entre o que a página promete e o que a
+compradora encontra no primeiro acesso — risco levantado na auditoria P0-8.
+
+### O que ainda é promessa na página de planos
+
+Sub-receitas e medidas caseiras. Ambas com motor pronto (Fases 1B-2 e 1B-3) e sem tela.
+O critério para reclassificar é o mesmo aplicado ao Modo avançado: a interface existir.
+
+⚠️ Ao construir a P0-9B, corrigir junto o descarte de itens não-ingrediente na edição de
+receita (`RecipeForm`) — hoje inócuo, destrutivo no dia em que sub-receitas existirem.
+
 > ℹ️ Correção de registro: o item **I4** ("`Header` mostra 5 links que rebatem para
 > `/login`") já estava resolvido antes da P0-8 — o cabeçalho só mostra a navegação
 > completa para sessão autenticada. O item **I5** ("sem canal de suporte") foi resolvido

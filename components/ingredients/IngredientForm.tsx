@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
-import { calculateIngredient, validateIngredient } from "@/modules/pricing";
+import { applyCorrectionFactor, calculateIngredient, validateIngredient } from "@/modules/pricing";
 import type { BaseUnit, Ingredient, PurchaseUnit, ValidationError } from "@/types/pricing";
+import AdvancedSection from "@/components/advanced/AdvancedSection";
 import { addIngredient, updateIngredient } from "./ingredients-store";
 
 const PURCHASE_UNITS: { value: PurchaseUnit; label: string }[] = [
@@ -42,6 +43,11 @@ function formatCost(value: number): string {
     minimumFractionDigits: 2,
     maximumFractionDigits: 4,
   });
+}
+
+/** Quantidade sem unidade, para o exemplo do fator de correção. */
+function formatQuantity(value: number): string {
+  return value.toLocaleString("pt-BR", { maximumFractionDigits: 2 });
 }
 
 interface IngredientFormProps {
@@ -167,6 +173,22 @@ export default function IngredientForm({
         })
       : null;
 
+  // Modo avançado (P0-9A). `correctionFactorIsCustom` alimenta só o resumo e o
+  // efeito exibido; o estado inicial de "aberto" é congelado no primeiro render
+  // de propósito — se dependesse do valor atual, apagar o campo para redigitar
+  // fecharia a seção no meio da edição.
+  const [advancedStartsOpen] = useState(
+    () => (editingIngredient?.correctionFactor ?? 1) !== 1,
+  );
+  const correctionFactorIsCustom =
+    typeof previewCorrection === "number" && previewCorrection !== 1;
+  const correctionEffect =
+    correctionFactorIsCustom && previewCorrection > 0
+      ? // Usa a própria função de domínio, em vez de repetir a multiplicação:
+        // se a semântica do fator mudar, este texto muda junto.
+        formatQuantity(applyCorrectionFactor(100, previewCorrection))
+      : null;
+
   const formError = errorFor("form");
 
   return (
@@ -254,21 +276,55 @@ export default function IngredientForm({
         </select>
       </Field>
 
-      <Field
-        label="Fator de correção"
-        error={errorFor("correctionFactor")}
-        hint="Deixe 1 se você não sabe o que é isso."
+      {/*
+        Modo avançado (P0-9A). O fator de correção era um campo fixo com a dica
+        "deixe 1 se você não sabe o que é isso" — pedir para ignorar um campo é
+        pior do que recolhê-lo. Agora ele fica atrás de uma abertura opcional,
+        com explicação de verdade e o efeito visível antes de salvar.
+
+        A seção abre sozinha quando o ingrediente em edição já tem fator
+        diferente de 1: esconder um valor que mexe no custo seria pior.
+      */}
+      <AdvancedSection
+        description="Ajuste fino para quem aproveita só parte do que compra."
+        defaultOpen={advancedStartsOpen}
+        activeSummary={correctionFactorIsCustom ? `Fator ${correctionFactor}` : null}
       >
-        <input
-          type="number"
-          inputMode="decimal"
-          step="any"
-          min="0"
-          value={correctionFactor}
-          onChange={(e) => setCorrectionFactor(e.target.value)}
-          className={inputClass}
-        />
-      </Field>
+        <Field
+          label="Fator de correção"
+          error={errorFor("correctionFactor")}
+          hint="Use quando você compra uma quantidade, mas só aproveita parte dela na produção — casca, aparas, descarte ou evaporação. Deixe 1 quando aproveita tudo."
+        >
+          <input
+            type="number"
+            inputMode="decimal"
+            step="any"
+            min="0"
+            value={correctionFactor}
+            onChange={(e) => setCorrectionFactor(e.target.value)}
+            className={inputClass}
+          />
+        </Field>
+
+        <div className="rounded-lg bg-stone-100 px-3 py-2 text-xs leading-5 text-stone-600 dark:bg-stone-900 dark:text-stone-400">
+          <p>
+            <strong className="font-semibold text-stone-700 dark:text-stone-300">
+              Como calcular:
+            </strong>{" "}
+            divida o que você compra pelo que sobra limpo. Ex.: 1 kg de morango que rende 800 g
+            depois de limpar → 1000 ÷ 800 = <strong>1,25</strong>.
+          </p>
+          {correctionEffect !== null && (
+            <p className="mt-1.5 text-rose-700 dark:text-rose-300">
+              Com este fator, cada 100 {baseUnit} usados numa receita consomem{" "}
+              <strong>
+                {correctionEffect} {baseUnit}
+              </strong>{" "}
+              do que você comprou.
+            </p>
+          )}
+        </div>
+      </AdvancedSection>
 
       {preview && (
         <p className="rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-800 dark:bg-rose-950 dark:text-rose-200">

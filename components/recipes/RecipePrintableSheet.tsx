@@ -50,6 +50,17 @@ function getItemType(calculatedItem: CalculatedRecipeItem): string {
   return "Ingrediente";
 }
 
+/**
+ * Fator de correção aplicado ao item, ou `null` quando não se aplica.
+ *
+ * Sub-receita não tem fator próprio: o dela já entrou no custo dos itens da
+ * própria sub-receita, um nível abaixo.
+ */
+function getCorrectionFactor(calculatedItem: CalculatedRecipeItem): number | null {
+  if (calculatedItem.kind === "subRecipe") return null;
+  return calculatedItem.correctionFactor;
+}
+
 function getItemQuantity(calculatedItem: CalculatedRecipeItem): string {
   if (calculatedItem.kind === "householdMeasure") {
     const item = calculatedItem.item;
@@ -71,6 +82,10 @@ export default function RecipePrintableSheet({
   generatedAt,
 }: RecipePrintableSheetProps) {
   const { recipe } = calculation;
+  const hasCorrectedItem = calculation.items.some((item) => {
+    const factor = getCorrectionFactor(item);
+    return factor !== null && factor !== 1;
+  });
 
   return (
     <section
@@ -161,6 +176,16 @@ export default function RecipePrintableSheet({
                     </td>
                     <td className="px-2 py-3 text-right text-stone-700">
                       {getItemQuantity(calculatedItem)}
+                      {/* Modo avançado (P0-9A): fator ≠ 1 muda o custo do item,
+                          então precisa estar visível na ficha, não só no cadastro. */}
+                      {(() => {
+                        const factor = getCorrectionFactor(calculatedItem);
+                        return factor !== null && factor !== 1 ? (
+                          <span className="mt-0.5 block text-xs text-stone-500">
+                            fator {formatNumber(factor)}
+                          </span>
+                        ) : null;
+                      })()}
                     </td>
                     <td className="px-2 py-3 text-right font-medium text-stone-900">
                       {formatCurrency(calculatedItem.itemCost)}
@@ -170,6 +195,12 @@ export default function RecipePrintableSheet({
               </tbody>
             </table>
           </div>
+          {hasCorrectedItem && (
+            <p className="mt-2 text-xs leading-5 text-stone-500">
+              O fator de correção já está aplicado nos custos acima: ele representa quanto do
+              ingrediente é consumido do estoque para cada quantidade usada na receita.
+            </p>
+          )}
         </section>
 
         <section className="mt-6 flex justify-end" aria-labelledby="recipe-print-cost-title">
@@ -208,7 +239,7 @@ export default function RecipePrintableSheet({
         {recipe.notes?.trim() && (
           <section className="mt-6 border-t border-stone-200 pt-5">
             <h4 className="text-xs font-semibold uppercase tracking-wide text-stone-500">
-              Observações
+              Observações técnicas
             </h4>
             <p className="mt-2 whitespace-pre-line text-sm leading-6 text-stone-700">
               {recipe.notes}

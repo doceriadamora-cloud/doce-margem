@@ -641,6 +641,10 @@ export default function PricingForm() {
             recipeName={recipeCalc?.ok ? recipeCalc.value.recipe.name : "Receita"}
             yieldQuantity={recipeCalc?.ok ? recipeCalc.value.recipe.yieldQuantity : 0}
             yieldUnit={recipeCalc?.ok ? recipeCalc.value.recipe.yieldUnit : "un"}
+            // Modo avançado (P0-9A): a perda já está embutida no custo da
+            // receita. Passar o percentual é só exibição — o resultado do
+            // pricing engine não muda por causa desta prop.
+            productionLossPercent={recipeCalc?.ok ? recipeCalc.value.productionLossPercent : 0}
           />
         ) : (
           <div className="flex flex-col gap-1 rounded-2xl border border-amber-300 bg-amber-50 p-4 dark:border-amber-800 dark:bg-amber-950">

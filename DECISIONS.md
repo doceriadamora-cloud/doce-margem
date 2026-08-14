@@ -1575,3 +1575,90 @@ Nenhuma dependência nova. Nenhum env, product ID, webhook/Kiwify, migration, SQ
 licença ou regra de liberação/revogação de acesso foi alterado. Fórmulas, pricing
 engine, `calculateRecipe` e a persistência local permanecem intocados — nenhum arquivo
 de `modules/` foi editado.
+
+---
+
+## 2026-08-12 — Modo avançado é organização de experiência, não cálculo novo
+
+### Decisão
+
+A Fase P0-9A entrega o **Modo avançado** como uma área opcional e recolhida, reunindo
+três ajustes que **já existiam no motor desde a Fase 1** e já afetavam o custo:
+
+| Onde | Campo | Fórmula (inalterada) |
+|---|---|---|
+| Ingredientes | Fator de correção | `quantidade corrigida = quantidade × fator` (Fase 1A) |
+| Receitas | Perda de produção (%) | `custo com perda = custo bruto / (1 − perda/100)` (Fase 1B-1) |
+| Receitas | Observações técnicas | nenhuma — texto interno |
+
+**Nenhuma fórmula foi criada, alterada ou reinterpretada.** Nenhum arquivo de
+`modules/` ou `services/` foi tocado. A fase é de interface.
+
+### O problema que ela resolve
+
+Fator de correção e perda de produção já eram campos **fixos e sempre visíveis**, cada
+um com uma dica que dizia, em resumo, "ignore isto": *"Deixe 1 se você não sabe o que é
+isso"* e *"Deixe 0 se não sabe o que é isso"*.
+
+Isso é o pior dos dois mundos. A iniciante encara dois campos técnicos logo na Etapa 1 e
+é instruída a não entendê-los; a usuária avançada não recebe explicação nenhuma de como
+usá-los. Recolher com explicação de verdade atende as duas: a primeira não esbarra no
+campo, a segunda encontra o que procurava.
+
+### Regras da área avançada
+
+1. **Recolhida por padrão**, com selo "opcional". A jornada simples não muda.
+2. **Abre sozinha quando já existe ajuste aplicado** no item em edição. Esconder um
+   valor que mexe no custo seria pior do que mostrá-lo.
+3. **O estado inicial de aberto é congelado no primeiro render.** Se dependesse do valor
+   atual, apagar o campo para redigitar fecharia a seção no meio da edição.
+4. **`<details>` nativo, não estado em React** — funciona sem JavaScript, já vem com
+   teclado e leitor de tela resolvidos, e não precisa ser reinicializado no remount por
+   `key` que os formulários usam ao entrar em edição.
+5. **O efeito aparece antes de salvar**, calculado pelas próprias funções de domínio
+   (`applyCorrectionFactor`, `calculateRecipe`) — a UI não repete a conta. Se a
+   semântica mudar um dia, o texto muda junto.
+
+### Ajuste que mexe no custo não pode ficar invisível
+
+Onde o valor aparece depois de aplicado:
+
+- **Ficha técnica da receita:** perda de produção, fator por item quando ≠ 1, e a nota de
+  que o fator já está embutido nos custos da tabela.
+- **Precificação e Ficha interna de precificação:** o percentual de perda considerado,
+  identificado como já embutido no custo da receita. É exibição pura — `PricingResult` e
+  `PricingPrintableSheet` receberam uma prop opcional; o pricing engine não sabe que ela
+  existe.
+- **Orçamento para cliente:** em lugar nenhum. Nada disso atravessa para o documento
+  comercial.
+
+### Observações técnicas: campo antigo, interface nova
+
+`Recipe.notes` existia em `types/pricing.ts` desde a Fase 1B-1 e já era impresso na Ficha
+técnica — só não havia onde escrevê-lo. A P0-9A criou o campo na interface.
+
+Isso revelou um **defeito silencioso**: `RecipeForm` remontava o `Recipe` ao salvar sem
+copiar `notes`, então editar uma receita apagaria a observação. Latente enquanto nada
+gravava o campo, real a partir do momento em que a interface passou a gravá-lo. Corrigido
+na mesma fase.
+
+`notes` só é gravado quando tem conteúdo — receita sem observação continua sem a chave,
+igual aos dados antigos. Nenhuma migração de dados locais foi necessária:
+`normalizeAppState` guarda `recipes` como estão, e o campo sempre foi opcional.
+
+### `advanced_mode` deixou de ser promessa
+
+`lib/features.ts` reclassificou `advanced_mode` de `planned` para `available`, e a
+`MATRIZ_APROVADA` congelada em `lib/features-examples.ts` foi atualizada junto — é
+justamente esse o mecanismo: mudar o status sem confirmar na matriz quebra a validação em
+vez de passar batido. A página de planos deixa de marcá-lo como "Em desenvolvimento"
+automaticamente, porque a lista sai da matriz.
+
+**Sub-receitas e medidas caseiras continuam `planned`**, e continuam anunciadas como em
+desenvolvimento. São as Fases P0-9B e P0-9C, cada uma com interface própria. O critério
+para reclassificar qualquer uma delas é o mesmo aplicado aqui: a tela existir.
+
+⚠️ Registrado para a P0-9B/P0-9C: `RecipeForm` descarta itens que não sejam
+`kind: "ingredient"` ao editar. Hoje é inócuo, porque a interface nunca cria outro tipo.
+No dia em que criar, editar uma receita apagaria suas sub-receitas — resolver **junto**
+com a interface, não depois.

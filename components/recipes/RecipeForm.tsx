@@ -15,6 +15,7 @@ import {
   getIngredientsSnapshot,
   subscribeIngredients,
 } from "@/components/ingredients/ingredients-store";
+import AdvancedSection from "@/components/advanced/AdvancedSection";
 import { addRecipe, updateRecipe } from "./recipes-store";
 
 const PURCHASE_UNITS: { value: PurchaseUnit; label: string }[] = [
@@ -46,6 +47,11 @@ function formatCurrency(value: number): string {
     minimumFractionDigits: 2,
     maximumFractionDigits: 4,
   });
+}
+
+/** Percentual já formatado, para o resumo e o efeito da perda de produção. */
+function formatPercent(value: number): string {
+  return `${value.toLocaleString("pt-BR", { maximumFractionDigits: 2 })}%`;
 }
 
 function buildIngredientsById(ingredients: Ingredient[]): Record<string, Ingredient> {
@@ -105,7 +111,18 @@ export default function RecipeForm({
       ? String(editingRecipe.productionLossPercent)
       : "0",
   );
+  const [notes, setNotes] = useState(editingRecipe?.notes ?? "");
   const [errors, setErrors] = useState<ValidationError[]>([]);
+
+  // Modo avançado (P0-9A). Congelado no primeiro render de propósito: se
+  // dependesse do valor atual, apagar a perda para redigitar fecharia a seção
+  // no meio da edição. O remount por `key` do componente pai já recalcula isto
+  // ao trocar de receita.
+  const [advancedStartsOpen] = useState(
+    () =>
+      (editingRecipe?.productionLossPercent ?? 0) > 0 ||
+      (editingRecipe?.notes ?? "").trim() !== "",
+  );
 
   // Sub-formulário de "adicionar ingrediente à receita".
   const [selectedIngredientId, setSelectedIngredientId] = useState("");
@@ -158,6 +175,7 @@ export default function RecipeForm({
     setYieldQuantity("");
     setYieldUnit("un");
     setProductionLossPercent("0");
+    setNotes("");
     setSelectedIngredientId("");
     setItemQuantityUsed("");
     setItemUnit("g");
@@ -181,6 +199,7 @@ export default function RecipeForm({
       return;
     }
 
+    const trimmedNotes = notes.trim();
     const candidate: Recipe = {
       id: "",
       name: name.trim(),
@@ -188,6 +207,11 @@ export default function RecipeForm({
       yieldQuantity: parsedYield,
       yieldUnit: yieldUnit.trim(),
       ...(parsedLoss !== undefined ? { productionLossPercent: parsedLoss } : {}),
+      // Campo opcional desde a Fase 1B-1, sem interface até a P0-9A. Só entra
+      // quando tem conteúdo, para não gravar `notes: ""` em receita que nunca
+      // usou observação — mantém os dados antigos e os novos com o mesmo
+      // formato.
+      ...(trimmedNotes !== "" ? { notes: trimmedNotes } : {}),
     };
 
     const validationErrors = validateRecipe(candidate, ingredientsById, {});
@@ -227,6 +251,24 @@ export default function RecipeForm({
           {},
         )
       : null;
+
+  // Efeito da perda no custo, lido do próprio `calculateRecipe` — a UI não
+  // repete a divisão por (1 − perda). Só aparece quando já dá para calcular.
+  const lossEffect =
+    preview?.ok && preview.value.productionLossPercent > 0
+      ? {
+          percent: preview.value.productionLossPercent,
+          grossCost: preview.value.grossCost,
+          totalCostWithLoss: preview.value.totalCostWithLoss,
+        }
+      : null;
+
+  const summaryParts: string[] = [];
+  if (previewLoss !== null && previewLoss !== undefined && previewLoss > 0) {
+    summaryParts.push(`Perda ${formatPercent(previewLoss)}`);
+  }
+  if (notes.trim() !== "") summaryParts.push("Observações");
+  const advancedSummary = summaryParts.length > 0 ? summaryParts.join(" · ") : null;
 
   const formError = errorFor("form");
   const noIngredientsRegistered = ingredients.length === 0;
@@ -384,22 +426,59 @@ export default function RecipeForm({
         </Field>
       </div>
 
-      <Field
-        label="Perda de produção (%)"
-        error={errorFor("productionLossPercent")}
-        hint="Deixe 0 se não sabe o que é isso."
+      {/*
+        Modo avançado (P0-9A). A perda de produção era um campo fixo com a dica
+        "deixe 0 se não sabe o que é isso" — pedir para ignorar um campo é pior
+        do que recolhê-lo. Aqui ela ganha explicação de verdade, o efeito no
+        custo aparece antes de salvar, e as observações técnicas passam a ter
+        onde ser escritas.
+      */}
+      <AdvancedSection
+        description="Perda de produção e observações técnicas da ficha."
+        defaultOpen={advancedStartsOpen}
+        activeSummary={advancedSummary}
       >
-        <input
-          type="number"
-          inputMode="decimal"
-          step="any"
-          min="0"
-          max="99"
-          value={productionLossPercent}
-          onChange={(e) => setProductionLossPercent(e.target.value)}
-          className={inputClass}
-        />
-      </Field>
+        <Field
+          label="Perda de produção (%)"
+          error={errorFor("productionLossPercent")}
+          hint="Use quando parte da produção se perde no forno, no corte, no manuseio ou no acabamento. Deixe 0 se aproveita tudo."
+        >
+          <input
+            type="number"
+            inputMode="decimal"
+            step="any"
+            min="0"
+            max="99"
+            value={productionLossPercent}
+            onChange={(e) => setProductionLossPercent(e.target.value)}
+            className={inputClass}
+          />
+        </Field>
+
+        {lossEffect && (
+          <p className="rounded-lg bg-stone-100 px-3 py-2 text-xs leading-5 text-stone-600 dark:bg-stone-900 dark:text-stone-400">
+            Com {formatPercent(lossEffect.percent)} de perda, o custo total sai de{" "}
+            {formatCurrency(lossEffect.grossCost)} para{" "}
+            <strong className="font-semibold text-rose-700 dark:text-rose-300">
+              {formatCurrency(lossEffect.totalCostWithLoss)}
+            </strong>
+            . É esse valor maior que entra na precificação.
+          </p>
+        )}
+
+        <Field
+          label="Observações técnicas (uso interno)"
+          hint="Temperatura, tempo de forno, ponto, ordem de preparo — o que você quer ter à mão na produção. Aparece só na Ficha técnica da receita; nunca vai para o orçamento do cliente."
+        >
+          <textarea
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            rows={3}
+            placeholder="Ex.: forno a 180 °C por 25 min. Desenformar só depois de frio."
+            className={`${inputClass} min-h-20 resize-y`}
+          />
+        </Field>
+      </AdvancedSection>
 
       {preview && (
         <p className="rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-800 dark:bg-rose-950 dark:text-rose-200">

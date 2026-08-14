@@ -10,6 +10,11 @@ function formatPercent(value: number): string {
   });
 }
 
+/** A perda vem em porcentagem (10 = 10%), não em decimal como as taxas. */
+function formatLossPercent(value: number): string {
+  return `${value.toLocaleString("pt-BR", { maximumFractionDigits: 2 })}%`;
+}
+
 const STATUS_LABEL: Record<PriceComparisonStatus, string> = {
   below_suggested: "Abaixo do ideal",
   at_suggested: "No ideal",
@@ -27,6 +32,14 @@ interface PricingResultProps {
   recipeName: string;
   yieldQuantity: number;
   yieldUnit: string;
+  /**
+   * Perda de produção da receita, em porcentagem — Modo avançado (P0-9A).
+   *
+   * Só exibição: o valor já está embutido no custo da receita que o pricing
+   * engine recebeu. Existe para um ajuste que mexe no custo não ficar invisível
+   * na tela onde o preço é decidido.
+   */
+  productionLossPercent?: number;
 }
 
 /**
@@ -39,6 +52,7 @@ export default function PricingResult({
   recipeName,
   yieldQuantity,
   yieldUnit,
+  productionLossPercent = 0,
 }: PricingResultProps) {
   return (
     <div className="flex flex-col gap-4">
@@ -60,6 +74,12 @@ export default function PricingResult({
           <DL label="Margem esperada" value={formatPercent(result.expectedMargin)} />
           <DL label="Markup esperado" value={`${result.expectedMarkup.toFixed(2)}x`} />
         </dl>
+        {productionLossPercent > 0 && (
+          <p className="mt-3 text-xs text-rose-700 dark:text-rose-300">
+            O custo da receita já inclui {formatLossPercent(productionLossPercent)} de perda de
+            produção, definida no Modo avançado da receita.
+          </p>
+        )}
       </section>
 
       {result.channelPricing && (
@@ -121,6 +141,7 @@ export default function PricingResult({
         recipeName={recipeName}
         yieldQuantity={yieldQuantity}
         yieldUnit={yieldUnit}
+        productionLossPercent={productionLossPercent}
       />
     </div>
   );

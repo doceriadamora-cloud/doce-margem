@@ -132,23 +132,25 @@ const FEATURES: Record<FeatureKey, FeatureDefinition> = {
     status: "available",
   },
 
-  /* ── Essencial, ainda não expostos na interface ──
+  /* ── Essencial, "avançado básico" ──
    *
    * Classificação confirmada como decisão comercial em 2026-08-06 (DECISIONS.md):
    * estes três compõem o "avançado básico" do Essencial, coerente com a tabela
    * de planos do README ("Modo simples + avançado básico", ✅ nas duas colunas).
    *
-   * O motor de cálculo dos três já existe desde a Fase 1B — falta só a
-   * interface, que é a Fase 3 do TASKS.md. Daí `status: "planned"` com
-   * `minimumPlan: "essential"`: são perguntas diferentes, e só a segunda
-   * depende de a gente escrever a tela.
+   * O motor de cálculo dos três existe desde a Fase 1B. O que separa `available`
+   * de `planned` aqui é só a interface: `advanced_mode` ganhou a dela na Fase
+   * P0-9A; sub-receitas e medidas caseiras continuam sem tela (P0-9B e P0-9C).
    */
   advanced_mode: {
     key: "advanced_mode",
     label: "Modo avançado",
-    description: "Fator de correção, perda de produção e demais ajustes finos da ficha técnica.",
+    description:
+      "Área opcional com fator de correção do ingrediente, perda de produção e observações técnicas da receita.",
     minimumPlan: "essential",
-    status: "planned",
+    // P0-9A: virou recurso real. Sub-receitas e medidas caseiras seguem
+    // planejadas — são fases próprias, com interface própria.
+    status: "available",
   },
   sub_recipes: {
     key: "sub_recipes",

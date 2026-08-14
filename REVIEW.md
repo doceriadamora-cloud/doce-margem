@@ -1960,3 +1960,76 @@ no orçamento enviado ao cliente.
 - 🚨 Mandar uma mensagem de teste por um dos CTAs e confirmar que ela chega ao aparelho
   de atendimento. O link foi verificado no HTML renderizado; a entrega, não.
 - Revisar as páginas legais com apoio jurídico quando o volume justificar.
+
+---
+
+## Fase P0-9A — Modo avançado (2026-08-12)
+
+> Fase de **interface**. Nenhum arquivo de `modules/` ou `services/` foi tocado:
+> os três campos já existiam no motor e já afetavam o custo desde a Fase 1.
+
+### O que mudou de verdade
+
+Fator de correção e perda de produção eram campos **fixos e sempre visíveis**, cada um
+com uma dica que dizia "ignore isto" — *"Deixe 1 se você não sabe o que é isso"* e
+*"Deixe 0 se não sabe o que é isso"*. A P0-9A recolheu os dois atrás de uma área
+opcional e trocou a dica por explicação de verdade.
+
+O resultado é que a jornada simples ficou **mais** simples, não menos: a Etapa 1
+(Ingredientes) perdeu um campo técnico da visão padrão.
+
+### Decisões de implementação
+
+- `<details>` nativo em `components/advanced/AdvancedSection.tsx`: funciona sem
+  JavaScript, já resolve teclado e leitor de tela, e não precisa ser reinicializado no
+  remount por `key` que os dois formulários usam ao entrar em edição.
+- A seção **abre sozinha** quando o item em edição já tem ajuste aplicado, e esse estado
+  é **congelado no primeiro render**. Se dependesse do valor atual, apagar o campo para
+  redigitar fecharia a seção no meio da edição.
+- O efeito de cada ajuste é mostrado antes de salvar, calculado por
+  `applyCorrectionFactor` e `calculateRecipe` — a UI não repete a conta.
+
+### Defeito silencioso corrigido
+
+`RecipeForm` remontava o `Recipe` ao salvar **sem copiar `notes`**. O campo existia em
+`types/pricing.ts` desde a Fase 1B-1 e já era impresso na Ficha técnica, mas nenhuma
+tela o gravava — então a perda era latente. Passaria a ser real no instante em que a
+P0-9A criou o campo. Corrigido na mesma fase.
+
+### Compatibilidade com dados locais
+
+Nenhuma migração foi necessária, e nenhuma seria possível sem quebrar a regra da fase:
+
+- `APP_STATE_STORAGE_KEY` e `APP_STATE_SCHEMA_VERSION` inalterados.
+- `normalizeAppState` guarda `recipes` e `ingredients` como estão — não houve mudança de
+  forma a normalizar.
+- `notes` e `correctionFactor` sempre foram opcionais. Receita sem observação continua
+  sem a chave; ingrediente sem fator continua valendo 1 pelo `?? 1` do domínio.
+- Receitas, ingredientes e embalagens antigos abrem, calculam e imprimem igual.
+
+### Onde o ajuste aparece depois de aplicado
+
+| Documento | O que mostra |
+|---|---|
+| Ficha técnica da receita | Perda de produção, fator por item (≠ 1) + nota de que já está no custo, Observações técnicas |
+| Precificação | Linha discreta com a perda considerada |
+| Ficha interna de precificação | "Perda de produção considerada — já no custo da receita" |
+| **Orçamento para cliente** | **Nada.** Nenhum dado interno atravessa. |
+
+### Fronteira preservada
+
+`advanced_mode` foi para `available` em `lib/features.ts`, com a `MATRIZ_APROVADA`
+atualizada junto — o guard existe para forçar essa confirmação. `sub_recipes` e
+`household_measures` seguem `planned`.
+
+### Pendência registrada para a P0-9B
+
+`RecipeForm` descarta itens que não sejam `kind: "ingredient"` ao editar. Inócuo hoje,
+porque a interface nunca cria outro tipo. No dia em que criar, editar uma receita
+apagaria suas sub-receitas — resolver **junto** com a interface.
+
+### Validação
+- `npm run typecheck`: passou.
+- `npm run lint`: passou.
+- `npm run build`: passou no Next.js 16.2.9; 21 rotas, todas dinâmicas.
+- `git diff --check`: passou sem erros.

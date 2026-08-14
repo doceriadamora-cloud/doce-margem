@@ -80,7 +80,10 @@ const MATRIZ_APROVADA: Record<FeatureKey, `${FeatureMinimumPlan} / ${FeatureStat
   pricing: "essential / available",
   backup_export_import: "essential / available",
   account: "authenticated / available",
-  advanced_mode: "essential / planned",
+  // P0-9A entregou a interface do Modo avançado; a reclassificação passa por
+  // aqui de propósito — mudar o status sem confirmar nesta matriz quebra a
+  // validação em vez de passar batido.
+  advanced_mode: "essential / available",
   sub_recipes: "essential / planned",
   household_measures: "essential / planned",
   menu_engineering: "pro_annual / planned",

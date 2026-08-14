@@ -28,6 +28,12 @@ interface PricingPrintableSheetProps {
   recipeName: string;
   yieldQuantity: number;
   yieldUnit: string;
+  /**
+   * Perda de produção da receita, em porcentagem — Modo avançado (P0-9A).
+   * Já embutida no custo unitário da receita; aparece aqui para a ficha
+   * impressa explicar de onde vem o custo, em vez de escondê-lo.
+   */
+  productionLossPercent?: number;
 }
 
 /**
@@ -39,6 +45,7 @@ export default function PricingPrintableSheet({
   recipeName,
   yieldQuantity,
   yieldUnit,
+  productionLossPercent = 0,
 }: PricingPrintableSheetProps) {
   const channelPricing = result.channelPricing;
   const suggestedPrice = channelPricing?.suggestedPrice ?? result.suggestedPrice;
@@ -122,6 +129,12 @@ export default function PricingPrintableSheet({
               label="Lucro / margem desejada"
               value={`${formatCurrency(expectedProfitAmount)} · ${formatPercent(result.desiredProfitRate)}`}
             />
+            {productionLossPercent > 0 && (
+              <SheetValue
+                label="Perda de produção considerada"
+                value={`${formatNumber(productionLossPercent)}% (já no custo da receita)`}
+              />
+            )}
           </dl>
         </section>
 
