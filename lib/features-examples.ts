@@ -84,7 +84,8 @@ const MATRIZ_APROVADA: Record<FeatureKey, `${FeatureMinimumPlan} / ${FeatureStat
   // aqui de propósito — mudar o status sem confirmar nesta matriz quebra a
   // validação em vez de passar batido.
   advanced_mode: "essential / available",
-  sub_recipes: "essential / planned",
+  // P0-9B entregou a interface de sub-receitas na tela de Receitas.
+  sub_recipes: "essential / available",
   household_measures: "essential / planned",
   menu_engineering: "pro_annual / planned",
   price_history: "pro_annual / planned",
@@ -169,8 +170,10 @@ export function runFeatureValidations(): FeatureCheckResult[] {
   const planejados = ALL_FEATURES.filter((f) => f.status === "planned");
   check("existem recursos planejados na matriz", planejados.length > 0, `${planejados.length}`);
   check(
+    // Era `sub_recipes` até a P0-9B entregar a interface dela; trocado para o
+    // recurso que ainda está planejado, senão o rótulo mente.
     "planejado do Essencial libera para Essencial (status não gateia)",
-    canAccessFeature(ESSENCIAL, "sub_recipes") === true,
+    canAccessFeature(ESSENCIAL, "household_measures") === true,
   );
   check(
     "planejado do Pro NÃO libera para Essencial",

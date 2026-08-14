@@ -140,7 +140,7 @@ const FEATURES: Record<FeatureKey, FeatureDefinition> = {
    *
    * O motor de cálculo dos três existe desde a Fase 1B. O que separa `available`
    * de `planned` aqui é só a interface: `advanced_mode` ganhou a dela na Fase
-   * P0-9A; sub-receitas e medidas caseiras continuam sem tela (P0-9B e P0-9C).
+   * P0-9A, `sub_recipes` na P0-9B; medidas caseiras continuam sem tela (P0-9C).
    */
   advanced_mode: {
     key: "advanced_mode",
@@ -155,9 +155,12 @@ const FEATURES: Record<FeatureKey, FeatureDefinition> = {
   sub_recipes: {
     key: "sub_recipes",
     label: "Sub-receitas",
-    description: "Use uma receita dentro de outra, como um recheio que vira parte do bolo.",
+    description:
+      "Use uma receita dentro de outra — recheio, massa base ou calda — com o custo entrando proporcionalmente à quantidade usada.",
     minimumPlan: "essential",
-    status: "planned",
+    // P0-9B: ganhou interface na tela de Receitas. Medidas caseiras seguem
+    // planejadas (P0-9C).
+    status: "available",
   },
   household_measures: {
     key: "household_measures",

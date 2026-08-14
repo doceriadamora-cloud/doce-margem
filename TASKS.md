@@ -6,8 +6,8 @@
 > Marcar `[x]` ao concluir. Adicionar novas tarefas quando surgirem.
 > Antes de iniciar uma nova fase: parar, resumir o que foi feito e aguardar aprovação.
 
-**Fase atual:** P0-9A — Modo avançado implementado (2026-08-12): fator de correção, perda de produção e observações técnicas reunidos numa área opcional e recolhida, refletidos na Ficha técnica e na Precificação. `advanced_mode` saiu de "planejado" na página de planos.
-**Próximo passo recomendado:** validações manuais em produção pendentes da P0-8A (botão de compra e e-mail de recuperação); depois P0-9B (Sub-receitas) e P0-9C (Medidas caseiras); P1 permanece como evolução dos Orçamentos.
+**Fase atual:** P0-9B — Sub-receitas implementadas na interface (2026-08-13): seletor Ingrediente × Sub-receita na tela de Receitas, bloqueio de ciclo reaproveitando `validateRecipe` e correção da edição que descartava itens não-ingrediente. `sub_recipes` saiu de "planejado" na página de planos.
+**Próximo passo recomendado:** validações manuais em produção pendentes da P0-8A (botão de compra e e-mail de recuperação); depois P0-9C (Medidas caseiras), o último recurso ainda anunciado como em desenvolvimento; P1 permanece como evolução dos Orçamentos.
 
 > 🚨 **Antes da venda pública — validações externas, não resolvíveis em código:**
 > 1. Abrir `/precos` em produção, clicar em "Comprar acesso ao Essencial" e confirmar que vai para o checkout correto da Kiwify. **Não concluir nova compra de teste sem decisão do dono.**
@@ -192,14 +192,32 @@
 - [x] Preservar Supabase, auth, licenças, Kiwify, webhook, product ID e envs
 - [x] Rodar `typecheck`, `lint`, `build` e `git diff --check`
 
-### Fase P0-9B — Sub-receitas (pendente)
-- [ ] Interface para usar uma receita dentro de outra; o motor e a proteção contra referência circular existem desde a Fase 1B-2
-- [ ] `RecipeForm` hoje descarta itens que não são `kind: "ingredient"` ao editar — resolver junto, senão editar uma receita apaga suas sub-receitas
-- [ ] Manter `sub_recipes` como `planned` até a interface existir
+### Fase P0-9B — Sub-receitas ✅
+- [x] **Corrigir primeiro:** `RecipeForm` inicializava `items` filtrando `kind: "ingredient"`, então salvar uma edição descartava sub-receitas e medidas caseiras
+- [x] Carregar e devolver a receita inteira na edição, preservando também perda de produção e observações técnicas da P0-9A
+- [x] Criar o seletor "Adicionar componente: Ingrediente × Sub-receita", com ingrediente como padrão
+- [x] Listar só receitas elegíveis: nunca a própria receita em edição, e só as com rendimento em g, kg, ml, l ou un
+- [x] Explicar na tela quantas receitas ficaram de fora e por quê, em vez de escondê-las em silêncio
+- [x] Limitar as unidades oferecidas às compatíveis com o rendimento da sub-receita escolhida
+- [x] Bloquear ciclo no momento de adicionar, reaproveitando `validateRecipe` e filtrando por `CIRCULAR_REFERENCE`
+- [x] Usar o id real da receita em edição no candidato — com `id: ""`, a receita nunca se reconheceria na própria árvore
+- [x] Passar `recipesById` para `validateRecipe` e `calculateRecipe` no formulário; com `{}` toda sub-receita seria "não encontrada"
+- [x] Marcar sub-receita com selo próprio na lista de itens do formulário e na listagem de receitas
+- [x] Acrescentar à Ficha técnica a nota de que há componentes vindos de outras receitas
+- [x] Liberar o cadastro de receita composta só por sub-receitas
+- [x] Reclassificar `sub_recipes` para `available` e confirmar na `MATRIZ_APROVADA`
+- [x] Manter Medidas caseiras como planejada
+- [x] Preservar fórmulas, pricing engine, `calculateRecipe`, `APP_STATE_STORAGE_KEY` e dados antigos — nenhum arquivo de `modules/`, `services/` ou `types/` alterado
+- [x] Validar o cenário do teste manual com o domínio real: **13/13 checagens** (custo da base, custo da final com sub-receita, perda da P0-9A, auto-referência, ciclo indireto, unidade livre)
+- [x] Rodar as validações da matriz de recursos: **30/30**
+- [x] Rodar `typecheck`, `lint`, `build` e `git diff --check`
+- [ ] **Limitação conhecida:** receita com rendimento em unidade livre ("porções", "fatias") não pode virar componente. Resolver exigiria mexer no domínio — avaliar em fase própria
 
 ### Fase P0-9C — Medidas caseiras (pendente)
 - [ ] Interface para xícaras e colheres; tabela de densidades e validações existem desde a Fase 1B-3
-- [ ] Mesmo cuidado do P0-9B com o descarte de itens na edição
+- [x] O descarte de itens na edição já foi resolvido na P0-9B — itens de medida caseira atravessam a edição intactos
+- [ ] Escolher a chave de conversão (`farinha_trigo`, `acucar`, `cacau`, `liquido`) sem expor jargão à usuária
+- [ ] Lembrar que medida caseira não vale para ingrediente contado em `un` (o validador recusa)
 - [ ] Manter `household_measures` como `planned` até a interface existir
 
 ### Futuro — orientação contábil contextual
@@ -426,7 +444,7 @@
 - [x] Criar fator de correção — interface entregue na P0-9A
 - [x] Criar perda de produção — interface entregue na P0-9A
 - [ ] Criar medidas caseiras — P0-9C
-- [ ] Criar sub-receitas — P0-9B
+- [x] Criar sub-receitas — interface entregue na P0-9B
 - [x] Criar multicanal — canais padrão e customizados (Fases 2-5 e 2-6)
 - [x] Criar custos fixos — cadastro e rateio (Fase 2-6)
 - [ ] Criar engenharia de cardápio — Pro Anual futuro

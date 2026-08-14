@@ -2,12 +2,19 @@
 
 import Link from "next/link";
 import { useState, useSyncExternalStore, type FormEvent } from "react";
-import { calculateRecipe, validateRecipe } from "@/modules/pricing";
+import {
+  areUnitsCompatible,
+  calculateRecipe,
+  isPurchaseUnit,
+  validateRecipe,
+} from "@/modules/pricing";
 import type {
   Ingredient,
   IngredientRecipeItem,
   PurchaseUnit,
   Recipe,
+  RecipeItem,
+  SubRecipeItem,
   ValidationError,
 } from "@/types/pricing";
 import {
@@ -16,7 +23,13 @@ import {
   subscribeIngredients,
 } from "@/components/ingredients/ingredients-store";
 import AdvancedSection from "@/components/advanced/AdvancedSection";
-import { addRecipe, updateRecipe } from "./recipes-store";
+import {
+  addRecipe,
+  getRecipesServerSnapshot,
+  getRecipesSnapshot,
+  subscribeRecipes,
+  updateRecipe,
+} from "./recipes-store";
 
 const PURCHASE_UNITS: { value: PurchaseUnit; label: string }[] = [
   { value: "g", label: "g" },
@@ -62,6 +75,61 @@ function buildIngredientsById(ingredients: Ingredient[]): Record<string, Ingredi
   return map;
 }
 
+function buildRecipesById(recipes: Recipe[]): Record<string, Recipe> {
+  const map: Record<string, Recipe> = {};
+  for (const recipe of recipes) map[recipe.id] = recipe;
+  return map;
+}
+
+/**
+ * Unidades que a usuária pode escolher ao usar uma sub-receita — Fase P0-9B.
+ *
+ * `isUnitCompatibleWithYield` (Fase 1B-2) exige mesma dimensão do rendimento da
+ * sub-receita. Oferecer só as compatíveis evita que a usuária escolha uma
+ * combinação que o validador vai recusar depois.
+ */
+function compatibleUnitsForYield(yieldUnit: string): PurchaseUnit[] {
+  if (!isPurchaseUnit(yieldUnit)) return [];
+  return PURCHASE_UNITS.map((u) => u.value).filter((unit) =>
+    areUnitsCompatible(unit, yieldUnit),
+  );
+}
+
+/**
+ * Uma receita só pode virar componente de outra quando o rendimento dela está
+ * numa unidade conhecida (g, kg, ml, l, un).
+ *
+ * Motivo, no domínio: `SubRecipeItem.unit` é `PurchaseUnit`, e
+ * `isUnitCompatibleWithYield` compara com o rendimento. Rendimento em texto
+ * livre ("porções", "fatias") não casa com nenhuma unidade de compra, então o
+ * item seria sempre recusado na validação. Filtrar aqui é honesto; deixar
+ * escolher para falhar depois, não.
+ */
+function canBeUsedAsSubRecipe(recipe: Recipe): boolean {
+  return isPurchaseUnit(recipe.yieldUnit);
+}
+
+/* ── Exibição dos itens já adicionados ──
+ *
+ * Cobrem os três `kind` da união, inclusive medida caseira: a interface não
+ * cria esse tipo (é a P0-9C), mas um backup importado pode conter, e a lista
+ * precisa mostrá-lo sem quebrar para que o item sobreviva à edição.
+ */
+
+function itemKey(item: RecipeItem, index: number): string {
+  if (item.kind === "subRecipe") return `sub-${item.subRecipeId}-${index}`;
+  return `${item.kind}-${item.ingredientId}-${index}`;
+}
+
+function itemLabel(item: RecipeItem): string {
+  return item.kind === "subRecipe" ? item.subRecipeName : item.ingredientName;
+}
+
+function itemQuantityLabel(item: RecipeItem): string {
+  if (item.kind === "householdMeasure") return `${item.quantityUsed} (medida caseira)`;
+  return `${item.quantityUsed} ${item.unit}`;
+}
+
 interface RecipeFormProps {
   /** Receita sendo editada, ou `null` para cadastrar uma nova. */
   editingRecipe?: Recipe | null;
@@ -70,18 +138,23 @@ interface RecipeFormProps {
 }
 
 /**
- * Formulário de cadastro/edição de receita simples. Só ingredientes já
- * cadastrados (sem sub-receita, sem medida caseira nesta fase). Monta o
- * `Recipe` e delega validação/cálculo a `validateRecipe`/`calculateRecipe`
+ * Formulário de cadastro/edição de receita, com ingredientes e sub-receitas.
+ * Monta o `Recipe` e delega validação/cálculo a `validateRecipe`/`calculateRecipe`
  * (Fase 1B) — não reimplementa nenhuma regra aqui.
  *
  * Edição usa o mesmo truque de `key`-remount do `IngredientForm` (Fase 2-7):
  * o pai renderiza `<RecipeForm key={editingRecipe?.id ?? "new"} .../>`.
  *
- * Ao editar, `items` é inicializado só com os itens `kind: "ingredient"` da
- * receita — hoje é sempre o caso (a interface nunca cria itens de sub-receita
- * ou medida caseira), mas se um dado externo tiver outro `kind`, ele seria
- * descartado ao salvar a edição.
+ * **Corrigido na Fase P0-9B:** `items` era inicializado filtrando só
+ * `kind: "ingredient"`, então salvar uma edição descartava qualquer outro tipo
+ * de item. Era inócuo enquanto a interface não criava sub-receitas e virou
+ * destrutivo no instante em que passou a criar. Agora a lista carrega e devolve
+ * a receita inteira; medidas caseiras (P0-9C) atravessam intactas mesmo sem
+ * interface para editá-las.
+ *
+ * O `id` da receita em edição entra no candidato de propósito: é ele que
+ * permite a `validateRecipe` detectar auto-referência e ciclo indireto ao
+ * salvar. Com `id: ""`, a receita nunca se reconheceria na própria árvore.
  */
 export default function RecipeForm({
   editingRecipe = null,
@@ -92,16 +165,18 @@ export default function RecipeForm({
     getIngredientsSnapshot,
     getIngredientsServerSnapshot,
   );
+  const recipes = useSyncExternalStore(
+    subscribeRecipes,
+    getRecipesSnapshot,
+    getRecipesServerSnapshot,
+  );
   const ingredientsById = buildIngredientsById(ingredients);
+  const recipesById = buildRecipesById(recipes);
 
   const [name, setName] = useState(editingRecipe?.name ?? "");
-  const [items, setItems] = useState<IngredientRecipeItem[]>(
-    editingRecipe
-      ? editingRecipe.items.filter(
-          (item): item is IngredientRecipeItem => item.kind === "ingredient",
-        )
-      : [],
-  );
+  // A receita inteira, sem filtro por `kind` — ver a nota no topo sobre a
+  // correção da P0-9B.
+  const [items, setItems] = useState<RecipeItem[]>(editingRecipe?.items ?? []);
   const [yieldQuantity, setYieldQuantity] = useState(
     editingRecipe ? String(editingRecipe.yieldQuantity) : "",
   );
@@ -124,11 +199,35 @@ export default function RecipeForm({
       (editingRecipe?.notes ?? "").trim() !== "",
   );
 
-  // Sub-formulário de "adicionar ingrediente à receita".
+  // Sub-formulário de "adicionar componente à receita".
+  const [componentKind, setComponentKind] = useState<"ingredient" | "subRecipe">(
+    "ingredient",
+  );
   const [selectedIngredientId, setSelectedIngredientId] = useState("");
   const [itemQuantityUsed, setItemQuantityUsed] = useState("");
   const [itemUnit, setItemUnit] = useState<PurchaseUnit>("g");
   const [itemError, setItemError] = useState<string | null>(null);
+
+  // Sub-receitas (P0-9B).
+  const [selectedSubRecipeId, setSelectedSubRecipeId] = useState("");
+  const [subRecipeQuantityUsed, setSubRecipeQuantityUsed] = useState("");
+  const [subRecipeUnit, setSubRecipeUnit] = useState<PurchaseUnit>("g");
+
+  /**
+   * Receitas oferecíveis como componente: nunca a própria receita em edição
+   * (auto-referência) e só as com rendimento em unidade conhecida.
+   */
+  const availableSubRecipes = recipes.filter(
+    (recipe) => recipe.id !== editingRecipe?.id && canBeUsedAsSubRecipe(recipe),
+  );
+  const hiddenSubRecipeCount =
+    recipes.filter((recipe) => recipe.id !== editingRecipe?.id).length -
+    availableSubRecipes.length;
+  const selectedSubRecipe =
+    availableSubRecipes.find((recipe) => recipe.id === selectedSubRecipeId) ?? null;
+  const subRecipeUnitOptions = selectedSubRecipe
+    ? compatibleUnitsForYield(selectedSubRecipe.yieldUnit)
+    : [];
 
   function errorFor(field: string): string | undefined {
     return errors.find((e) => e.field === field)?.message;
@@ -165,6 +264,67 @@ export default function RecipeForm({
     setItemError(null);
   }
 
+  /**
+   * Reaproveita a proteção contra referência circular do domínio (Fase 1B-2)
+   * em vez de reimplementar a caminhada no grafo aqui. Monta a receita como ela
+   * ficaria com o item novo e pergunta ao validador; os demais erros são
+   * ignorados de propósito, porque o formulário ainda pode estar incompleto.
+   */
+  function createsCircularReference(candidateItems: RecipeItem[]): boolean {
+    const prospective: Recipe = {
+      id: editingRecipe?.id ?? "",
+      name: name.trim() || "Receita",
+      items: candidateItems,
+      // Valores neutros: só a árvore de dependências importa nesta checagem.
+      yieldQuantity: 1,
+      yieldUnit: yieldUnit.trim() || "un",
+    };
+    return validateRecipe(prospective, ingredientsById, recipesById).some(
+      (error) => error.code === "CIRCULAR_REFERENCE",
+    );
+  }
+
+  function handleSelectSubRecipe(id: string): void {
+    setSelectedSubRecipeId(id);
+    setItemError(null);
+    const recipe = availableSubRecipes.find((r) => r.id === id);
+    // Começa na própria unidade de rendimento: é a escolha certa na maioria dos
+    // casos e sempre compatível.
+    if (recipe && isPurchaseUnit(recipe.yieldUnit)) setSubRecipeUnit(recipe.yieldUnit);
+  }
+
+  function handleAddSubRecipe(): void {
+    const subRecipe = availableSubRecipes.find((r) => r.id === selectedSubRecipeId);
+    if (!subRecipe) {
+      setItemError("Escolha uma receita cadastrada para usar como componente.");
+      return;
+    }
+    const parsedQuantity = parseRequiredNumber(subRecipeQuantityUsed);
+    if (parsedQuantity === null || parsedQuantity <= 0) {
+      setItemError("Informe uma quantidade usada válida (maior que zero).");
+      return;
+    }
+
+    const newItem: SubRecipeItem = {
+      kind: "subRecipe",
+      subRecipeId: subRecipe.id,
+      subRecipeName: subRecipe.name,
+      quantityUsed: parsedQuantity,
+      unit: subRecipeUnit,
+    };
+
+    if (createsCircularReference([...items, newItem])) {
+      setItemError(
+        `Essa sub-receita criaria um ciclo: "${subRecipe.name}" já depende desta receita. Escolha outra.`,
+      );
+      return;
+    }
+
+    setItems((prev) => [...prev, newItem]);
+    setSubRecipeQuantityUsed("");
+    setItemError(null);
+  }
+
   function handleRemoveItem(index: number): void {
     setItems((prev) => prev.filter((_, i) => i !== index));
   }
@@ -176,9 +336,13 @@ export default function RecipeForm({
     setYieldUnit("un");
     setProductionLossPercent("0");
     setNotes("");
+    setComponentKind("ingredient");
     setSelectedIngredientId("");
     setItemQuantityUsed("");
     setItemUnit("g");
+    setSelectedSubRecipeId("");
+    setSubRecipeQuantityUsed("");
+    setSubRecipeUnit("g");
     setItemError(null);
   }
 
@@ -201,7 +365,11 @@ export default function RecipeForm({
 
     const trimmedNotes = notes.trim();
     const candidate: Recipe = {
-      id: "",
+      // P0-9B: o id real da receita em edição. É ele que faz `validateRecipe`
+      // reconhecer a própria receita dentro da árvore e recusar auto-referência
+      // ou ciclo indireto. `updateRecipe` preserva o id original de qualquer
+      // forma, então isto não muda a persistência.
+      id: editingRecipe?.id ?? "",
       name: name.trim(),
       items,
       yieldQuantity: parsedYield,
@@ -214,7 +382,9 @@ export default function RecipeForm({
       ...(trimmedNotes !== "" ? { notes: trimmedNotes } : {}),
     };
 
-    const validationErrors = validateRecipe(candidate, ingredientsById, {});
+    // P0-9B: passa as receitas cadastradas. Com `{}`, qualquer sub-receita
+    // seria recusada como "não encontrada".
+    const validationErrors = validateRecipe(candidate, ingredientsById, recipesById);
     if (validationErrors.length > 0) {
       setErrors(validationErrors);
       return;
@@ -240,7 +410,7 @@ export default function RecipeForm({
     items.length > 0 && previewYield !== null && previewYield > 0 && previewLoss !== null
       ? calculateRecipe(
           {
-            id: "preview",
+            id: editingRecipe?.id ?? "preview",
             name: name || "Receita",
             items,
             yieldQuantity: previewYield,
@@ -248,7 +418,7 @@ export default function RecipeForm({
             ...(previewLoss !== undefined ? { productionLossPercent: previewLoss } : {}),
           },
           ingredientsById,
-          {},
+          recipesById,
         )
       : null;
 
@@ -312,55 +482,168 @@ export default function RecipeForm({
 
       <div className="rounded-xl border border-dashed border-stone-300 p-3 dark:border-stone-700">
         <p className="mb-2 text-sm font-medium text-stone-700 dark:text-stone-300">
-          Adicionar ingrediente
+          Adicionar componente
         </p>
-        <div className="grid grid-cols-2 gap-2">
-          <select
-            value={selectedIngredientId}
-            onChange={(e) => handleSelectIngredient(e.target.value)}
-            className={`col-span-2 ${inputClass}`}
-            disabled={noIngredientsRegistered}
-          >
-            <option value="">Escolha um ingrediente</option>
-            {ingredients.map((ingredient) => (
-              <option key={ingredient.id} value={ingredient.id}>
-                {ingredient.name}
-              </option>
-            ))}
-          </select>
-          <input
-            type="number"
-            inputMode="decimal"
-            step="any"
-            min="0"
-            value={itemQuantityUsed}
-            onChange={(e) => setItemQuantityUsed(e.target.value)}
-            placeholder="Quantidade usada"
-            className={inputClass}
-            disabled={noIngredientsRegistered}
-          />
-          <select
-            value={itemUnit}
-            onChange={(e) => setItemUnit(e.target.value as PurchaseUnit)}
-            className={inputClass}
-            disabled={noIngredientsRegistered}
-          >
-            {PURCHASE_UNITS.map((u) => (
-              <option key={u.value} value={u.value}>
-                {u.label}
-              </option>
-            ))}
-          </select>
-        </div>
-        {itemError && <p className="mt-2 text-xs text-red-600 dark:text-red-400">{itemError}</p>}
-        <button
-          type="button"
-          onClick={handleAddItem}
-          disabled={noIngredientsRegistered}
-          className="mt-2 rounded-full border border-rose-300 px-3 py-1.5 text-sm font-medium text-rose-700 transition-colors hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-rose-800 dark:text-rose-300 dark:hover:bg-rose-950"
+
+        {/* Sub-receitas (P0-9B). Dois caminhos no mesmo lugar: o padrão continua
+            sendo ingrediente, e quem precisa de recheio/massa/base troca aqui. */}
+        <div
+          role="group"
+          aria-label="Tipo de componente"
+          className="mb-3 flex gap-1 rounded-full bg-stone-100 p-1 dark:bg-stone-950"
         >
-          + Adicionar à receita
-        </button>
+          <ComponentKindButton
+            active={componentKind === "ingredient"}
+            onClick={() => {
+              setComponentKind("ingredient");
+              setItemError(null);
+            }}
+          >
+            Ingrediente
+          </ComponentKindButton>
+          <ComponentKindButton
+            active={componentKind === "subRecipe"}
+            disabled={availableSubRecipes.length === 0}
+            onClick={() => {
+              setComponentKind("subRecipe");
+              setItemError(null);
+            }}
+          >
+            Sub-receita
+          </ComponentKindButton>
+        </div>
+
+        {componentKind === "ingredient" ? (
+          <>
+            <div className="grid grid-cols-2 gap-2">
+              <select
+                value={selectedIngredientId}
+                onChange={(e) => handleSelectIngredient(e.target.value)}
+                className={`col-span-2 ${inputClass}`}
+                disabled={noIngredientsRegistered}
+                aria-label="Ingrediente"
+              >
+                <option value="">Escolha um ingrediente</option>
+                {ingredients.map((ingredient) => (
+                  <option key={ingredient.id} value={ingredient.id}>
+                    {ingredient.name}
+                  </option>
+                ))}
+              </select>
+              <input
+                type="number"
+                inputMode="decimal"
+                step="any"
+                min="0"
+                value={itemQuantityUsed}
+                onChange={(e) => setItemQuantityUsed(e.target.value)}
+                placeholder="Quantidade usada"
+                className={inputClass}
+                disabled={noIngredientsRegistered}
+                aria-label="Quantidade usada do ingrediente"
+              />
+              <select
+                value={itemUnit}
+                onChange={(e) => setItemUnit(e.target.value as PurchaseUnit)}
+                className={inputClass}
+                disabled={noIngredientsRegistered}
+                aria-label="Unidade do ingrediente"
+              >
+                {PURCHASE_UNITS.map((u) => (
+                  <option key={u.value} value={u.value}>
+                    {u.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            {itemError && (
+              <p className="mt-2 text-xs text-red-600 dark:text-red-400">{itemError}</p>
+            )}
+            <button
+              type="button"
+              onClick={handleAddItem}
+              disabled={noIngredientsRegistered}
+              className={addButtonClass}
+            >
+              + Adicionar à receita
+            </button>
+          </>
+        ) : (
+          <>
+            <p className="mb-2 text-xs leading-5 text-stone-500 dark:text-stone-400">
+              Use outra receita como componente — um recheio, uma massa base, uma calda. O custo
+              dela entra proporcionalmente à quantidade usada.
+            </p>
+            <div className="grid grid-cols-2 gap-2">
+              <select
+                value={selectedSubRecipeId}
+                onChange={(e) => handleSelectSubRecipe(e.target.value)}
+                className={`col-span-2 ${inputClass}`}
+                aria-label="Sub-receita"
+              >
+                <option value="">Escolha uma receita já cadastrada</option>
+                {availableSubRecipes.map((recipe) => (
+                  <option key={recipe.id} value={recipe.id}>
+                    {recipe.name} (rende {recipe.yieldQuantity} {recipe.yieldUnit})
+                  </option>
+                ))}
+              </select>
+              <input
+                type="number"
+                inputMode="decimal"
+                step="any"
+                min="0"
+                value={subRecipeQuantityUsed}
+                onChange={(e) => setSubRecipeQuantityUsed(e.target.value)}
+                placeholder="Quantidade usada"
+                className={inputClass}
+                disabled={selectedSubRecipe === null}
+                aria-label="Quantidade usada da sub-receita"
+              />
+              <select
+                value={subRecipeUnit}
+                onChange={(e) => setSubRecipeUnit(e.target.value as PurchaseUnit)}
+                className={inputClass}
+                disabled={selectedSubRecipe === null}
+                aria-label="Unidade da sub-receita"
+              >
+                {subRecipeUnitOptions.map((unit) => (
+                  <option key={unit} value={unit}>
+                    {unit}
+                  </option>
+                ))}
+              </select>
+            </div>
+            {itemError && (
+              <p className="mt-2 text-xs text-red-600 dark:text-red-400">{itemError}</p>
+            )}
+            <button
+              type="button"
+              onClick={handleAddSubRecipe}
+              disabled={selectedSubRecipe === null}
+              className={addButtonClass}
+            >
+              + Adicionar à receita
+            </button>
+          </>
+        )}
+
+        {componentKind === "subRecipe" && hiddenSubRecipeCount > 0 && (
+          <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-800 dark:bg-amber-950 dark:text-amber-200">
+            {hiddenSubRecipeCount === 1
+              ? "1 receita não aparece aqui porque o rendimento dela está numa unidade livre."
+              : `${hiddenSubRecipeCount} receitas não aparecem aqui porque o rendimento delas está numa unidade livre.`}{" "}
+            Para usar uma receita como componente, o rendimento precisa estar em g, kg, ml, l ou
+            un — assim dá para calcular quanto dela entra.
+          </p>
+        )}
+
+        {availableSubRecipes.length === 0 && componentKind === "ingredient" && recipes.length > 0 && (
+          <p className="mt-3 text-xs leading-5 text-stone-400 dark:text-stone-500">
+            Para usar outra receita como componente, ela precisa estar cadastrada com rendimento em
+            g, kg, ml, l ou un.
+          </p>
+        )}
       </div>
 
       {items.length > 0 && (
@@ -371,11 +654,16 @@ export default function RecipeForm({
           <ul className="flex flex-col gap-1.5">
             {items.map((item, index) => (
               <li
-                key={`${item.ingredientId}-${index}`}
+                key={itemKey(item, index)}
                 className="flex items-center justify-between gap-2 rounded-lg bg-stone-50 px-3 py-1.5 text-sm dark:bg-stone-950"
               >
-                <span className="text-stone-700 dark:text-stone-300">
-                  {item.ingredientName} — {item.quantityUsed} {item.unit}
+                <span className="min-w-0 text-stone-700 dark:text-stone-300">
+                  {item.kind === "subRecipe" && (
+                    <span className="mr-1.5 rounded-full bg-rose-100 px-1.5 py-0.5 text-[11px] font-medium text-rose-700 dark:bg-rose-950 dark:text-rose-300">
+                      sub-receita
+                    </span>
+                  )}
+                  {itemLabel(item)} — {itemQuantityLabel(item)}
                 </span>
                 <button
                   type="button"
@@ -500,7 +788,10 @@ export default function RecipeForm({
       <div className="mt-1 flex gap-2">
         <button
           type="submit"
-          disabled={noIngredientsRegistered}
+          // P0-9B: uma receita pode ser feita só de sub-receitas (um kit montado
+          // a partir de bases já cadastradas), então travar em "não há
+          // ingredientes" passou a ser cedo demais.
+          disabled={noIngredientsRegistered && availableSubRecipes.length === 0}
           className="rounded-full bg-rose-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {editingRecipe ? "Salvar alterações" : "Cadastrar receita"}
@@ -521,6 +812,40 @@ export default function RecipeForm({
 
 const inputClass =
   "w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm text-stone-900 outline-none focus:border-rose-400 focus:ring-2 focus:ring-rose-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-stone-700 dark:bg-stone-950 dark:text-stone-50 dark:focus:ring-rose-950";
+
+const addButtonClass =
+  "mt-2 rounded-full border border-rose-300 px-3 py-1.5 text-sm font-medium text-rose-700 transition-colors hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-rose-800 dark:text-rose-300 dark:hover:bg-rose-950";
+
+interface ComponentKindButtonProps {
+  active: boolean;
+  disabled?: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}
+
+/** Botão do seletor Ingrediente × Sub-receita. */
+function ComponentKindButton({
+  active,
+  disabled = false,
+  onClick,
+  children,
+}: ComponentKindButtonProps) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      aria-pressed={active}
+      className={`flex-1 rounded-full px-3 py-1.5 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
+        active
+          ? "bg-white text-rose-700 shadow-sm dark:bg-stone-800 dark:text-rose-300"
+          : "text-stone-500 hover:text-stone-800 dark:text-stone-400 dark:hover:text-stone-200"
+      }`}
+    >
+      {children}
+    </button>
+  );
+}
 
 interface FieldProps {
   label: string;

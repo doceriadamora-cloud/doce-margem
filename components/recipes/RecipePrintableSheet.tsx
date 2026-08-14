@@ -86,6 +86,7 @@ export default function RecipePrintableSheet({
     const factor = getCorrectionFactor(item);
     return factor !== null && factor !== 1;
   });
+  const hasSubRecipe = calculation.items.some((item) => item.kind === "subRecipe");
 
   return (
     <section
@@ -195,6 +196,12 @@ export default function RecipePrintableSheet({
               </tbody>
             </table>
           </div>
+          {hasSubRecipe && (
+            <p className="mt-2 text-xs leading-5 text-stone-500">
+              Esta ficha inclui componentes calculados a partir de outras receitas cadastradas. O
+              custo de cada sub-receita entra proporcionalmente à quantidade usada.
+            </p>
+          )}
           {hasCorrectedItem && (
             <p className="mt-2 text-xs leading-5 text-stone-500">
               O fator de correção já está aplicado nos custos acima: ele representa quanto do

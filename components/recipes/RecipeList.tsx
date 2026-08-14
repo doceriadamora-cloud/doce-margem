@@ -46,14 +46,15 @@ const HOUSEHOLD_MEASURE_LABELS: Record<HouseholdMeasure, string> = {
   colher_cafe: "colher(es) de café",
 };
 
+/** Nome + quantidade do item. O tipo é sinalizado à parte, com selo. */
 function describeRecipeItem(item: RecipeItem): string {
   if (item.kind === "ingredient") {
-    return `• ${item.ingredientName} — ${item.quantityUsed} ${item.unit}`;
+    return `${item.ingredientName} — ${item.quantityUsed} ${item.unit}`;
   }
   if (item.kind === "subRecipe") {
-    return `• ${item.subRecipeName} (sub-receita) — ${item.quantityUsed} ${item.unit}`;
+    return `${item.subRecipeName} — ${item.quantityUsed} ${item.unit}`;
   }
-  return `• ${item.ingredientName} — ${item.quantityUsed} ${HOUSEHOLD_MEASURE_LABELS[item.measure]}`;
+  return `${item.ingredientName} — ${item.quantityUsed} ${HOUSEHOLD_MEASURE_LABELS[item.measure]}`;
 }
 
 interface RecipeListProps {
@@ -168,8 +169,19 @@ export default function RecipeList({
 
             <ul className="mt-2 flex flex-col gap-0.5">
               {recipe.items.map((item, index) => (
-                <li key={index} className="text-sm text-stone-500 dark:text-stone-400">
-                  {describeRecipeItem(item)}
+                <li
+                  key={index}
+                  className="flex flex-wrap items-center gap-x-1.5 text-sm text-stone-500 dark:text-stone-400"
+                >
+                  <span aria-hidden="true">•</span>
+                  {/* P0-9B: sub-receita ganha selo próprio. Sem isso, "Recheio
+                      de brigadeiro — 300 g" parece um ingrediente comum. */}
+                  {item.kind === "subRecipe" && (
+                    <span className="rounded-full bg-rose-100 px-1.5 py-0.5 text-[11px] font-medium text-rose-700 dark:bg-rose-950 dark:text-rose-300">
+                      sub-receita
+                    </span>
+                  )}
+                  <span>{describeRecipeItem(item)}</span>
                 </li>
               ))}
             </ul>

@@ -2033,3 +2033,75 @@ apagaria suas sub-receitas — resolver **junto** com a interface.
 - `npm run lint`: passou.
 - `npm run build`: passou no Next.js 16.2.9; 21 rotas, todas dinâmicas.
 - `git diff --check`: passou sem erros.
+
+---
+
+## Fase P0-9B — Sub-receitas na interface (2026-08-13)
+
+> Fase de **interface**, como a P0-9A. Cálculo, validação e proteção contra
+> referência circular existem desde a Fase 1B-2. Nenhum arquivo de `modules/`,
+> `services/` ou `types/` foi tocado.
+
+### A correção veio antes do recurso
+
+`RecipeForm` inicializava `items` filtrando `kind: "ingredient"`, então salvar uma edição
+**descartava silenciosamente** qualquer outro tipo de item. Ligar sub-receitas sem
+corrigir transformaria "editar o nome da receita" em "apagar o recheio". Foi a primeira
+coisa feita.
+
+O ganho atravessa para a P0-9C: itens de medida caseira vindos de backup importado agora
+sobrevivem à edição, mesmo sem interface para editá-los.
+
+### O `id` real no candidato
+
+`validateRecipe` detecta ciclo comparando a receita com seus ancestrais. Com `id: ""`, a
+receita **nunca se reconhecia** na própria árvore: adicionar "Bolo de pote" dentro de
+"Bolo de pote" passava pela validação e só quebrava depois, na leitura, com a receita já
+gravada e sem calcular. O candidato agora carrega o id real; `updateRecipe` preserva o id
+original de qualquer forma, então a persistência não muda.
+
+A verificação isolada prova os dois lados — com id real o ciclo é pego, com `id: ""`
+passa despercebido.
+
+### Verificação isolada contra o domínio real — 13/13
+
+Rodada com o motor de verdade (Node com type stripping, sem instalar nada), reproduzindo
+o cenário do teste manual sugerido:
+
+| Verificação | Resultado |
+|---|---|
+| Base: 400 g de leite condensado → 500 g | custo R$ 16,00 · R$ 0,032/g ✅ |
+| Final: 300 g de massa + 200 g da base → 5 un | sub-receita entra com R$ 6,40 ✅ |
+| Final: custo total e unitário | R$ 12,40 · R$ 2,48/un ✅ |
+| P0-9A intacto: perda de 20% sobre a receita composta | R$ 15,50 ✅ |
+| Auto-referência | `CIRCULAR_REFERENCE` ✅ |
+| Ciclo indireto (base passa a usar a final) | `CIRCULAR_REFERENCE` ✅ |
+| Com `id: ""` o ciclo passaria despercebido | confirmado — motivo da correção ✅ |
+| Rendimento em unidade livre como componente | `INCOMPATIBLE_UNIT` ✅ |
+
+Matriz de recursos: **30/30**, incluindo a `MATRIZ_APROVADA` com
+`sub_recipes: essential / available`.
+
+### Limitação assumida
+
+Receita com rendimento em unidade livre ("porções", "fatias") **não pode** virar
+componente: `SubRecipeItem.unit` é `PurchaseUnit` e `isUnitCompatibleWithYield` recusaria
+o item. O seletor filtra e diz quantas receitas ficaram de fora e por quê. Resolver de
+verdade exigiria mexer no domínio, o que esta fase não faz.
+
+### Fronteira preservada
+
+- Precificação: **zero mudança** — `PricingForm` já montava `recipesById` desde a Fase 2-5.
+- Orçamento para cliente: **zero mudança** — nenhum componente interno atravessa.
+- Ficha técnica: ganhou só a nota de que há componentes vindos de outras receitas; não
+  virou árvore.
+- `APP_STATE_STORAGE_KEY`, schema e normalização intactos. `SubRecipeItem` já fazia parte
+  de `RecipeItem` desde a Fase 1B-2, então dados antigos e novos têm o mesmo formato.
+
+### Validação
+- `npm run typecheck`: passou.
+- `npm run lint`: passou.
+- `npm run build`: passou no Next.js 16.2.9; 21 rotas, todas dinâmicas.
+- `/precos` conferida no build: Modo avançado e Sub-receitas sem selo; Medidas caseiras
+  ainda "Em desenvolvimento". `/receitas`, `/precificacao` e `/orcamentos` seguem em 307.
+- `git diff --check`: passou sem erros.

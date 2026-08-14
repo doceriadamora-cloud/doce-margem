@@ -105,6 +105,35 @@ O critério para reclassificar é o mesmo aplicado ao Modo avançado: a interfac
 ⚠️ Ao construir a P0-9B, corrigir junto o descarte de itens não-ingrediente na edição de
 receita (`RecipeForm`) — hoje inócuo, destrutivo no dia em que sub-receitas existirem.
 
+## Atualização P0-9B — Sub-receitas (2026-08-13)
+
+Segundo dos três recursos anunciados como "Em desenvolvimento" saiu da promessa:
+
+| Recurso | Antes | Agora |
+|---|---|---|
+| Modo avançado | `planned` | ✅ `available` (P0-9A) |
+| **Sub-receitas** | `essential / planned` | ✅ `essential / available` — interface entregue |
+| Medidas caseiras | `essential / planned` | 🔸 continua planejado (**P0-9C**) |
+
+Uma receita agora entra como componente de outra pela tela de Receitas, com o custo
+proporcional à quantidade usada. Nenhuma fórmula foi alterada: o cálculo e a proteção
+contra ciclo existem desde a Fase 1B-2.
+
+O aviso registrado acima **foi cumprido**: o descarte de itens não-ingrediente na edição
+foi corrigido antes de a interface ser ligada. Junto com ele, apareceu um segundo defeito
+da mesma família — o formulário validava com `id: ""`, então a receita nunca se
+reconhecia na própria árvore e uma auto-referência era gravada sem erro. Os dois estão
+cobertos por verificação isolada contra o domínio real (13/13).
+
+**Limitação assumida:** receita com rendimento em unidade livre ("porções", "fatias") não
+pode virar componente — o seletor filtra e explica. Resolver exigiria mexer no domínio.
+
+### O que resta de promessa
+
+Só **Medidas caseiras** (P0-9C). Com ela, a página de planos deixa de ter qualquer item
+do Essencial marcado como em desenvolvimento — o risco de distância entre promessa e
+produto, levantado na auditoria P0-8, fecha por completo.
+
 > ℹ️ Correção de registro: o item **I4** ("`Header` mostra 5 links que rebatem para
 > `/login`") já estava resolvido antes da P0-8 — o cabeçalho só mostra a navegação
 > completa para sessão autenticada. O item **I5** ("sem canal de suporte") foi resolvido

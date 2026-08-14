@@ -48,6 +48,7 @@ A oferta disponível hoje é o **Minha Fatia Essencial**. O Pro Anual é uma pos
 |---|:---:|:---:|
 | Cadastro de ingredientes | ✅ | ✅ |
 | Ficha técnica / receitas | ✅ | ✅ |
+| Sub-receitas (receita dentro de receita) | ✅ | ✅ |
 | Impressão da ficha técnica da receita | ✅ | ✅ |
 | CMV, custo unitário | ✅ | ✅ |
 | Preço sugerido, margem, markup | ✅ | ✅ |
@@ -242,7 +243,27 @@ Onde os ajustes aparecem depois de aplicados:
 - **Precificação e Ficha interna de precificação:** o percentual de perda considerado, já embutido no custo da receita.
 - **Orçamento para cliente:** em lugar nenhum — nada disso atravessa para o documento comercial.
 
-**Fora do escopo da P0-9A:** sub-receitas (P0-9B) e medidas caseiras (P0-9C) seguem com motor pronto e sem interface.
+**Fora do escopo da P0-9A:** sub-receitas (entregues depois, na P0-9B) e medidas caseiras (P0-9C).
+
+### Sub-receitas na interface (Fase P0-9B)
+
+Uma receita pode entrar como componente de outra — recheio dentro de bolo, massa base dentro do produto final, brigadeiro base dentro de um cento de doces. O custo entra proporcionalmente à quantidade usada, pela conta que já existia desde a Fase 1B-2:
+
+```
+custo por unidade de rendimento = custo total com perda da sub-receita / rendimento dela
+custo do item                   = quantidade usada (convertida) × custo por unidade de rendimento
+```
+
+No formulário de Receitas, "Adicionar componente" alterna entre **Ingrediente** e **Sub-receita**. O padrão continua sendo ingrediente.
+
+**Duas regras que a interface aplica reaproveitando o domínio:**
+
+1. **Nada de ciclo.** A receita em edição não aparece na própria lista, e cada inclusão passa por `validateRecipe`, que detecta auto-referência e ciclo indireto (`CIRCULAR_REFERENCE`, Fase 1B-2). O erro vira mensagem amigável antes de o item entrar na lista.
+2. **Só receitas com rendimento em unidade conhecida** (g, kg, ml, l, un) podem virar componente. `SubRecipeItem.unit` é `PurchaseUnit`, e rendimento em texto livre ("porções", "fatias") não casa com nenhuma — o item seria recusado na validação. O seletor filtra e explica o motivo, em vez de deixar escolher para falhar depois.
+
+> ⚠️ **Limitação conhecida:** para usar uma receita como componente, o rendimento dela precisa estar numa das cinco unidades. Ajustar isso exigiria mexer no domínio e ficou fora da P0-9B.
+
+**Correção que veio junto:** `RecipeForm` inicializava a lista de itens filtrando `kind: "ingredient"`, então salvar uma edição descartava qualquer outro tipo. Era inócuo enquanto a interface não criava sub-receitas e viraria destrutivo no instante em que passou a criar.
 
 ---
 
@@ -344,5 +365,6 @@ Desenvolvimento **por fases**, com aprovação entre cada uma. Veja [TASKS.md](T
 - **Fase P0-8 — Auditoria final de lançamento:** revisão completa do produto com olhar de compradora nova. Veredito: pode vender com pequenos ajustes; três bloqueadores de pós-venda registrados em `REVIEW.md`.
 - **Fase P0-8A — Pós-venda mínimo:** implementada com recuperação de senha, canal de suporte visível (WhatsApp oficial já configurado), páginas legais (`/termos`, `/privacidade`, `/reembolso`), aviso fiscal dentro da Precificação e total do parcelamento em `/precos`. Antes da venda pública, restam duas validações manuais em produção: o botão de compra em `/precos` e o e-mail de recuperação de senha.
 - **Fase P0-9A — Modo avançado:** implementada como área opcional e recolhida em Ingredientes (fator de correção) e Receitas (perda de produção e observações técnicas), refletida na Ficha técnica e na Precificação. `advanced_mode` deixou de ser recurso planejado na página de planos.
-- **Fases P0-9B e P0-9C — Sub-receitas e Medidas caseiras:** ainda planejadas. O motor existe desde a Fase 1B; falta a interface.
+- **Fase P0-9B — Sub-receitas:** implementada na tela de Receitas, com seletor de tipo de componente, bloqueio de ciclo reaproveitando `validateRecipe` e correção da edição que descartava itens não-ingrediente. `sub_recipes` deixou de ser recurso planejado.
+- **Fase P0-9C — Medidas caseiras:** ainda planejada. O motor e a tabela de densidades existem desde a Fase 1B-3; falta a interface.
 - **P1 recomendado — Orçamentos avançados:** evolução da rota atual com clientes, histórico, status, duplicação de orçamento e reaproveitamento de cliente.

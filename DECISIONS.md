@@ -1662,3 +1662,83 @@ para reclassificar qualquer uma delas é o mesmo aplicado aqui: a tela existir.
 `kind: "ingredient"` ao editar. Hoje é inócuo, porque a interface nunca cria outro tipo.
 No dia em que criar, editar uma receita apagaria suas sub-receitas — resolver **junto**
 com a interface, não depois.
+
+---
+
+## 2026-08-13 — Sub-receitas expõem o motor existente, com duas travas na interface
+
+### Decisão
+
+A Fase P0-9B liga sub-receitas na tela de Receitas. Como na P0-9A, **nenhuma fórmula foi
+criada ou alterada**: o cálculo, a validação e a proteção contra referência circular
+existem desde a Fase 1B-2. Nenhum arquivo de `modules/`, `services/` ou `types/` foi
+tocado.
+
+A conta que já existia:
+
+```
+custo por unidade de rendimento = custo total com perda da sub-receita / rendimento dela
+custo do item                   = quantidade usada (convertida) × custo por unidade
+```
+
+### A correção veio antes do recurso
+
+`RecipeForm` inicializava `items` com `editingRecipe.items.filter(kind === "ingredient")`.
+Salvar uma edição, portanto, **descartava silenciosamente** qualquer item de outro tipo.
+
+Isso estava documentado como inócuo — e era, enquanto a interface não criava outro tipo.
+Ligar sub-receitas sem corrigir transformaria "editar o nome da receita" em "apagar o
+recheio". A correção foi a primeira coisa feita nesta fase, não a última.
+
+O ganho atravessa para a P0-9C: itens de medida caseira vindos de um backup importado
+agora sobrevivem à edição, mesmo sem interface para editá-los.
+
+### O `id` real no candidato não é detalhe
+
+`validateRecipe` detecta ciclo comparando a receita com seus ancestrais. O formulário
+montava o candidato com `id: ""`, então a receita **nunca se reconhecia** na própria
+árvore: adicionar "Bolo de pote" dentro de "Bolo de pote" passava pela validação e só
+quebrava depois, na leitura, com a receita já gravada e sem calcular.
+
+Agora o candidato carrega o id real da receita em edição. `updateRecipe` preserva o id
+original de qualquer forma, então a persistência não muda — o que muda é a validação
+enxergar o que precisa enxergar. Uma verificação isolada confirma os dois lados: com id
+real o ciclo é pego, com `id: ""` passa despercebido.
+
+### Duas travas na interface, ambas reaproveitando o domínio
+
+1. **Ciclo.** A receita em edição não aparece na própria lista, e cada inclusão monta a
+   receita como ela ficaria e pergunta a `validateRecipe`, filtrando por
+   `CIRCULAR_REFERENCE`. Os demais erros são ignorados de propósito: o formulário ainda
+   pode estar incompleto, e o que se quer saber ali é só se há ciclo. A usuária vê
+   *"Essa sub-receita criaria um ciclo"* **antes** de o item entrar na lista.
+
+2. **Unidade do rendimento.** `SubRecipeItem.unit` é `PurchaseUnit`, e
+   `isUnitCompatibleWithYield` compara com o rendimento da sub-receita. Rendimento em
+   texto livre ("porções", "fatias") não casa com nenhuma unidade de compra — o item
+   seria **sempre** recusado. Então o seletor só oferece receitas com rendimento em g,
+   kg, ml, l ou un, e diz quantas ficaram de fora e por quê.
+
+   ⚠️ **Limitação assumida.** Resolver de verdade exigiria mexer no domínio, o que esta
+   fase não faz. Filtrar e explicar é honesto; deixar escolher para falhar depois, não.
+
+### O que a fase deliberadamente não fez
+
+- **Não transformou a ficha técnica em árvore.** A sub-receita aparece como um
+  componente com nome, tipo, quantidade e custo, mais uma nota de que há componentes
+  vindos de outras receitas. `CalculatedSubRecipeItem` carrega a sub-receita calculada
+  inteira, e expandir isso é possível — mas seria outra fase, com outro objetivo.
+- **Não mexeu na Precificação.** `PricingForm` já montava `recipesById` e passava para
+  `calculateRecipe` desde a Fase 2-5: receitas com sub-receitas funcionam lá sem uma
+  linha de mudança.
+- **Não tocou no orçamento.** Nenhum componente interno atravessa para o documento do
+  cliente.
+
+### `sub_recipes` deixou de ser promessa
+
+`lib/features.ts` foi para `available`, com a `MATRIZ_APROVADA` confirmada junto — o
+guard existe para forçar essa confirmação. Uma asserção que usava `sub_recipes` como
+exemplo de "recurso planejado do Essencial" passou a usar `household_measures`, senão o
+rótulo do teste mentiria. **Medidas caseiras seguem `planned`** e continuam anunciadas
+como em desenvolvimento; é a P0-9C, e o critério para reclassificar é o mesmo: a tela
+existir.
