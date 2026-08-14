@@ -6,8 +6,8 @@
 > Marcar `[x]` ao concluir. Adicionar novas tarefas quando surgirem.
 > Antes de iniciar uma nova fase: parar, resumir o que foi feito e aguardar aprovação.
 
-**Fase atual:** P0-9B — Sub-receitas implementadas na interface (2026-08-13): seletor Ingrediente × Sub-receita na tela de Receitas, bloqueio de ciclo reaproveitando `validateRecipe` e correção da edição que descartava itens não-ingrediente. `sub_recipes` saiu de "planejado" na página de planos.
-**Próximo passo recomendado:** validações manuais em produção pendentes da P0-8A (botão de compra e e-mail de recuperação); depois P0-9C (Medidas caseiras), o último recurso ainda anunciado como em desenvolvimento; P1 permanece como evolução dos Orçamentos.
+**Fase atual:** P0-9C — Medidas caseiras, rendimento real e unidades seguras (2026-08-13): seletor de unidade de rendimento, normalização de unidades antigas, entrada por lata/caixinha/xícara/colher com conversão defensável e assistente de perda pelo rendimento real. **Nenhum recurso do Essencial continua anunciado como em desenvolvimento.**
+**Próximo passo recomendado:** validações manuais em produção pendentes da P0-8A (botão de compra e e-mail de recuperação) e abertura da venda; P1 permanece como evolução dos Orçamentos.
 
 > 🚨 **Antes da venda pública — validações externas, não resolvíveis em código:**
 > 1. Abrir `/precos` em produção, clicar em "Comprar acesso ao Essencial" e confirmar que vai para o checkout correto da Kiwify. **Não concluir nova compra de teste sem decisão do dono.**
@@ -213,12 +213,33 @@
 - [x] Rodar `typecheck`, `lint`, `build` e `git diff --check`
 - [ ] **Limitação conhecida:** receita com rendimento em unidade livre ("porções", "fatias") não pode virar componente. Resolver exigiria mexer no domínio — avaliar em fase própria
 
-### Fase P0-9C — Medidas caseiras (pendente)
-- [ ] Interface para xícaras e colheres; tabela de densidades e validações existem desde a Fase 1B-3
-- [x] O descarte de itens na edição já foi resolvido na P0-9B — itens de medida caseira atravessam a edição intactos
-- [ ] Escolher a chave de conversão (`farinha_trigo`, `acucar`, `cacau`, `liquido`) sem expor jargão à usuária
-- [ ] Lembrar que medida caseira não vale para ingrediente contado em `un` (o validador recusa)
-- [ ] Manter `household_measures` como `planned` até a interface existir
+### Fase P0-9C — Medidas caseiras, rendimento real e unidades seguras ✅
+- [x] Trocar o campo livre "Unidade do rendimento" por seletor com g, kg, ml, l e un
+- [x] Criar `lib/recipe-units.ts` com normalização de unidades antigas (`gr`, `gramas`, `quilo`, `mls`, `litro`, `unidade`…)
+- [x] Normalizar na leitura do store, **sem** tocar em `services/storage-service.ts` nem reescrever o arquivo gravado
+- [x] Preservar unidade livre sem equivalência segura ("porções", "fatias") como opção selecionável na edição, com aviso
+- [x] Mostrar na tela se a receita pode ou não ser usada como sub-receita, no momento em que a unidade é escolhida
+- [x] Criar `lib/household-input.ts` derivando as opções **do ingrediente escolhido**, nunca de lista fixa
+- [x] Embalagens: lata de leite condensado (395 g) e caixinha de creme de leite (200 g), presas ao nome do ingrediente
+- [x] Medidas caseiras: xícara, meia xícara, colher de sopa e colher de chá, pela tabela da Fase 1B-3
+- [x] Recusar medida caseira para ingrediente contado em `un` (o validador do domínio já recusa)
+- [x] Mostrar "Ainda não temos uma conversão segura para esse ingrediente. Use g ou ml." quando não houver referência
+- [x] Mostrar a prévia da conversão antes de adicionar, incluindo a referência usada
+- [x] Criar o assistente de rendimento real: estimado + real → perda calculada, aplicada só se a usuária clicar
+- [x] Sugerir o total de entrada só quando todos os itens compartilham a mesma dimensão; explicar quando houver mistura
+- [x] Exibir a conversão da medida caseira na Ficha técnica (`1 xícara` → `= 120 g`)
+- [x] Marcar medida caseira com selo na lista de itens e na listagem de receitas
+- [x] Reclassificar `household_measures` para `available` e confirmar na `MATRIZ_APROVADA`
+- [x] Trocar a asserção da matriz que dependia de existir recurso planejado no Essencial
+- [x] Preservar fórmulas, pricing engine, `calculateRecipe`, `APP_STATE_STORAGE_KEY` e dados antigos — nenhum arquivo de `modules/`, `services/` ou `types/` alterado
+- [x] Verificação isolada contra o domínio real: **46/46**; matriz de recursos: **31/31**; regressão da P0-9B: **13/13**
+- [x] Rodar `typecheck`, `lint`, `build` e `git diff --check`
+- [ ] **Limitação conhecida:** rendimento em unidade livre continua impedindo o uso como sub-receita — agora com aviso claro e caminho de correção
+- [ ] **Fora do escopo, registrado:** upload de receita e tabela nutricional (esta com implicação regulatória RDC/ANVISA)
+
+### Futuro — upload de receita e tabela nutricional (não implementados)
+- [ ] **Upload de receita:** importar uma receita pronta de arquivo ou texto. Fora do escopo da P0-9C; exige decidir formato, mapeamento de ingredientes e o que fazer com o que não casar
+- [ ] **Tabela nutricional:** ⚠️ tem implicação **regulatória** (rotulagem de alimentos, RDC/ANVISA). Um número errado num rótulo é problema legal da usuária, não só do app. Não sair sem decisão explícita, fonte de dados confiável e ressalva de responsabilidade — candidato natural a P1/Pro, nunca ao Essencial sem essa conversa
 
 ### Futuro — orientação contábil contextual
 - [ ] Avaliar um recurso “Fale com contador” ou conteúdo contextual, com escopo, responsabilidade e encaminhamento definidos antes de implementar
@@ -443,7 +464,7 @@
 > multicanal e custos fixos já existiam desde as Fases 2-5 e 2-6.
 - [x] Criar fator de correção — interface entregue na P0-9A
 - [x] Criar perda de produção — interface entregue na P0-9A
-- [ ] Criar medidas caseiras — P0-9C
+- [x] Criar medidas caseiras — interface entregue na P0-9C
 - [x] Criar sub-receitas — interface entregue na P0-9B
 - [x] Criar multicanal — canais padrão e customizados (Fases 2-5 e 2-6)
 - [x] Criar custos fixos — cadastro e rateio (Fase 2-6)

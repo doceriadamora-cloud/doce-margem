@@ -5,10 +5,15 @@ import { useState, useSyncExternalStore, type FormEvent } from "react";
 import {
   areUnitsCompatible,
   calculateRecipe,
+  convert,
+  getHouseholdConversion,
+  getUnitDimension,
   isPurchaseUnit,
   validateRecipe,
 } from "@/modules/pricing";
 import type {
+  HouseholdMeasure,
+  HouseholdMeasureRecipeItem,
   Ingredient,
   IngredientRecipeItem,
   PurchaseUnit,
@@ -17,6 +22,16 @@ import type {
   SubRecipeItem,
   ValidationError,
 } from "@/types/pricing";
+import {
+  YIELD_UNIT_OPTIONS,
+  hasUsableYieldUnit,
+  normalizeYieldUnit,
+} from "@/lib/recipe-units";
+import {
+  amountInBaseUnit,
+  getHouseholdOptions,
+  type HouseholdInputOption,
+} from "@/lib/household-input";
 import {
   getIngredientsServerSnapshot,
   getIngredientsSnapshot,
@@ -67,6 +82,11 @@ function formatPercent(value: number): string {
   return `${value.toLocaleString("pt-BR", { maximumFractionDigits: 2 })}%`;
 }
 
+/** Quantidade sem unidade, para prévias de conversão e rendimento. */
+function formatQuantity(value: number): string {
+  return value.toLocaleString("pt-BR", { maximumFractionDigits: 2 });
+}
+
 function buildIngredientsById(ingredients: Ingredient[]): Record<string, Ingredient> {
   const map: Record<string, Ingredient> = {};
   for (const ingredient of ingredients) {
@@ -109,6 +129,19 @@ function canBeUsedAsSubRecipe(recipe: Recipe): boolean {
   return isPurchaseUnit(recipe.yieldUnit);
 }
 
+/**
+ * Unidade de rendimento a exibir no seletor — Fase P0-9C.
+ *
+ * Receita antiga com unidade livre ("porções") **mantém a dela** como opção
+ * extra, selecionada. Forçar o seletor para "un" trocaria o significado do
+ * número da usuária sem ela pedir; deixar como está, com aviso, transforma a
+ * troca numa escolha consciente.
+ */
+function initialYieldUnit(editingRecipe: Recipe | null): string {
+  if (editingRecipe === null) return "un";
+  return normalizeYieldUnit(editingRecipe.yieldUnit) ?? editingRecipe.yieldUnit;
+}
+
 /* ── Exibição dos itens já adicionados ──
  *
  * Cobrem os três `kind` da união, inclusive medida caseira: a interface não
@@ -125,8 +158,17 @@ function itemLabel(item: RecipeItem): string {
   return item.kind === "subRecipe" ? item.subRecipeName : item.ingredientName;
 }
 
+const MEASURE_LABELS: Record<HouseholdMeasure, string> = {
+  xicara: "xícara(s)",
+  colher_sopa: "colher(es) de sopa",
+  colher_cha: "colher(es) de chá",
+  colher_cafe: "colher(es) de café",
+};
+
 function itemQuantityLabel(item: RecipeItem): string {
-  if (item.kind === "householdMeasure") return `${item.quantityUsed} (medida caseira)`;
+  if (item.kind === "householdMeasure") {
+    return `${item.quantityUsed} ${MEASURE_LABELS[item.measure]}`;
+  }
   return `${item.quantityUsed} ${item.unit}`;
 }
 
@@ -180,7 +222,7 @@ export default function RecipeForm({
   const [yieldQuantity, setYieldQuantity] = useState(
     editingRecipe ? String(editingRecipe.yieldQuantity) : "",
   );
-  const [yieldUnit, setYieldUnit] = useState(editingRecipe?.yieldUnit ?? "un");
+  const [yieldUnit, setYieldUnit] = useState(() => initialYieldUnit(editingRecipe));
   const [productionLossPercent, setProductionLossPercent] = useState(
     editingRecipe?.productionLossPercent !== undefined
       ? String(editingRecipe.productionLossPercent)
@@ -188,6 +230,17 @@ export default function RecipeForm({
   );
   const [notes, setNotes] = useState(editingRecipe?.notes ?? "");
   const [errors, setErrors] = useState<ValidationError[]>([]);
+
+  // P0-9C: unidade livre que veio de dado antigo e não tem equivalente seguro.
+  // Congelada no primeiro render para continuar disponível no seletor mesmo
+  // depois de a usuária experimentar outra opção.
+  const [legacyYieldUnit] = useState<string | null>(() => {
+    if (editingRecipe === null) return null;
+    return normalizeYieldUnit(editingRecipe.yieldUnit) === null
+      ? editingRecipe.yieldUnit
+      : null;
+  });
+  const yieldUnitIsUsable = hasUsableYieldUnit(yieldUnit);
 
   // Modo avançado (P0-9A). Congelado no primeiro render de propósito: se
   // dependesse do valor atual, apagar a perda para redigitar fecharia a seção
@@ -207,6 +260,15 @@ export default function RecipeForm({
   const [itemQuantityUsed, setItemQuantityUsed] = useState("");
   const [itemUnit, setItemUnit] = useState<PurchaseUnit>("g");
   const [itemError, setItemError] = useState<string | null>(null);
+
+  // Assistente de rendimento real (P0-9C). Não persiste: serve só para chegar
+  // ao percentual de perda que a usuária vai gravar.
+  const [estimatedYield, setEstimatedYield] = useState("");
+  const [realYield, setRealYield] = useState("");
+
+  // Medidas caseiras (P0-9C). `entryMode` só afeta o caminho do ingrediente.
+  const [entryMode, setEntryMode] = useState<"direct" | "household">("direct");
+  const [householdOptionId, setHouseholdOptionId] = useState("");
 
   // Sub-receitas (P0-9B).
   const [selectedSubRecipeId, setSelectedSubRecipeId] = useState("");
@@ -234,10 +296,104 @@ export default function RecipeForm({
   }
   const itemErrors = errors.filter((e) => e.field.startsWith("items"));
 
+  const selectedIngredient = ingredientsById[selectedIngredientId] ?? null;
+  // P0-9C: as opções vêm do ingrediente escolhido. Lista vazia significa que não
+  // há conversão defensável — e aí a interface pede g ou ml em vez de chutar.
+  const householdOptions: HouseholdInputOption[] = selectedIngredient
+    ? getHouseholdOptions(selectedIngredient)
+    : [];
+  const selectedHouseholdOption =
+    householdOptions.find((option) => option.id === householdOptionId) ?? null;
+
+  /** Prévia da conversão, para a usuária conferir antes de adicionar. */
+  const householdPreview = (() => {
+    if (selectedHouseholdOption === null) return null;
+    const quantity = parseRequiredNumber(itemQuantityUsed);
+    if (quantity === null || quantity <= 0) return null;
+    const converted = amountInBaseUnit(selectedHouseholdOption, quantity);
+    const reference =
+      selectedHouseholdOption.kind === "measure"
+        ? ` · como ${selectedHouseholdOption.referenceLabel}`
+        : "";
+    return `= ${formatQuantity(converted)} ${selectedHouseholdOption.baseUnit}${reference}`;
+  })();
+
   function handleSelectIngredient(id: string): void {
     setSelectedIngredientId(id);
+    setItemError(null);
+    // A lista de medidas muda com o ingrediente; manter a anterior selecionada
+    // levaria "1 lata" para um ingrediente que não vem em lata.
+    setHouseholdOptionId("");
     const ingredient = ingredientsById[id];
     if (ingredient) setItemUnit(ingredient.baseUnit);
+  }
+
+  /**
+   * Converte a medida caseira no item que o domínio entende — Fase P0-9C.
+   *
+   * Embalagem vira item de ingrediente comum, já em unidade-base: 1 lata são
+   * 395 g independentemente de densidade, e o domínio não precisa saber que
+   * veio de uma lata.
+   *
+   * Xícara e colher viram `HouseholdMeasureRecipeItem`, com a conversão feita
+   * pela tabela da Fase 1B-3 **dentro** do domínio — é lá que ela pode ser
+   * auditada, e é lá que a ficha técnica vai buscá-la de novo na impressão.
+   */
+  function buildHouseholdItem(
+    ingredient: Ingredient,
+    option: HouseholdInputOption,
+    quantity: number,
+  ): RecipeItem | null {
+    if (!ingredient.id) return null;
+
+    if (option.kind === "package") {
+      const item: IngredientRecipeItem = {
+        kind: "ingredient",
+        ingredientId: ingredient.id,
+        ingredientName: ingredient.name,
+        quantityUsed: amountInBaseUnit(option, quantity),
+        unit: ingredient.baseUnit,
+      };
+      return item;
+    }
+
+    const item: HouseholdMeasureRecipeItem = {
+      kind: "householdMeasure",
+      ingredientId: ingredient.id,
+      ingredientName: ingredient.name,
+      // "meia xícara" é 0,5 xícara: o fator entra na quantidade, e a medida
+      // gravada continua sendo uma das quatro que o domínio conhece.
+      quantityUsed: quantity * option.factor,
+      measure: option.measure,
+      conversionKey: option.conversionKey,
+    };
+    return item;
+  }
+
+  function handleAddHouseholdItem(): void {
+    if (!selectedIngredient || !selectedHouseholdOption) {
+      setItemError("Escolha o ingrediente e a medida caseira.");
+      return;
+    }
+    const parsedQuantity = parseRequiredNumber(itemQuantityUsed);
+    if (parsedQuantity === null || parsedQuantity <= 0) {
+      setItemError("Informe uma quantidade usada válida (maior que zero).");
+      return;
+    }
+
+    const newItem = buildHouseholdItem(
+      selectedIngredient,
+      selectedHouseholdOption,
+      parsedQuantity,
+    );
+    if (newItem === null) {
+      setItemError("Este ingrediente ainda não foi salvo. Cadastre-o novamente.");
+      return;
+    }
+
+    setItems((prev) => [...prev, newItem]);
+    setItemQuantityUsed("");
+    setItemError(null);
   }
 
   function handleAddItem(): void {
@@ -337,9 +493,13 @@ export default function RecipeForm({
     setProductionLossPercent("0");
     setNotes("");
     setComponentKind("ingredient");
+    setEntryMode("direct");
+    setHouseholdOptionId("");
     setSelectedIngredientId("");
     setItemQuantityUsed("");
     setItemUnit("g");
+    setEstimatedYield("");
+    setRealYield("");
     setSelectedSubRecipeId("");
     setSubRecipeQuantityUsed("");
     setSubRecipeUnit("g");
@@ -433,6 +593,71 @@ export default function RecipeForm({
         }
       : null;
 
+  /**
+   * Estimativa do que entra na panela — Fase P0-9C.
+   *
+   * Só soma quando **todos** os itens compartilham a mesma dimensão física.
+   * Misturar 500 g de chocolate com 200 ml de creme daria 700 de nada: sem
+   * densidade, massa e volume não se somam. Nesse caso devolve `"mixed"` e a
+   * interface pede para pesar o resultado pronto.
+   *
+   * É só uma sugestão de preenchimento. Não entra em cálculo nenhum.
+   */
+  const estimatedInputAmount = ((): { amount: number; unit: "g" | "ml" } | "mixed" | null => {
+    if (!preview?.ok || preview.value.items.length === 0) return null;
+
+    let dimension: "mass" | "volume" | null = null;
+    let total = 0;
+
+    for (const calculated of preview.value.items) {
+      let unit: PurchaseUnit;
+      let quantity: number;
+
+      if (calculated.kind === "householdMeasure") {
+        // A tabela do domínio já devolveu a quantidade em unidade-base.
+        const conversion = getHouseholdConversion(
+          calculated.item.conversionKey,
+          calculated.item.measure,
+        );
+        if (conversion === null) return null;
+        unit = conversion.baseUnit;
+        quantity = calculated.quantityInBaseUnit;
+      } else {
+        unit = calculated.item.unit;
+        quantity = calculated.item.quantityUsed;
+      }
+
+      const itemDimension = getUnitDimension(unit);
+      // Contagem não soma com massa nem volume: 3 ovos não são 3 g.
+      if (itemDimension === "count") return "mixed";
+      if (dimension === null) dimension = itemDimension;
+      else if (dimension !== itemDimension) return "mixed";
+
+      total += convert(quantity, unit, dimension === "mass" ? "g" : "ml");
+    }
+
+    if (dimension === null) return null;
+    return { amount: total, unit: dimension === "mass" ? "g" : "ml" };
+  })();
+
+  /**
+   * Perda calculada a partir do que a usuária informou.
+   *
+   * `perda = (1 − real / estimado) × 100`. Nada é calculado sem os dois valores:
+   * inventar perda seria mexer no custo dela por conta própria.
+   */
+  const yieldAssistant = (():
+    | { status: "loss"; percent: number }
+    | { status: "gain" }
+    | null => {
+    const estimated = parseRequiredNumber(estimatedYield);
+    const real = parseRequiredNumber(realYield);
+    if (estimated === null || real === null) return null;
+    if (estimated <= 0 || real <= 0) return null;
+    if (real >= estimated) return { status: "gain" };
+    return { status: "loss", percent: (1 - real / estimated) * 100 };
+  })();
+
   const summaryParts: string[] = [];
   if (previewLoss !== null && previewLoss !== undefined && previewLoss > 0) {
     summaryParts.push(`Perda ${formatPercent(previewLoss)}`);
@@ -515,54 +740,136 @@ export default function RecipeForm({
 
         {componentKind === "ingredient" ? (
           <>
-            <div className="grid grid-cols-2 gap-2">
-              <select
-                value={selectedIngredientId}
-                onChange={(e) => handleSelectIngredient(e.target.value)}
-                className={`col-span-2 ${inputClass}`}
-                disabled={noIngredientsRegistered}
-                aria-label="Ingrediente"
+            <select
+              value={selectedIngredientId}
+              onChange={(e) => handleSelectIngredient(e.target.value)}
+              className={inputClass}
+              disabled={noIngredientsRegistered}
+              aria-label="Ingrediente"
+            >
+              <option value="">Escolha um ingrediente</option>
+              {ingredients.map((ingredient) => (
+                <option key={ingredient.id} value={ingredient.id}>
+                  {ingredient.name}
+                </option>
+              ))}
+            </select>
+
+            {/* Medidas caseiras (P0-9C). Só aparece depois de escolher o
+                ingrediente, porque é ele que decide quais medidas existem. */}
+            {selectedIngredient !== null && (
+              <div
+                role="group"
+                aria-label="Forma de informar a quantidade"
+                className="mt-2 flex gap-1 rounded-full bg-stone-100 p-1 dark:bg-stone-950"
               >
-                <option value="">Escolha um ingrediente</option>
-                {ingredients.map((ingredient) => (
-                  <option key={ingredient.id} value={ingredient.id}>
-                    {ingredient.name}
-                  </option>
-                ))}
-              </select>
-              <input
-                type="number"
-                inputMode="decimal"
-                step="any"
-                min="0"
-                value={itemQuantityUsed}
-                onChange={(e) => setItemQuantityUsed(e.target.value)}
-                placeholder="Quantidade usada"
-                className={inputClass}
-                disabled={noIngredientsRegistered}
-                aria-label="Quantidade usada do ingrediente"
-              />
-              <select
-                value={itemUnit}
-                onChange={(e) => setItemUnit(e.target.value as PurchaseUnit)}
-                className={inputClass}
-                disabled={noIngredientsRegistered}
-                aria-label="Unidade do ingrediente"
-              >
-                {PURCHASE_UNITS.map((u) => (
-                  <option key={u.value} value={u.value}>
-                    {u.label}
-                  </option>
-                ))}
-              </select>
-            </div>
+                <ComponentKindButton
+                  active={entryMode === "direct"}
+                  onClick={() => {
+                    setEntryMode("direct");
+                    setItemError(null);
+                  }}
+                >
+                  Peso / volume
+                </ComponentKindButton>
+                <ComponentKindButton
+                  active={entryMode === "household"}
+                  onClick={() => {
+                    setEntryMode("household");
+                    setItemError(null);
+                  }}
+                >
+                  Medida caseira
+                </ComponentKindButton>
+              </div>
+            )}
+
+            {selectedIngredient === null || entryMode === "direct" ? (
+              <div className="mt-2 grid grid-cols-2 gap-2">
+                <input
+                  type="number"
+                  inputMode="decimal"
+                  step="any"
+                  min="0"
+                  value={itemQuantityUsed}
+                  onChange={(e) => setItemQuantityUsed(e.target.value)}
+                  placeholder="Quantidade usada"
+                  className={inputClass}
+                  disabled={noIngredientsRegistered}
+                  aria-label="Quantidade usada do ingrediente"
+                />
+                <select
+                  value={itemUnit}
+                  onChange={(e) => setItemUnit(e.target.value as PurchaseUnit)}
+                  className={inputClass}
+                  disabled={noIngredientsRegistered}
+                  aria-label="Unidade do ingrediente"
+                >
+                  {PURCHASE_UNITS.map((u) => (
+                    <option key={u.value} value={u.value}>
+                      {u.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            ) : householdOptions.length === 0 ? (
+              <p className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-800 dark:bg-amber-950 dark:text-amber-200">
+                Ainda não temos uma conversão segura para esse ingrediente. Use g ou ml — 1 xícara
+                muda de peso conforme o que está dentro, e um palpite aqui vira preço errado lá na
+                frente.
+              </p>
+            ) : (
+              <div className="mt-2 grid grid-cols-2 gap-2">
+                <select
+                  value={householdOptionId}
+                  onChange={(e) => {
+                    setHouseholdOptionId(e.target.value);
+                    setItemError(null);
+                  }}
+                  className={`col-span-2 ${inputClass}`}
+                  aria-label="Medida caseira"
+                >
+                  <option value="">Escolha a medida</option>
+                  {householdOptions.map((option) => (
+                    <option key={option.id} value={option.id}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+                <input
+                  type="number"
+                  inputMode="decimal"
+                  step="any"
+                  min="0"
+                  value={itemQuantityUsed}
+                  onChange={(e) => setItemQuantityUsed(e.target.value)}
+                  placeholder="Quantas?"
+                  className={inputClass}
+                  disabled={selectedHouseholdOption === null}
+                  aria-label="Quantas medidas"
+                />
+                <p className="self-center text-xs text-stone-500 dark:text-stone-400">
+                  {householdPreview ?? "Informe quantas medidas."}
+                </p>
+              </div>
+            )}
+
             {itemError && (
               <p className="mt-2 text-xs text-red-600 dark:text-red-400">{itemError}</p>
             )}
             <button
               type="button"
-              onClick={handleAddItem}
-              disabled={noIngredientsRegistered}
+              onClick={
+                selectedIngredient !== null && entryMode === "household"
+                  ? handleAddHouseholdItem
+                  : handleAddItem
+              }
+              disabled={
+                noIngredientsRegistered ||
+                (entryMode === "household" &&
+                  selectedIngredient !== null &&
+                  selectedHouseholdOption === null)
+              }
               className={addButtonClass}
             >
               + Adicionar à receita
@@ -663,6 +970,11 @@ export default function RecipeForm({
                       sub-receita
                     </span>
                   )}
+                  {item.kind === "householdMeasure" && (
+                    <span className="mr-1.5 rounded-full bg-stone-200 px-1.5 py-0.5 text-[11px] font-medium text-stone-600 dark:bg-stone-800 dark:text-stone-400">
+                      medida caseira
+                    </span>
+                  )}
                   {itemLabel(item)} — {itemQuantityLabel(item)}
                 </span>
                 <button
@@ -704,15 +1016,38 @@ export default function RecipeForm({
           />
         </Field>
         <Field label="Unidade do rendimento">
-          <input
-            type="text"
+          <select
             value={yieldUnit}
             onChange={(e) => setYieldUnit(e.target.value)}
-            placeholder="un, porções, fatias..."
             className={inputClass}
-          />
+          >
+            {YIELD_UNIT_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+            {/* Unidade livre de receita antiga: continua selecionável para não
+                trocar o significado do número sem a usuária pedir. */}
+            {legacyYieldUnit !== null && (
+              <option value={legacyYieldUnit}>{legacyYieldUnit} — unidade livre</option>
+            )}
+          </select>
         </Field>
       </div>
+
+      {/* P0-9C: rendimento é o que decide se a receita pode virar componente de
+          outra. Dizer isso aqui, no momento da escolha, evita a descoberta
+          frustrante lá na frente. */}
+      {yieldUnitIsUsable ? (
+        <p className="rounded-lg bg-emerald-50 px-3 py-2 text-xs leading-5 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200">
+          Esta receita pode ser usada como sub-receita em outras receitas.
+        </p>
+      ) : (
+        <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-800 dark:bg-amber-950 dark:text-amber-200">
+          Para usar como sub-receita, defina o rendimento em g, kg, ml, l ou un. Para recheios,
+          massas e cremes, o ideal é pesar o que ficou pronto e informar em gramas.
+        </p>
+      )}
 
       {/*
         Modo avançado (P0-9A). A perda de produção era um campo fixo com a dica
@@ -753,6 +1088,97 @@ export default function RecipeForm({
             . É esse valor maior que entra na precificação.
           </p>
         )}
+
+        {/*
+          Assistente de rendimento real — Fase P0-9C.
+
+          Ninguém sabe de cabeça que 1000 g virando 920 g são 8% de perda. A
+          usuária informa os dois números e decide se aplica; o app não preenche
+          a perda sozinho, porque isso mudaria o custo dela sem ela pedir.
+        */}
+        <div className="rounded-xl border border-stone-200 p-3 dark:border-stone-700">
+          <p className="text-sm font-medium text-stone-700 dark:text-stone-300">
+            Descobrir a perda pelo rendimento real
+          </p>
+          <p className="mt-1 text-xs leading-5 text-stone-500 dark:text-stone-400">
+            Para recheios, massas, cremes e caldas, o jeito mais confiável é pesar o que ficou
+            pronto e comparar com o que entrou.
+          </p>
+
+          {estimatedInputAmount === "mixed" && (
+            <p className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-800 dark:bg-amber-950 dark:text-amber-200">
+              Como esta receita mistura massa e volume, não dá para somar o que entrou com
+              segurança. Pese o rendimento final pronto para ter mais precisão.
+            </p>
+          )}
+
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            <Field label="Entrou (estimado)">
+              <input
+                type="number"
+                inputMode="decimal"
+                step="any"
+                min="0"
+                value={estimatedYield}
+                onChange={(e) => setEstimatedYield(e.target.value)}
+                placeholder="Ex.: 1000"
+                className={inputClass}
+              />
+            </Field>
+            <Field label="Rendeu pronto (real)">
+              <input
+                type="number"
+                inputMode="decimal"
+                step="any"
+                min="0"
+                value={realYield}
+                onChange={(e) => setRealYield(e.target.value)}
+                placeholder="Ex.: 920"
+                className={inputClass}
+              />
+            </Field>
+          </div>
+
+          {estimatedInputAmount !== null && estimatedInputAmount !== "mixed" && (
+            <button
+              type="button"
+              onClick={() =>
+                setEstimatedYield(String(Math.round(estimatedInputAmount.amount * 100) / 100))
+              }
+              className="mt-2 text-xs font-medium text-rose-700 hover:underline dark:text-rose-300"
+            >
+              Usar a soma dos ingredientes: {formatQuantity(estimatedInputAmount.amount)}{" "}
+              {estimatedInputAmount.unit}
+            </button>
+          )}
+
+          {yieldAssistant?.status === "loss" && (
+            <div className="mt-3 flex flex-wrap items-center gap-3 rounded-lg bg-rose-50 px-3 py-2 dark:bg-rose-950">
+              <p className="text-sm text-rose-800 dark:text-rose-200">
+                Perda calculada:{" "}
+                <strong className="font-semibold">{formatPercent(yieldAssistant.percent)}</strong>
+              </p>
+              <button
+                type="button"
+                onClick={() =>
+                  setProductionLossPercent(
+                    String(Math.round(yieldAssistant.percent * 100) / 100),
+                  )
+                }
+                className="rounded-full bg-rose-600 px-3 py-1 text-xs font-semibold text-white transition-colors hover:bg-rose-700"
+              >
+                Usar esta perda
+              </button>
+            </div>
+          )}
+
+          {yieldAssistant?.status === "gain" && (
+            <p className="mt-3 rounded-lg bg-stone-100 px-3 py-2 text-xs leading-5 text-stone-600 dark:bg-stone-900 dark:text-stone-400">
+              O rendimento real ficou igual ou maior que o estimado, então não há perda a
+              registrar. Confira se os dois valores estão na mesma unidade.
+            </p>
+          )}
+        </div>
 
         <Field
           label="Observações técnicas (uso interno)"

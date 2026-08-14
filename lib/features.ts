@@ -138,9 +138,9 @@ const FEATURES: Record<FeatureKey, FeatureDefinition> = {
    * estes três compõem o "avançado básico" do Essencial, coerente com a tabela
    * de planos do README ("Modo simples + avançado básico", ✅ nas duas colunas).
    *
-   * O motor de cálculo dos três existe desde a Fase 1B. O que separa `available`
-   * de `planned` aqui é só a interface: `advanced_mode` ganhou a dela na Fase
-   * P0-9A, `sub_recipes` na P0-9B; medidas caseiras continuam sem tela (P0-9C).
+   * O motor de cálculo dos três existe desde a Fase 1B, e as três ganharam
+   * interface na sequência P0-9A → P0-9B → P0-9C. Nenhum recurso do Essencial
+   * continua anunciado como em desenvolvimento na página de planos.
    */
   advanced_mode: {
     key: "advanced_mode",
@@ -165,9 +165,12 @@ const FEATURES: Record<FeatureKey, FeatureDefinition> = {
   household_measures: {
     key: "household_measures",
     label: "Medidas caseiras",
-    description: "Informe quantidades em xícaras e colheres, sem precisar de balança.",
+    description:
+      "Informe latas, caixinhas, xícaras e colheres quando houver conversão confiável para o ingrediente.",
     minimumPlan: "essential",
-    status: "planned",
+    // P0-9C: ganhou interface na tela de Receitas. Com ela, nenhum recurso do
+    // Essencial continua anunciado como em desenvolvimento.
+    status: "available",
   },
 
   /* ── Pro Anual, planejados ──

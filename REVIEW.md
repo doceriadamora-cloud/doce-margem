@@ -2105,3 +2105,92 @@ verdade exigiria mexer no domínio, o que esta fase não faz.
 - `/precos` conferida no build: Modo avançado e Sub-receitas sem selo; Medidas caseiras
   ainda "Em desenvolvimento". `/receitas`, `/precificacao` e `/orcamentos` seguem em 307.
 - `git diff --check`: passou sem erros.
+
+
+---
+
+## Fase P0-9C — Medidas caseiras, rendimento real e unidades seguras (2026-08-13)
+
+> Fase de **interface e tolerância de entrada**. Nenhum arquivo de `modules/`,
+> `services/` ou `types/` foi tocado; nenhuma fórmula alterada.
+
+### O defeito que originou a fase
+
+A P0-9B validou sub-receitas com unidades reconhecidas. Na prática apareceu o caso real:
+a usuária digita **"gr"** no rendimento e a receita fica inelegível como sub-receita —
+`isUnitCompatibleWithYield` compara com as cinco unidades canônicas, e "gr" não é nenhuma
+delas. A receita parecia certa e o app dizia não, sem explicar.
+
+### As três entregas
+
+1. **Unidade de rendimento virou seletor** (g, kg, ml, l, un), com `lib/recipe-units.ts`
+   normalizando o que já estava gravado. A normalização acontece **na leitura do store**
+   — `services/storage-service.ts` não foi tocado, e o arquivo gravado só muda quando a
+   usuária salva algo.
+
+   "Porções", "fatias" e "pedaços" **não** são convertidas: mapear para "un" apagaria a
+   informação dela. Continuam legíveis e selecionáveis como "unidade livre" na edição,
+   com aviso do que isso impede.
+
+2. **Medidas caseiras** (`lib/household-input.ts`), com as opções derivadas do
+   ingrediente escolhido. Embalagem (lata 395 g, caixinha 200 g) vira item de ingrediente
+   comum já convertido; xícara e colher viram `HouseholdMeasureRecipeItem`, com a
+   conversão feita pela tabela da Fase 1B-3 dentro do domínio.
+
+3. **Assistente de rendimento real** no Modo avançado: estimado + real → perda calculada,
+   aplicada **só se a usuária clicar**. Preencher sozinho mudaria o custo dela sem ela
+   pedir.
+
+### A regra que governa as conversões
+
+**Só oferecer conversão que dá para defender.** 1 xícara de farinha são 120 g e 1 xícara
+de açúcar são 180 g; num app de precificação, um número errado aqui vira preço errado na
+ponta, em silêncio. Sem referência confiável, a tela pede g ou ml em vez de chutar.
+
+Consequências verificadas: cacau não recebe "lata de leite condensado"; leite condensado
+não recebe "xícara" (nenhuma tabela responde por ele — a lata é a ferramenta certa);
+ingrediente contado em `un` não recebe medida caseira nenhuma.
+
+### Verificação isolada contra o domínio real — 46/46
+
+Inclui o teste manual sugerido, ponta a ponta:
+
+| Verificação | Resultado |
+|---|---|
+| 15 normalizações de unidade (`gr`, `Grama`, `Kilos`, `mls`, `lt`, `und`…) | ✅ |
+| 5 unidades livres preservadas (`porções`, `fatias`, `pedaços`, `potes`, vazio) | ✅ |
+| Lista sem alteração mantém a **mesma referência** (evita re-render infinito) | ✅ |
+| 1 lata = 395 g · 1 caixinha = 200 g | ✅ |
+| 1 xícara de cacau = 90 g · meia xícara = 45 g · 1 xícara de líquido = 240 ml | ✅ |
+| Cacau não recebe lata; leite condensado não recebe xícara; ovos não recebem nada | ✅ |
+| Brigadeiro Recheio (lata + caixinha + meia xícara de cacau) → R$ 16,45 / 920 g | ✅ |
+| Bolo de pote com 200 g do recheio → custo proporcional | ✅ |
+| Perda de 8% aplica a fórmula da P0-9A sem alteração | ✅ |
+
+Matriz de recursos: **31/31**. Regressão da P0-9B (sub-receitas): **13/13**.
+
+### Efeito comercial
+
+Com `household_measures` em `available`, **nenhum recurso do Essencial continua marcado
+como "Em desenvolvimento"** em `/precos` — conferido no build: zero ocorrências do selo.
+Fecha o risco levantado na auditoria P0-8 sobre a distância entre promessa e produto.
+
+### Fronteira preservada
+
+- Precificação e Orçamento: **zero mudança de código**.
+- `APP_STATE_STORAGE_KEY`, schema e `storageService` intactos. `HouseholdMeasureRecipeItem`
+  já fazia parte de `RecipeItem` desde a Fase 1B-3.
+- Modo avançado (P0-9A) e sub-receitas (P0-9B) verificados sem regressão.
+
+### Registrado como fora de escopo
+- **Upload de receita** — fase própria.
+- **Tabela nutricional** — ⚠️ implicação regulatória (RDC/ANVISA). Não sair sem decisão
+  explícita, fonte confiável e ressalva de responsabilidade.
+
+### Validação
+- `npm run typecheck`: passou.
+- `npm run lint`: passou.
+- `npm run build`: passou no Next.js 16.2.9; 21 rotas, todas dinâmicas.
+- `/precos` conferida no build: os três recursos sem selo; gating de `/receitas`,
+  `/precificacao` e `/orcamentos` mantido em 307.
+- `git diff --check`: passou sem erros.

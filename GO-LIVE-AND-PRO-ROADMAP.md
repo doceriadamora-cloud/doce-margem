@@ -134,6 +134,50 @@ Só **Medidas caseiras** (P0-9C). Com ela, a página de planos deixa de ter qual
 do Essencial marcado como em desenvolvimento — o risco de distância entre promessa e
 produto, levantado na auditoria P0-8, fecha por completo.
 
+## Atualização P0-9C — o Essencial não promete mais nada (2026-08-13)
+
+O terceiro e último recurso anunciado como "Em desenvolvimento" saiu da promessa:
+
+| Recurso | Antes | Agora |
+|---|---|---|
+| Modo avançado | `planned` | ✅ `available` (P0-9A) |
+| Sub-receitas | `planned` | ✅ `available` (P0-9B) |
+| **Medidas caseiras** | `essential / planned` | ✅ `essential / available` — interface entregue |
+
+**Conferido no build: `/precos` tem zero ocorrências do selo "Em desenvolvimento —
+incluído no Essencial".** O risco levantado na auditoria P0-8 — distância entre o que a
+página promete e o que a compradora encontra no primeiro acesso — está fechado.
+
+### O que entrou
+
+1. **Unidade de rendimento virou seletor** (g, kg, ml, l, un). O campo livre era uma
+   armadilha real: quem escrevia "gr" ficava com uma receita que não podia virar
+   sub-receita, e o app dizia não sem explicar. Unidades antigas comuns são normalizadas
+   na leitura; "porções" e "fatias" são preservadas, com aviso do que impedem.
+2. **Medidas caseiras** com conversão derivada do ingrediente: lata de leite condensado
+   (395 g), caixinha de creme de leite (200 g), xícara, meia xícara e colheres. Sem
+   referência confiável, o app pede g ou ml em vez de chutar — 1 xícara de farinha e 1 de
+   açúcar não pesam o mesmo, e um palpite aqui vira preço errado na ponta.
+3. **Assistente de rendimento real** que calcula a perda a partir do que entrou e do que
+   rendeu pronto, sem preencher o campo sozinho.
+
+Nenhuma fórmula alterada; nenhum arquivo de `modules/`, `services/` ou `types/` tocado.
+Verificação isolada contra o domínio real: **46/46**, incluindo o cenário Brigadeiro
+Recheio → Bolo de pote.
+
+### Fora de escopo, registrado
+
+- **Upload de receita** — fase própria.
+- **Tabela nutricional** — ⚠️ implicação **regulatória** (rotulagem de alimentos,
+  RDC/ANVISA). Um número errado num rótulo vira problema legal da usuária, não só do app.
+  Candidato a P1/Pro, nunca ao Essencial sem decisão explícita, fonte confiável e
+  ressalva de responsabilidade.
+
+### O que ainda separa o produto da venda aberta
+
+Nada de produto. Restam as **três validações manuais da P0-8A**: botão de compra em
+produção, e-mail de recuperação de senha e mensagem de teste no WhatsApp de suporte.
+
 > ℹ️ Correção de registro: o item **I4** ("`Header` mostra 5 links que rebatem para
 > `/login`") já estava resolvido antes da P0-8 — o cabeçalho só mostra a navegação
 > completa para sessão autenticada. O item **I5** ("sem canal de suporte") foi resolvido

@@ -86,7 +86,8 @@ const MATRIZ_APROVADA: Record<FeatureKey, `${FeatureMinimumPlan} / ${FeatureStat
   advanced_mode: "essential / available",
   // P0-9B entregou a interface de sub-receitas na tela de Receitas.
   sub_recipes: "essential / available",
-  household_measures: "essential / planned",
+  // P0-9C entregou medidas caseiras. Nenhum recurso do Essencial fica planejado.
+  household_measures: "essential / available",
   menu_engineering: "pro_annual / planned",
   price_history: "pro_annual / planned",
   cloud_sync: "pro_annual / planned",
@@ -170,10 +171,17 @@ export function runFeatureValidations(): FeatureCheckResult[] {
   const planejados = ALL_FEATURES.filter((f) => f.status === "planned");
   check("existem recursos planejados na matriz", planejados.length > 0, `${planejados.length}`);
   check(
-    // Era `sub_recipes` até a P0-9B entregar a interface dela; trocado para o
-    // recurso que ainda está planejado, senão o rótulo mente.
-    "planejado do Essencial libera para Essencial (status não gateia)",
-    canAccessFeature(ESSENCIAL, "household_measures") === true,
+    // Este check já usou `sub_recipes` (até a P0-9B) e `household_measures`
+    // (até a P0-9C). Depois da P0-9C **não existe mais recurso planejado no
+    // Essencial**, então a afirmação virou outra — e é a que interessa vigiar
+    // agora: a página de planos não pode voltar a prometer o que não existe.
+    "nenhum recurso do Essencial está planejado — nada em desenvolvimento na oferta",
+    ALL_FEATURES.filter((f) => f.minimumPlan === "essential" && f.status === "planned")
+      .length === 0,
+  );
+  check(
+    "status continua não gateando: planejado do Pro libera para Pro",
+    canAccessFeature(PRO, "price_history") === true,
   );
   check(
     "planejado do Pro NÃO libera para Essencial",

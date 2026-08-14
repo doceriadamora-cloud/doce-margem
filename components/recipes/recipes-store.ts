@@ -12,6 +12,7 @@
  */
 
 import { loadRecipes, saveRecipes } from "@/services";
+import { withNormalizedYieldUnits } from "@/lib/recipe-units";
 import type { Recipe } from "@/types/pricing";
 
 type Listener = () => void;
@@ -22,9 +23,25 @@ const EMPTY_RECIPES: Recipe[] = [];
 let cachedRecipes: Recipe[] | null = null;
 const listeners = new Set<Listener>();
 
+/**
+ * Lê do storage e normaliza a unidade de rendimento — Fase P0-9C.
+ *
+ * Receita antiga gravada com "gr" passa a ser lida como "g", que é o que o
+ * domínio reconhece. Sem isso, ela ficava inelegível como sub-receita sem que a
+ * usuária tivesse feito nada de errado.
+ *
+ * A normalização acontece **na leitura**, não no `storageService`: o arquivo
+ * gravado só muda quando a usuária salva alguma coisa, e nada é reescrito por
+ * baixo dela. Unidade sem equivalência segura ("porções", "fatias") passa
+ * intacta — ver `lib/recipe-units.ts`.
+ */
+function loadNormalizedRecipes(): Recipe[] {
+  return withNormalizedYieldUnits(loadRecipes());
+}
+
 function ensureLoaded(): Recipe[] {
   if (cachedRecipes === null) {
-    cachedRecipes = loadRecipes();
+    cachedRecipes = loadNormalizedRecipes();
   }
   return cachedRecipes;
 }
@@ -60,7 +77,7 @@ export function getRecipesServerSnapshot(): Recipe[] {
 
 /** Recarrega o cache a partir do storage após uma importação completa de backup. */
 export function reloadRecipesFromStorage(): void {
-  cachedRecipes = loadRecipes();
+  cachedRecipes = loadNormalizedRecipes();
   notify();
 }
 

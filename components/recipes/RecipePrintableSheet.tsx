@@ -1,5 +1,6 @@
 "use client";
 
+import { getHouseholdConversion } from "@/modules/pricing";
 import { formatCurrency } from "@/components/pricing/pricing-formatters";
 import type {
   CalculatedRecipe,
@@ -71,6 +72,23 @@ function getItemQuantity(calculatedItem: CalculatedRecipeItem): string {
   }
   const item = calculatedItem.item;
   return `${formatNumber(item.quantityUsed)} ${item.unit}`;
+}
+
+/**
+ * Quanto a medida caseira virou em peso/volume — Fase P0-9C.
+ *
+ * A ficha é documento de produção: "1 xícara" sozinho não ajuda quem está com a
+ * balança na mão. A unidade-base vem da mesma tabela que fez a conversão, não de
+ * uma suposição daqui.
+ */
+function getHouseholdConversionLabel(calculatedItem: CalculatedRecipeItem): string | null {
+  if (calculatedItem.kind !== "householdMeasure") return null;
+  const conversion = getHouseholdConversion(
+    calculatedItem.item.conversionKey,
+    calculatedItem.item.measure,
+  );
+  if (conversion === null) return null;
+  return `${formatNumber(calculatedItem.quantityInBaseUnit)} ${conversion.baseUnit}`;
 }
 
 /**
@@ -177,6 +195,16 @@ export default function RecipePrintableSheet({
                     </td>
                     <td className="px-2 py-3 text-right text-stone-700">
                       {getItemQuantity(calculatedItem)}
+                      {/* P0-9C: "1 xícara" vira "= 120 g" para quem está na
+                          produção com a balança na mão. */}
+                      {(() => {
+                        const converted = getHouseholdConversionLabel(calculatedItem);
+                        return converted !== null ? (
+                          <span className="mt-0.5 block text-xs text-stone-500">
+                            = {converted}
+                          </span>
+                        ) : null;
+                      })()}
                       {/* Modo avançado (P0-9A): fator ≠ 1 muda o custo do item,
                           então precisa estar visível na ficha, não só no cadastro. */}
                       {(() => {

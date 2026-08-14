@@ -181,6 +181,11 @@ export default function RecipeList({
                       sub-receita
                     </span>
                   )}
+                  {item.kind === "householdMeasure" && (
+                    <span className="rounded-full bg-stone-200 px-1.5 py-0.5 text-[11px] font-medium text-stone-600 dark:bg-stone-800 dark:text-stone-400">
+                      medida caseira
+                    </span>
+                  )}
                   <span>{describeRecipeItem(item)}</span>
                 </li>
               ))}

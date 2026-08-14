@@ -1742,3 +1742,99 @@ exemplo de "recurso planejado do Essencial" passou a usar `household_measures`, 
 rótulo do teste mentiria. **Medidas caseiras seguem `planned`** e continuam anunciadas
 como em desenvolvimento; é a P0-9C, e o critério para reclassificar é o mesmo: a tela
 existir.
+
+
+---
+
+## 2026-08-13 — Unidade livre foi o defeito; conversão sem lastro seria o próximo
+
+### Decisão
+
+A Fase P0-9C fecha a trinca do "avançado básico" com três entregas ligadas pelo mesmo
+fio: **a usuária precisa conseguir informar quantidade e rendimento de um jeito que o
+app entenda, sem precisar aprender o vocabulário do app.**
+
+Nenhuma fórmula foi criada ou alterada. Nenhum arquivo de `modules/`, `services/` ou
+`types/` foi tocado.
+
+### 1. Unidade de rendimento: campo livre era uma armadilha
+
+O rendimento era texto livre. Quem escreveu "gr" ficou com uma receita que **não podia
+virar sub-receita** — `isUnitCompatibleWithYield` compara com as cinco unidades
+canônicas, e "gr" não é nenhuma delas. A receita parecia certa, e o app dizia não sem
+explicar por quê. Foi encontrado na prática, depois da P0-9B.
+
+Agora é seletor. E `lib/recipe-units.ts` traduz o que já está gravado: `gr/grama/gramas`,
+`quilo/kilo`, `mililitro/mls`, `litro/lt`, `unidade/und/unid`.
+
+Três decisões dentro disso:
+
+1. **A normalização mora em `lib/`, não em `modules/pricing/`.** O domínio conhece cinco
+   unidades canônicas e nada mais; tolerar o que a usuária digitou é responsabilidade da
+   camada de aplicação. Misturar as duas coisas faria o domínio carregar sinônimos de
+   português para sempre.
+2. **Normaliza na leitura do store, não no `storageService`.** O arquivo gravado só muda
+   quando a usuária salva alguma coisa. Nada é reescrito por baixo dela.
+3. **"Porções", "fatias" e "pedaços" NÃO são normalizadas.** Parecem contagem, e mapear
+   para "un" seria fácil — mas apagaria a informação que ela quis registrar e mudaria o
+   significado do número dela sem avisar. Continuam legíveis, continuam selecionáveis na
+   edição como "unidade livre", e a tela explica o que isso impede.
+
+### 2. Medidas caseiras: só conversão que dá para defender
+
+`lib/household-input.ts` deriva as opções **do ingrediente escolhido**, nunca de uma
+lista fixa. É a regra que governa o arquivo inteiro.
+
+O motivo é aritmético e caro: 1 xícara de farinha são 120 g, 1 xícara de açúcar são
+180 g. Num app de precificação, um número errado aqui vira **preço errado na ponta, em
+silêncio**. Oferecer "xícara" para qualquer coisa seria transformar uma ajuda em risco.
+
+Dois mecanismos, de propósito diferentes:
+
+- **Embalagem** (lata de leite condensado, caixinha de creme de leite): peso de fábrica,
+  independe de densidade. Vira item de ingrediente comum, já convertido — o domínio nem
+  fica sabendo, e não precisa: 395 g são 395 g. Cada preset é preso ao **nome** do
+  ingrediente: oferecer "lata" para cacau colocaria 395 g de cacau na receita.
+- **Medida caseira** (xícara, meia xícara, colher de sopa, colher de chá): depende de
+  densidade. Vira `HouseholdMeasureRecipeItem`, e a conversão acontece **dentro** do
+  domínio, pela tabela da Fase 1B-3 — onde pode ser auditada, corrigida e reencontrada
+  pela ficha técnica na impressão.
+
+Quando não há referência confiável, a resposta é honesta: *"Ainda não temos uma conversão
+segura para esse ingrediente. Use g ou ml."* É melhor a usuária pesar do que o app
+chutar. Ingrediente contado em `un` nunca recebe medida caseira — o validador do domínio
+recusa, e uma xícara de ovos não significa nada.
+
+### 3. Assistente de rendimento real: calcula, mas não aplica sozinho
+
+Ninguém sabe de cabeça que 1000 g virando 920 g são 8% de perda. A usuária informa os
+dois números e o app mostra o percentual, com um botão para aplicar.
+
+**O campo não é preenchido automaticamente.** Preencher sozinho mudaria o custo dela sem
+ela pedir, e a fórmula da perda — validada desde a Fase 1B-1 — passaria a ser alimentada
+por um palpite do app. O assistente calcula; a decisão continua sendo dela.
+
+A sugestão do "quanto entrou" só aparece quando **todos** os itens compartilham a mesma
+dimensão física. Misturar 500 g de chocolate com 200 ml de creme daria 700 de nada: sem
+densidade, massa e volume não se somam. Nesse caso o app não soma e explica que o certo é
+pesar o resultado pronto.
+
+### O Essencial não promete mais nada em desenvolvimento
+
+Com `household_measures` em `available`, **nenhum recurso do Essencial continua marcado
+como "Em desenvolvimento"** na página de planos. Isso fecha, em produto, o risco que a
+auditoria P0-8 levantou: a distância entre o que a página promete e o que a compradora
+encontra no primeiro acesso.
+
+A asserção da matriz que dependia de existir um recurso planejado no Essencial foi
+substituída pela invariante que passou a valer — *nenhum recurso do Essencial está
+planejado* —, que é a que interessa vigiar daqui em diante.
+
+### O que ficou de fora, e por quê
+
+- **Upload de receita:** exige decidir formato, mapeamento de ingredientes e o que fazer
+  com o que não casar. Fase própria.
+- **Tabela nutricional:** ⚠️ tem implicação **regulatória** (rotulagem de alimentos,
+  RDC/ANVISA). Um número errado num rótulo vira problema legal da usuária, não só do app.
+  Não deve sair sem decisão explícita, fonte de dados confiável e ressalva de
+  responsabilidade — candidato a P1/Pro, nunca ao Essencial sem essa conversa.

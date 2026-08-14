@@ -49,6 +49,7 @@ A oferta disponível hoje é o **Minha Fatia Essencial**. O Pro Anual é uma pos
 | Cadastro de ingredientes | ✅ | ✅ |
 | Ficha técnica / receitas | ✅ | ✅ |
 | Sub-receitas (receita dentro de receita) | ✅ | ✅ |
+| Medidas caseiras (lata, caixinha, xícara, colher) | ✅ | ✅ |
 | Impressão da ficha técnica da receita | ✅ | ✅ |
 | CMV, custo unitário | ✅ | ✅ |
 | Preço sugerido, margem, markup | ✅ | ✅ |
@@ -261,7 +262,32 @@ No formulário de Receitas, "Adicionar componente" alterna entre **Ingrediente**
 1. **Nada de ciclo.** A receita em edição não aparece na própria lista, e cada inclusão passa por `validateRecipe`, que detecta auto-referência e ciclo indireto (`CIRCULAR_REFERENCE`, Fase 1B-2). O erro vira mensagem amigável antes de o item entrar na lista.
 2. **Só receitas com rendimento em unidade conhecida** (g, kg, ml, l, un) podem virar componente. `SubRecipeItem.unit` é `PurchaseUnit`, e rendimento em texto livre ("porções", "fatias") não casa com nenhuma — o item seria recusado na validação. O seletor filtra e explica o motivo, em vez de deixar escolher para falhar depois.
 
-> ⚠️ **Limitação conhecida:** para usar uma receita como componente, o rendimento dela precisa estar numa das cinco unidades. Ajustar isso exigiria mexer no domínio e ficou fora da P0-9B.
+> ⚠️ **Limitação conhecida:** para usar uma receita como componente, o rendimento dela precisa estar numa das cinco unidades. A P0-9C reduziu muito o impacto disso ao trocar o campo livre por seletor e normalizar as unidades antigas.
+
+### Medidas caseiras, rendimento real e unidades seguras (Fase P0-9C)
+
+**1. Unidade de rendimento virou seletor.** O campo era texto livre, e quem escrevia "gr" ficava com uma receita que não podia virar sub-receita — o app dizia não sem explicar. Agora só há g, kg, ml, l e un.
+
+`lib/recipe-units.ts` normaliza o que já estava gravado: `gr/grama/gramas → g`, `quilo/kilo → kg`, `mililitro/mls → ml`, `litro/lt → l`, `unidade/und/unid → un`. A normalização acontece **na leitura do store**, não no `storageService`: o arquivo só muda quando a usuária salva algo.
+
+Unidades sem equivalência segura — "porções", "fatias", "pedaços" — **não** são convertidas. Mapear para "un" apagaria a informação que ela quis registrar. Elas continuam legíveis, ficam selecionáveis como "unidade livre" na edição, e a tela explica que impedem o uso como sub-receita.
+
+**2. Medidas caseiras.** `lib/household-input.ts` deriva as opções **do ingrediente escolhido**, nunca de uma lista fixa. Dois mecanismos diferentes:
+
+| Tipo | Exemplos | Como funciona |
+|---|---|---|
+| Embalagem | lata de leite condensado (395 g), caixinha de creme de leite (200 g) | Peso de fábrica, não depende de densidade. Vira item de ingrediente comum já convertido |
+| Medida caseira | xícara, meia xícara, colher de sopa, colher de chá | Depende de densidade. Vira `HouseholdMeasureRecipeItem`, com a tabela da Fase 1B-3 convertendo **dentro** do domínio |
+
+A regra que governa o arquivo: **só oferecer conversão que dá para defender**. 1 xícara de farinha são 120 g e 1 xícara de açúcar são 180 g — num app de precificação, um número errado aqui vira preço errado na ponta, em silêncio. Quando não dá para inferir com segurança, a tela diz *"Ainda não temos uma conversão segura para esse ingrediente. Use g ou ml."*
+
+Ingrediente contado em `un` nunca recebe medida caseira: o validador do domínio recusa, e uma xícara de ovos não significa nada.
+
+**3. Assistente de rendimento real.** Dentro do Modo avançado: a usuária informa o que entrou e o que rendeu pronto, e o app calcula `perda = (1 − real / estimado) × 100`. Ela decide se aplica — **o campo não é preenchido sozinho**, porque isso mudaria o custo dela sem ela pedir.
+
+Quando todos os itens compartilham a mesma dimensão física, o app oferece a soma como estimativa. Quando a receita mistura massa e volume, ele **não soma** e explica: sem densidade, 500 g e 200 ml não viram 700 de nada — o certo é pesar o resultado pronto.
+
+**Fora do escopo, registrado:** upload de receita e tabela nutricional. A segunda tem implicação regulatória (RDC/ANVISA) e não deve sair sem decisão explícita.
 
 **Correção que veio junto:** `RecipeForm` inicializava a lista de itens filtrando `kind: "ingredient"`, então salvar uma edição descartava qualquer outro tipo. Era inócuo enquanto a interface não criava sub-receitas e viraria destrutivo no instante em que passou a criar.
 
@@ -366,5 +392,5 @@ Desenvolvimento **por fases**, com aprovação entre cada uma. Veja [TASKS.md](T
 - **Fase P0-8A — Pós-venda mínimo:** implementada com recuperação de senha, canal de suporte visível (WhatsApp oficial já configurado), páginas legais (`/termos`, `/privacidade`, `/reembolso`), aviso fiscal dentro da Precificação e total do parcelamento em `/precos`. Antes da venda pública, restam duas validações manuais em produção: o botão de compra em `/precos` e o e-mail de recuperação de senha.
 - **Fase P0-9A — Modo avançado:** implementada como área opcional e recolhida em Ingredientes (fator de correção) e Receitas (perda de produção e observações técnicas), refletida na Ficha técnica e na Precificação. `advanced_mode` deixou de ser recurso planejado na página de planos.
 - **Fase P0-9B — Sub-receitas:** implementada na tela de Receitas, com seletor de tipo de componente, bloqueio de ciclo reaproveitando `validateRecipe` e correção da edição que descartava itens não-ingrediente. `sub_recipes` deixou de ser recurso planejado.
-- **Fase P0-9C — Medidas caseiras:** ainda planejada. O motor e a tabela de densidades existem desde a Fase 1B-3; falta a interface.
+- **Fase P0-9C — Medidas caseiras, rendimento real e unidades seguras:** implementada com seletor de unidade de rendimento, normalização de unidades antigas, entrada por lata/caixinha/xícara/colher quando há conversão confiável e assistente que calcula a perda a partir do rendimento real. **Nenhum recurso do Essencial continua anunciado como em desenvolvimento.**
 - **P1 recomendado — Orçamentos avançados:** evolução da rota atual com clientes, histórico, status, duplicação de orçamento e reaproveitamento de cliente.
