@@ -1067,3 +1067,53 @@ perfis com histórico, entregabilidade do convite e a revisão pré-venda.
   daqui é a continuação dele.
 - **`README.md`** — não alterado. A tabela de planos continua batendo com
   `lib/features.ts`.
+
+
+## Atualização P0-10 — salvamento em nuvem (2026-08-14)
+
+O app passou a guardar uma **cópia automática do estado na nuvem** para quem está logada:
+tabela `public.user_app_state`, uma linha por conta, `AppState` em JSONB, RLS por
+`auth.uid()`. O `localStorage` continua sendo o cache que a interface lê; a nuvem é a
+cópia que sobrevive a trocar de navegador, de aparelho ou limpar o cache.
+
+### ⚠️ Isto mexe na fronteira Essencial × Pro
+
+O capítulo 4.2 deste roadmap classifica **Sincronização em nuvem** como o item de maior
+valor recorrente do Pro — "o valor recorrente óbvio: os dados dela sobrevivem a trocar de
+celular" — e a peça mais cara de construir. A P0-10 entregou salvamento em nuvem para o
+**Essencial**.
+
+A distinção que sobra para o Pro é real, mas fina:
+
+| Entregue no Essencial (P0-10) | Reservado ao Pro |
+|---|---|
+| Cópia automática, último a escrever vence | Sincronização com merge e resolução de conflito |
+| Uma pessoa, um aparelho por vez | Tempo real, vários aparelhos simultâneos |
+| Estado inteiro, sem consulta por entidade | Histórico de preços, alertas, relatórios |
+
+**Uma compradora não vai enxergar essa diferença.** Por isso a classificação de
+`cloud_sync` **não foi alterada** e `/precos` **não anuncia** nuvem no Essencial: é
+decisão comercial, não técnica, e precisa ser tomada por quem define a oferta.
+
+Três caminhos possíveis:
+
+1. **Assumir como Essencial.** Vira argumento forte de venda ("seus dados não se perdem"),
+   e o Pro se sustenta nos outros quatro eixos: histórico, alertas, IA e relatórios.
+2. **Manter discreto.** O recurso existe, funciona, e não vira promessa pública. É o
+   estado atual — sem contradição visível, mas sem aproveitar o valor.
+3. **Restringir ao Pro.** Exigiria gatear o `CloudSync` por `canAccessFeature`, e
+   devolveria a fragilidade do localStorage a quem paga pelo Essencial.
+
+A recomendação técnica é a **1**: o custo marginal de guardar um JSONB por usuária é
+baixo, e perder os dados de uma cliente pagante custa mais caro do que qualquer
+diferenciação de plano.
+
+### Antes de considerar a fase pronta
+
+1. 🚨 **Aplicar `supabase/migrations/0005_user_app_state.sql`** — não aplicada
+   automaticamente. Rodar as 5 conferências da seção 5 do arquivo.
+2. 🚨 **Teste manual de dois navegadores** — roteiro de 10 passos no `REVIEW.md`.
+3. ⚠️ **Decidir a fronteira comercial** acima.
+
+Somam-se às três validações ainda pendentes da P0-8A (botão de compra, e-mail de
+recuperação e mensagem de suporte).

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import Footer from "@/components/layout/Footer";
 import Header from "@/components/layout/Header";
+import CloudSync from "@/components/sync/CloudSync";
 import { getAuthUser, isSupabaseConfigured } from "@/services/supabase/server";
 import "./globals.css";
 
@@ -44,6 +45,9 @@ export default async function RootLayout({
     >
       <body className="flex min-h-full flex-col bg-stone-50 text-stone-900 dark:bg-stone-950 dark:text-stone-100">
         <Header isAuthenticated={user !== null} authEnabled={authEnabled} />
+        {/* Cópia em nuvem (P0-10). Só monta com sessão: visitante não tem
+            estado para sincronizar, e o componente não renderiza nada. */}
+        {user !== null && <CloudSync />}
         <main className="flex-1">{children}</main>
         <Footer />
       </body>

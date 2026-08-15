@@ -1,5 +1,6 @@
 import Link from "next/link";
 import SupportLink from "@/components/support/SupportLink";
+import CloudSyncStatus from "@/components/sync/CloudSyncStatus";
 
 /**
  * Rodapé do app — Fase P0-8A.
@@ -28,6 +29,9 @@ export default function Footer() {
         </nav>
 
         <div className="flex flex-col gap-1 text-xs text-stone-400 sm:items-end dark:text-stone-500">
+          {/* P0-10: some sozinho para quem não sincroniza — o componente
+              devolve `null` enquanto a fase for `idle`. */}
+          <CloudSyncStatus variant="badge" />
           <SupportLink variant="quiet" label="Falar com suporte no WhatsApp" />
           <p>
             O Minha Fatia apoia a formação de preços e não substitui a orientação de um contador.

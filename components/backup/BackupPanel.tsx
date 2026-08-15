@@ -8,30 +8,12 @@ import {
   saveImportedBackup,
   serializeBackup,
 } from "@/services";
-import { reloadCustomChannelsFromStorage } from "@/components/channels/channels-store";
-import { reloadFixedCostsFromStorage } from "@/components/fixed-costs/fixed-costs-store";
-import { reloadIngredientsFromStorage } from "@/components/ingredients/ingredients-store";
-import { reloadPackagingsFromStorage } from "@/components/packagings/packagings-store";
-import { reloadRecipesFromStorage } from "@/components/recipes/recipes-store";
-import { reloadBusinessSettingsFromStorage } from "@/components/settings/business-settings-store";
-import { reloadQuoteDraftFromStorage } from "@/components/quotes/quote-draft-store";
-import { reloadQuoteIdentityFromStorage } from "@/components/quotes/quote-identity-store";
+import { reloadAllStoresFromStorage } from "@/components/sync/reload-stores";
 
 type Message = { type: "success" | "error"; text: string };
 
 const IMPORT_CONFIRMATION =
   "Importar este backup vai substituir os dados atuais deste navegador. Deseja continuar?";
-
-function reloadAllStoresFromStorage(): void {
-  reloadIngredientsFromStorage();
-  reloadPackagingsFromStorage();
-  reloadRecipesFromStorage();
-  reloadFixedCostsFromStorage();
-  reloadCustomChannelsFromStorage();
-  reloadBusinessSettingsFromStorage();
-  reloadQuoteIdentityFromStorage();
-  reloadQuoteDraftFromStorage();
-}
 
 export default function BackupPanel() {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -127,12 +109,26 @@ export default function BackupPanel() {
 
   return (
     <div className="rounded-2xl border border-stone-200 bg-white p-5 dark:border-stone-800 dark:bg-stone-900">
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div>
+        <h3 className="text-base font-semibold text-stone-900 dark:text-stone-50">
+          Backup manual
+        </h3>
+        {/* P0-10: com a cópia automática na nuvem, o backup manual deixou de ser
+            a rede de segurança principal — mas continua sendo o único jeito de
+            ter um arquivo na mão antes de uma mudança grande. */}
+        <p className="mt-1 text-sm leading-6 text-stone-600 dark:text-stone-400">
+          Enquanto você estiver logada, seus dados são salvos automaticamente na nuvem. O backup
+          manual continua útil para guardar um arquivo antes de uma mudança grande — e, se você
+          estiver sem internet, o app segue salvando neste navegador.
+        </p>
+      </div>
+
+      <div className="mt-5 grid gap-6 lg:grid-cols-2">
         <div className="flex flex-col gap-3">
           <div>
-            <h3 className="text-base font-semibold text-stone-900 dark:text-stone-50">
-              Exportar backup
-            </h3>
+            <h4 className="text-sm font-semibold text-stone-800 dark:text-stone-200">
+              Exportar cópia
+            </h4>
             <p className="mt-1 text-sm text-stone-600 dark:text-stone-400">
               Baixe uma cópia dos seus ingredientes, receitas, embalagens, custos fixos,
               canais, configurações, identidade visual e rascunho de orçamento.
@@ -143,17 +139,18 @@ export default function BackupPanel() {
             onClick={handleExport}
             className="w-fit rounded-full bg-rose-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-rose-700"
           >
-            Exportar backup
+            Exportar cópia
           </button>
         </div>
 
         <div className="flex flex-col gap-3">
           <div>
-            <h3 className="text-base font-semibold text-stone-900 dark:text-stone-50">
+            <h4 className="text-sm font-semibold text-stone-800 dark:text-stone-200">
               Importar backup
-            </h3>
+            </h4>
             <p className="mt-1 text-sm text-stone-600 dark:text-stone-400">
-              Use a importação apenas com arquivos de backup gerados pelo próprio Minha Fatia.
+              Use a importação apenas com arquivos gerados pelo próprio Minha Fatia. O conteúdo
+              importado substitui os dados atuais e também vai para a sua cópia na nuvem.
             </p>
           </div>
 

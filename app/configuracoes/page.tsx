@@ -4,6 +4,7 @@ import BusinessSettingsForm from "@/components/settings/BusinessSettingsForm";
 import QuoteIdentityForm from "@/components/settings/QuoteIdentityForm";
 import CustomChannelsScreen from "@/components/channels/CustomChannelsScreen";
 import BackupPanel from "@/components/backup/BackupPanel";
+import CloudSyncStatus from "@/components/sync/CloudSyncStatus";
 import { requireEssentialAccess } from "@/lib/auth/require-access";
 
 export const metadata: Metadata = {
@@ -22,7 +23,7 @@ export default async function ConfiguracoesPage() {
         </h1>
         <p className="mt-2 text-stone-600 dark:text-stone-400">
           Organize a identidade dos Orçamentos e as informações gerais usadas na Precificação.
-          Aqui você também exporta e importa o backup dos dados deste navegador.
+          Aqui você também acompanha a cópia dos seus dados na nuvem e exporta um backup manual.
         </p>
       </header>
 
@@ -61,9 +62,14 @@ export default async function ConfiguracoesPage() {
 
         <section>
           <h2 className="mb-3 text-lg font-semibold text-stone-900 dark:text-stone-50">
-            Backup dos dados
+            Seus dados
           </h2>
-          <BackupPanel />
+          <div className="flex flex-col gap-4">
+            {/* P0-10: o status da cópia em nuvem vem antes do backup manual —
+                é ele que responde "meus dados estão seguros?". */}
+            <CloudSyncStatus variant="panel" />
+            <BackupPanel />
+          </div>
         </section>
       </div>
     </div>

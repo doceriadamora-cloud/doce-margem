@@ -79,13 +79,15 @@ As permissões são centralizadas em **feature flags** (`lib/features.ts` — Fa
 
 Os itens avançados da coluna Pro são planejamento, não uma oferta disponível. Os recursos do Essencial marcados como ainda em desenvolvimento permanecem identificados dessa forma na página pública de preços.
 
+> ⚠️ **Decisão comercial em aberto (P0-10).** A linha "Sincronização em nuvem / multi-dispositivo" continua marcada como Pro nesta tabela e em `lib/features.ts`, mas a Fase P0-10 passou a **salvar automaticamente na nuvem para quem tem o Essencial** (ver §11-B). São coisas diferentes — cópia de segurança automática × sincronização com merge e tempo real —, e a distância entre elas é sutil demais para uma compradora. Enquanto a fronteira não for redecidida, `/precos` **não** anuncia salvamento em nuvem no Essencial. A classificação de `cloud_sync` não foi alterada nesta fase de propósito: é decisão comercial, não técnica.
+
 ---
 
 ## 4. Arquitetura planejada
 
 Princípios:
 - **Lógica de cálculo 100% separada da UI** (módulos puros e testáveis em `modules/`).
-- **Persistência desacoplada** por trás de um `storageService` (localStorage no Essencial; Supabase/cloud no Pro). Nunca acoplar a UI direto ao `localStorage`.
+- **Persistência desacoplada** por trás de um `storageService` (localStorage é o cache de leitura; a cópia em nuvem entrou na Fase P0-10). Nunca acoplar a UI direto ao `localStorage`.
 - **Permissões validadas no backend**, não só no frontend.
 - **Mobile first / PWA-ready.**
 
@@ -290,6 +292,54 @@ Quando todos os itens compartilham a mesma dimensão física, o app oferece a so
 **Fora do escopo, registrado:** upload de receita e tabela nutricional. A segunda tem implicação regulatória (RDC/ANVISA) e não deve sair sem decisão explícita.
 
 **Correção que veio junto:** `RecipeForm` inicializava a lista de itens filtrando `kind: "ingredient"`, então salvar uma edição descartava qualquer outro tipo. Era inócuo enquanto a interface não criava sub-receitas e viraria destrutivo no instante em que passou a criar.
+
+---
+
+## 11-B. Salvamento em nuvem (Fase P0-10)
+
+Enquanto a usuária está logada, o app guarda uma **cópia do estado na nuvem**, para os dados sobreviverem a trocar de navegador, de aparelho ou a limpar o cache.
+
+### O modelo: localStorage é o cache, a nuvem é a cópia
+
+O `localStorage` continua sendo a fonte que a interface lê, **de forma síncrona**. A nuvem é uma cópia, não a origem. É isso que permitiu entregar a fase sem reescrever os oito stores: `useSyncExternalStore` exige snapshot síncrono e o Supabase é assíncrono — a incompatibilidade registrada em `DECISIONS.md` desde 2026-08-05 continua de pé, e esta fase passa ao lado dela de propósito.
+
+```
+abre o app  ->  le localStorage (instantaneo)  ->  busca a copia na nuvem
+                                                        |
+                       decideInitialSync(local, nuvem)  ->  hidrata | envia | nada
+                                                        |
+              toda gravacao local  ->  espera 2 s  ->  envia para a nuvem
+```
+
+### Quem ganha quando os dois lados divergem
+
+A decisão é uma função **pura e testada isolada**: `lib/cloud-sync-decision.ts`.
+
+| Situação | Decisão |
+|---|---|
+| Nuvem ainda sem linha | Envia o local |
+| **Navegador novo** (nunca gravou nada aqui) | **Aceita a nuvem, sem comparar data** |
+| Data local ilegível | Aceita a nuvem |
+| Comparação de datas | O mais recente vence |
+| Empate | Não faz nada |
+
+A regra do navegador novo é a que evita o pior defeito possível: um navegador que nunca gravou monta um estado vazio com `updatedAt` de *agora* — o instante mais recente possível. Comparar datas nesse caso faria o vazio ganhar de qualquer nuvem, sempre.
+
+Ao hidratar, o app grava localmente **preservando o `updatedAt` da nuvem** (`saveAppState(state, { preserveUpdatedAt: true })`). Sem isso, o navegador ficaria "mais novo" que a origem do dado que acabou de receber e devolveria a mesma cópia no carregamento seguinte.
+
+> ⚠️ **Limite assumido:** as duas datas vêm do **relógio do navegador**. Aparelho com relógio muito errado pode perder para a nuvem uma alteração mais nova. É o custo de "último a escrever vence" sem servidor autoritativo; merge por entidade é outra fase.
+
+### Status de sincronização
+
+`Salvando…` · `Salvo na nuvem` · `Salvo neste navegador` · `Erro ao salvar na nuvem`, com a data da última sincronização. Compacto no rodapé, detalhado em Configurações. Enquanto a fase for `idle` — visitante — não renderiza nada.
+
+### Falha nunca derruba o app
+
+`services/cloud-app-state.ts` nunca lança: todo caminho vira resultado tipado. Sem env, sem sessão, sem internet **ou com a migration 0005 ainda não aplicada**, o app segue salvando no navegador e o status diz o que está acontecendo.
+
+### Banco
+
+`supabase/migrations/0005_user_app_state.sql` — uma linha por usuária, `AppState` inteiro em JSONB, RLS por `auth.uid()` nas quatro operações. **Não aplicada automaticamente.**
 
 ---
 

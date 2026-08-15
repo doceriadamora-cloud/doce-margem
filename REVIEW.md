@@ -2194,3 +2194,97 @@ Fecha o risco levantado na auditoria P0-8 sobre a distância entre promessa e pr
 - `/precos` conferida no build: os três recursos sem selo; gating de `/receitas`,
   `/precificacao` e `/orcamentos` mantido em 307.
 - `git diff --check`: passou sem erros.
+
+
+---
+
+## Fase P0-10 — Salvamento em nuvem automático (2026-08-14)
+
+> ⚠️ **A migration 0005 NÃO foi aplicada.** O código está completo e o app funciona
+> sem ela — degradando para "salvo neste navegador". A fase só está validada de
+> verdade depois de aplicar e rodar o teste de dois navegadores.
+
+### Arquitetura, em uma frase
+
+`localStorage` é o cache que a interface lê de forma síncrona; a nuvem é a cópia. Os oito
+stores não mudaram uma linha.
+
+### O defeito que a regra de conflito existe para evitar
+
+Um navegador que nunca gravou nada monta um estado vazio com `updatedAt` de *agora* — o
+instante mais recente possível. Se a decisão fosse só "compara datas", abrir o app num
+aparelho novo apagaria a nuvem inteira. É o pior desfecho que esta fase poderia ter.
+
+A saída foi `hasStoredAppState()`: separa "nunca gravou" de "gravou e está vazio",
+distinção que `loadAppState()` não consegue fazer porque devolve estado vazio nos dois
+casos. Navegador novo aceita a nuvem **sem comparar data**.
+
+### Verificação isolada — 19/19
+
+| Verificação | Resultado |
+|---|---|
+| Navegador novo aceita a nuvem mesmo com "data local" mais recente | ✅ |
+| Nuvem vazia + dados locais → envia | ✅ |
+| Nuvem vazia + navegador novo sem nada → não faz nada | ✅ |
+| Local gravado porém vazio → envia (a usuária apagou de propósito) | ✅ |
+| Nuvem mais recente → hidrata · local mais recente → envia · empate → nada | ✅ |
+| Data local ilegível → nuvem · data da nuvem ilegível → local | ✅ |
+| Cenário A→nuvem→B→nuvem→A encadeado, 5 passos | ✅ |
+| Após hidratar preservando `updatedAt`, não reenvia o mesmo dado | ✅ |
+
+Regressões: P0-9C **46/46**, P0-9B **13/13**, matriz de recursos **31/31**.
+
+### Segurança
+
+- RLS por `auth.uid()` nas quatro operações, só para `authenticated`.
+- Grants explícitos como segunda barreira independente — a policy decide qual linha, o
+  grant decide qual operação.
+- **Zero** grant para `anon`. **Zero** para `service_role`: nada no servidor precisa ler
+  receita de ninguém, e conceder abriria um caminho de leitura de dado pessoal que nenhuma
+  linha de código pede.
+- `getUser()` (revalida o JWT) e nunca `getSession()`. Nenhuma função recebe `userId` de
+  fora — não há assinatura por onde pedir o estado alheio.
+- O que vem do banco passa por `normalizeAppState` antes de tocar no app.
+
+### Degradação
+
+| Situação | O que a usuária vê | App quebra? |
+|---|---|---|
+| Migration não aplicada | "Salvo neste navegador" | Não |
+| Sem internet | "Sem conexão — salvo neste navegador" | Não |
+| Sem sessão | Nada (status não aparece) | Não |
+| Supabase sem env | "Salvo neste navegador" | Não |
+| Erro do banco | "Erro ao salvar na nuvem" | Não |
+
+### 🚨 Teste manual obrigatório (depois de aplicar a 0005)
+
+1. Entrar com uma conta com licença ativa.
+2. Criar ingrediente, receita, embalagem e um rascunho de orçamento.
+3. Conferir o rodapé: deve passar por "Salvando…" e parar em "Salvo na nuvem".
+4. Abrir uma aba anônima e entrar com a **mesma** conta.
+5. Confirmar que os dados aparecem — este é o teste que importa.
+6. Alterar algo na aba anônima e esperar o status voltar a "Salvo na nuvem".
+7. Recarregar o primeiro navegador e confirmar que a alteração chegou.
+8. Desligar a internet, editar algo, confirmar "Sem conexão — salvo neste navegador" e
+   que o app continua utilizável.
+9. Religar a internet e confirmar que o envio pendente sobe sozinho.
+10. Conferir em Configurações a data da última sincronização.
+
+### Riscos conhecidos
+
+- **Relógio do navegador.** As duas datas comparadas vêm do cliente. Aparelho com relógio
+  muito errado pode perder para a nuvem uma alteração mais nova. Assumido.
+- **Duas abas da mesma conta editando ao mesmo tempo.** A última a gravar vence; não há
+  merge. Aceitável para o uso real (uma pessoa, um aparelho por vez).
+- **Tamanho do estado.** A logo do orçamento é uma data URL dentro do `AppState`, e ele
+  vai inteiro para o JSONB a cada envio. Hoje é limitado por
+  `MAX_STORED_LOGO_DATA_URL_LENGTH`; vale observar o tamanho real em produção.
+- **Fronteira comercial em aberto** — ver `DECISIONS.md` de 2026-08-14.
+
+### Validação
+- `npm run typecheck`: passou.
+- `npm run lint`: passou.
+- `npm run build`: passou no Next.js 16.2.9; 21 rotas, todas dinâmicas.
+- Teste HTTP no build: públicas em 200, protegidas em 307, e **zero** status de
+  sincronização no HTML de visitante.
+- `git diff --check`: passou sem erros.

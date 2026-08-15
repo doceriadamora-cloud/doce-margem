@@ -6,8 +6,14 @@
 > Marcar `[x]` ao concluir. Adicionar novas tarefas quando surgirem.
 > Antes de iniciar uma nova fase: parar, resumir o que foi feito e aguardar aprovação.
 
-**Fase atual:** P0-9C — Medidas caseiras, rendimento real e unidades seguras (2026-08-13): seletor de unidade de rendimento, normalização de unidades antigas, entrada por lata/caixinha/xícara/colher com conversão defensável e assistente de perda pelo rendimento real. **Nenhum recurso do Essencial continua anunciado como em desenvolvimento.**
-**Próximo passo recomendado:** validações manuais em produção pendentes da P0-8A (botão de compra e e-mail de recuperação) e abertura da venda; P1 permanece como evolução dos Orçamentos.
+**Fase anterior:** P0-9C — Medidas caseiras, rendimento real e unidades seguras (2026-08-13): seletor de unidade de rendimento, normalização de unidades antigas, entrada por lata/caixinha/xícara/colher com conversão defensável e assistente de perda pelo rendimento real. **Nenhum recurso do Essencial continua anunciado como em desenvolvimento.**
+**Fase atual:** P0-10 — Salvamento em nuvem automático (2026-08-14): tabela `user_app_state` com RLS, cópia automática por usuária logada, status de sincronização e backup manual como recurso secundário. **A migration 0005 ainda NÃO foi aplicada.**
+**Próximo passo recomendado:** aplicar a migration 0005 no Supabase, rodar o teste manual de dois navegadores, decidir a fronteira comercial de `cloud_sync` (ver abaixo) e concluir as validações pendentes da P0-8A antes de abrir a venda.
+
+> 🚨 **Pendências da P0-10, antes de considerar a fase validada:**
+> 1. **Aplicar `supabase/migrations/0005_user_app_state.sql`** no projeto Supabase (SQL Editor ou `supabase db push`) e rodar as 5 conferências da seção 5 do arquivo. Sem isso o app funciona, mas só com localStorage.
+> 2. **Teste manual de dois navegadores** (roteiro no `REVIEW.md`).
+> 3. ⚠️ **Decisão comercial:** `cloud_sync` continua classificado como Pro em `lib/features.ts`, e `/precos` não anuncia nuvem no Essencial. A P0-10 entregou salvamento em nuvem para o Essencial — a fronteira precisa ser redecidida por quem define a oferta.
 
 > 🚨 **Antes da venda pública — validações externas, não resolvíveis em código:**
 > 1. Abrir `/precos` em produção, clicar em "Comprar acesso ao Essencial" e confirmar que vai para o checkout correto da Kiwify. **Não concluir nova compra de teste sem decisão do dono.**
@@ -236,6 +242,37 @@
 - [x] Rodar `typecheck`, `lint`, `build` e `git diff --check`
 - [ ] **Limitação conhecida:** rendimento em unidade livre continua impedindo o uso como sub-receita — agora com aviso claro e caminho de correção
 - [ ] **Fora do escopo, registrado:** upload de receita e tabela nutricional (esta com implicação regulatória RDC/ANVISA)
+
+### Fase P0-10 — Salvamento em nuvem automático ✅ (código; migration pendente)
+- [x] Criar `supabase/migrations/0005_user_app_state.sql`: uma linha por usuária, `AppState` em JSONB, `schema_version`, `updated_at`
+- [x] RLS por `auth.uid()` nas quatro operações (select/insert/update/delete), só para `authenticated`
+- [x] Grants explícitos como segunda barreira; **zero** grant para `anon` e **zero** para `service_role`
+- [x] Reusar o trigger `set_updated_at` da 0001, sem redefinir nada
+- [x] Escrever as 5 consultas de conferência pós-aplicação dentro da migration
+- [x] Criar `services/cloud-app-state.ts` com `loadCloudAppState`/`saveCloudAppState`, que **nunca lançam**
+- [x] Distinguir `missing-table` de erro genérico, para o app degradar em silêncio antes de a migration ser aplicada
+- [x] Distinguir falha de rede de erro de banco — uma se resolve sozinha, a outra não
+- [x] Usar sempre `getUser()` (revalida o JWT), nunca `getSession()`; nenhuma função recebe `userId` de fora
+- [x] Criar `lib/cloud-sync-decision.ts` — regra de conflito **pura**, fora de componente, testável isolada
+- [x] Regra do navegador novo: sem estado gravado, a nuvem ganha **sem comparar data**
+- [x] Acrescentar `hasStoredAppState()` ao `storageService` — separa "nunca gravou" de "gravou vazio"
+- [x] Acrescentar aviso de gravação (`subscribeToAppStateSaves`) como ponto único de detecção de mudança
+- [x] Acrescentar `saveAppState(state, { preserveUpdatedAt })` para hidratar sem carimbar data nova
+- [x] Criar `CloudSync`: hidratação na montagem, envio com atraso de 2 s, retomada no evento `online`
+- [x] Suprimir o eco: gravação feita pela própria hidratação não volta para a nuvem
+- [x] Montar `CloudSync` no layout **somente com sessão**
+- [x] Criar status de sincronização: badge no rodapé e painel em Configurações
+- [x] Extrair `reloadAllStoresFromStorage` do `BackupPanel` para uso compartilhado com a hidratação
+- [x] Reposicionar o backup manual como recurso secundário, com copy nova
+- [x] Preservar `APP_STATE_STORAGE_KEY`, schema e compatibilidade com dados antigos
+- [x] Preservar Kiwify, webhook, product ID, envs, auth, licenças e regras de acesso pago
+- [x] Preservar fórmulas, pricing engine, `calculateRecipe` e o orçamento para cliente
+- [x] Verificação isolada da regra de conflito: **19/19**; regressões P0-9B/P0-9C/matriz: **13/13**, **46/46**, **31/31**
+- [x] Rodar `typecheck`, `lint`, `build` e `git diff --check`
+- [ ] 🚨 **Aplicar a migration 0005 no Supabase** — não aplicada automaticamente
+- [ ] 🚨 **Teste manual de dois navegadores** (roteiro no `REVIEW.md`)
+- [ ] ⚠️ **Decidir a fronteira comercial de `cloud_sync`** (Essencial × Pro)
+- [ ] Avaliar merge por entidade quando houver relato real de conflito; hoje é "último a escrever vence" por relógio de navegador
 
 ### Futuro — upload de receita e tabela nutricional (não implementados)
 - [ ] **Upload de receita:** importar uma receita pronta de arquivo ou texto. Fora do escopo da P0-9C; exige decidir formato, mapeamento de ingredientes e o que fazer com o que não casar

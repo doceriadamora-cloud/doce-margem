@@ -1838,3 +1838,82 @@ planejado* —, que é a que interessa vigiar daqui em diante.
   RDC/ANVISA). Um número errado num rótulo vira problema legal da usuária, não só do app.
   Não deve sair sem decisão explícita, fonte de dados confiável e ressalva de
   responsabilidade — candidato a P1/Pro, nunca ao Essencial sem essa conversa.
+
+
+---
+
+## 2026-08-14 — A nuvem é cópia, não origem
+
+### Decisão
+
+A Fase P0-10 guarda o estado da usuária em `public.user_app_state` (uma linha por
+conta, `AppState` inteiro em JSONB) enquanto ela estiver logada. O `localStorage`
+**continua sendo a fonte que a interface lê**, de forma síncrona; a nuvem é uma cópia.
+
+Essa inversão é o que torna a fase viável agora. A incompatibilidade registrada em
+2026-08-05 — `useSyncExternalStore` exige `getSnapshot()` síncrono e o Supabase é
+assíncrono — continua de pé, e foi estimada em 16 a 24 horas no roadmap. Tratando a
+nuvem como cópia, os oito stores não mudam uma linha: eles continuam lendo o
+`localStorage`, e a hidratação escreve lá antes de mandá-los recarregar.
+
+### JSONB, não oito tabelas
+
+O `AppState` já é um documento único, versionado, que o app grava e lê inteiro.
+Normalizar ingredientes, receitas, embalagens, custos fixos, canais, configurações,
+identidade e rascunho de orçamento exigiria oito migrations, oito conjuntos de policies
+e uma camada de mapeamento — para entregar, hoje, exatamente a mesma coisa: não perder
+os dados ao trocar de navegador.
+
+Normalizar é o passo certo quando houver **consulta por entidade** (relatórios,
+histórico de preços, alertas de aumento de custo). Não é este passo.
+
+### A regra de conflito mora fora do componente
+
+`lib/cloud-sync-decision.ts` é uma função pura. É a única linha do projeto que pode
+apagar o trabalho da usuária, então não convive com `useEffect`, cliente Supabase e
+timer: recebe fatos, devolve decisão, e é exercitada isolada (19 verificações).
+
+**A regra que justifica o arquivo inteiro:** um navegador que nunca gravou nada monta um
+estado vazio com `updatedAt` de *agora* — o instante mais recente possível. Comparar
+datas nesse caso faria o vazio ganhar de qualquer nuvem, **sempre**, e trocar de aparelho
+apagaria tudo. Daí `hasStoredAppState()` existir no `storageService`: ele separa "nunca
+gravou" de "gravou e está vazio", distinção que `loadAppState()` não consegue fazer.
+
+Ao hidratar, o app grava preservando o `updatedAt` da nuvem. Sem isso o navegador ficaria
+"mais novo" que a origem do dado que acabou de receber, e devolveria a mesma cópia no
+carregamento seguinte — tráfego inútil e, pior, um navegador parado ganhando disputas com
+dado que ele só recebeu.
+
+⚠️ **Limite assumido:** as duas datas vêm do relógio do navegador. Aparelho com relógio
+muito errado pode perder uma alteração mais nova. É o custo de "último a escrever vence"
+sem servidor autoritativo. Merge por entidade é outra fase, e só vale a pena com relato
+real de conflito.
+
+### Falhar em silêncio é requisito, não descuido
+
+`services/cloud-app-state.ts` nunca lança: todo caminho vira resultado tipado. Em
+particular, `missing-table` é distinguido de erro genérico **de propósito** — enquanto a
+migration 0005 não for aplicada, o app precisa dizer "salvo neste navegador", não "erro
+ao salvar". Falha de rede também é separada de erro de banco: uma se resolve sozinha (e o
+ouvinte de `online` reenvia), a outra não.
+
+O aviso de gravação no `storageService` engole exceção de assinante pelo mesmo motivo:
+falha de sincronização não pode virar falha de salvar.
+
+### Fronteira comercial: em aberto, de propósito
+
+`cloud_sync` continua classificado como **Pro** em `lib/features.ts`, e `/precos`
+continua sem anunciar nuvem no Essencial. Isso é deliberado: a P0-10 entregou
+salvamento em nuvem para quem tem o Essencial, o que **erode** a proposta de valor
+registrada em 2026-08-06 ("Pro Anual reservado a recorrência, nuvem, automação, IA e
+relatórios") e detalhada no roadmap ("Sincronização em nuvem: seus dados no celular e no
+computador, sempre iguais").
+
+Há uma distinção real — cópia de segurança automática com último-a-escrever-vence ×
+sincronização com merge, tempo real e resolução de conflito —, mas ela é sutil demais
+para sustentar sozinha a diferença de preço, e uma compradora não vai enxergá-la.
+
+**Não é decisão técnica.** Quem define a oferta precisa escolher entre: (a) posicionar a
+cópia em nuvem como parte do Essencial e reconstruir o valor do Pro sobre os outros
+quatro eixos; (b) mantê-la discreta, sem virar argumento de venda; ou (c) restringi-la
+ao Pro. Enquanto não houver decisão, o código entrega e a página não promete.

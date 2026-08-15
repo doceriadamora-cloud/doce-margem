@@ -288,6 +288,43 @@ export function normalizeAppState(raw: unknown): AppState {
 }
 
 /**
+ * Já existe estado gravado neste navegador? — Fase P0-10.
+ *
+ * Diferente de `loadAppState()`, que devolve estado vazio tanto para "nunca
+ * gravou" quanto para "gravou e está vazio". A sincronização em nuvem precisa
+ * separar os dois casos: navegador novo **sempre** aceita o que vier da nuvem,
+ * enquanto navegador com estado gravado disputa por data. Sem esta distinção,
+ * abrir o app num aparelho novo compararia um estado vazio recém-criado (com
+ * `updatedAt` de agora) contra a nuvem — e o vazio ganharia.
+ */
+export function hasStoredAppState(): boolean {
+  return safeGetItem(APP_STATE_STORAGE_KEY) !== null;
+}
+
+/* ── Aviso de gravação (Fase P0-10) ──────────────────────────────────
+ *
+ * Ponto único para saber que o estado mudou. Toda escrita do app passa por
+ * `saveAppState`, então um assinante aqui vê tudo — ingredientes, receitas,
+ * embalagens, custos fixos, canais, configurações, identidade e rascunho de
+ * orçamento — sem precisar assinar oito stores e sem risco de esquecer um.
+ *
+ * Deliberadamente burro: não sabe o que é nuvem, não faz I/O, não decide nada.
+ * Só avisa.
+ */
+
+type AppStateSaveListener = (state: AppState) => void;
+
+const saveListeners = new Set<AppStateSaveListener>();
+
+/** Assina gravações bem-sucedidas do estado local. Devolve a função de cancelar. */
+export function subscribeToAppStateSaves(listener: AppStateSaveListener): () => void {
+  saveListeners.add(listener);
+  return () => {
+    saveListeners.delete(listener);
+  };
+}
+
+/**
  * Carrega o estado local. Nunca lança: localStorage indisponível, JSON inválido
  * ou schema desconhecido devolvem `createEmptyAppState()`.
  */
@@ -305,16 +342,34 @@ export function loadAppState(): AppState {
   return normalizeAppState(parsed);
 }
 
+/** Opções de gravação. Omitir mantém o comportamento de sempre. */
+export interface SaveAppStateOptions {
+  /**
+   * Não sobrescrever `updatedAt` — Fase P0-10.
+   *
+   * Existe para um caso só: gravar localmente o estado que **veio da nuvem**.
+   * Carimbar "agora" nesse momento faria o navegador parecer mais recente do
+   * que a origem do dado que ele acabou de receber, e o próximo carregamento
+   * devolveria essa cópia para a nuvem como se fosse novidade.
+   *
+   * Toda gravação feita pela usuária continua carimbando a data — é ela que
+   * decide quem ganha na comparação com a nuvem.
+   */
+  preserveUpdatedAt?: boolean;
+}
+
 /**
- * Salva o estado local (sobrescreve). Sempre grava a versão atual do schema e
- * atualiza `updatedAt`. Nunca lança: devolve `false` se não conseguiu gravar
- * (localStorage indisponível, quota excedida, dado não serializável).
+ * Salva o estado local (sobrescreve). Sempre grava a versão atual do schema e,
+ * por padrão, atualiza `updatedAt`. Nunca lança: devolve `false` se não
+ * conseguiu gravar (localStorage indisponível, quota excedida, dado não
+ * serializável).
  */
-export function saveAppState(state: AppState): boolean {
+export function saveAppState(state: AppState, options: SaveAppStateOptions = {}): boolean {
   const toSave: AppState = {
     ...state,
     schemaVersion: APP_STATE_SCHEMA_VERSION,
-    updatedAt: new Date().toISOString(),
+    updatedAt:
+      options.preserveUpdatedAt === true ? state.updatedAt : new Date().toISOString(),
   };
 
   let serialized: string;
@@ -324,7 +379,24 @@ export function saveAppState(state: AppState): boolean {
     return false;
   }
 
-  return safeSetItem(APP_STATE_STORAGE_KEY, serialized);
+  const persisted = safeSetItem(APP_STATE_STORAGE_KEY, serialized);
+
+  // Avisa só quando a gravação local deu certo — a nuvem não deve receber um
+  // estado que o próprio navegador recusou. Um assinante que lance não pode
+  // derrubar a gravação, que já terminou: o contrato desta função é "nunca
+  // lança", e isso vale mesmo se quem assinou tiver um defeito.
+  if (persisted) {
+    for (const listener of saveListeners) {
+      try {
+        listener(toSave);
+      } catch {
+        // Silencioso de propósito: falha de sincronização não pode virar falha
+        // de salvar. O status da nuvem é reportado pela própria camada de sync.
+      }
+    }
+  }
+
+  return persisted;
 }
 
 /** Remove o estado local por completo. */
