@@ -13,7 +13,7 @@ import type {
   Recipe,
   SalesChannel,
 } from "@/types/pricing";
-import type { QuoteDraft, QuoteIdentity } from "@/types/quotes";
+import type { Client, QuoteDraft, QuoteIdentity, SavedQuote } from "@/types/quotes";
 
 /**
  * Configurações financeiras do negócio — Fase 2-6.
@@ -58,8 +58,15 @@ export interface AppState {
   businessSettings: BusinessSettings;
   /** Identidade visual usada no orçamento comercial; sempre presente após normalização. */
   quoteIdentity: QuoteIdentity;
-  /** Único rascunho local de orçamento da P0-4; `null` até o primeiro uso. */
+  /** Rascunho de orçamento em edição; `null` até o primeiro uso. */
   quoteDraft: QuoteDraft | null;
+  /**
+   * Clientes cadastradas — P0-11. Ausente em dados anteriores à fase; a
+   * normalização devolve `[]` sem descartar o resto do estado.
+   */
+  clients: Client[];
+  /** Orçamentos guardados no histórico — P0-11. Mesma regra de compatibilidade. */
+  savedQuotes: SavedQuote[];
   /** Data/hora ISO da última gravação. */
   updatedAt: string;
 }

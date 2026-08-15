@@ -17,6 +17,8 @@ const EMPTY_QUOTE_DRAFT: QuoteDraft = {
   paymentTerms: "",
   discount: "",
   items: [],
+  clientId: null,
+  savedQuoteId: null,
   updatedAt: "",
 };
 
@@ -91,6 +93,29 @@ export function updateQuoteDraft(
 ): boolean {
   const next: QuoteDraft = {
     ...ensureLoaded(),
+    ...values,
+    updatedAt: new Date().toISOString(),
+  };
+  const persisted = saveQuoteDraft(next);
+  cachedQuoteDraft = next;
+  notify();
+  return persisted;
+}
+
+/**
+ * Começa um rascunho novo — número e data novos, um item em branco — já com os
+ * valores informados aplicados por cima. Fase P0-11.
+ *
+ * Usado por "Novo orçamento" a partir de uma cliente e por "Duplicar" no
+ * histórico. Nos dois casos o que se quer é um documento **novo**, não a
+ * continuação do anterior: por isso `savedQuoteId` volta a `null`, e salvar
+ * depois cria um registro próprio em vez de sobrescrever o de origem.
+ */
+export function startNewQuoteDraft(
+  values: Partial<Omit<QuoteDraft, "updatedAt">> = {},
+): boolean {
+  const next: QuoteDraft = {
+    ...createQuoteDraft(),
     ...values,
     updatedAt: new Date().toISOString(),
   };

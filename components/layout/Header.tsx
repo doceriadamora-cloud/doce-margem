@@ -15,6 +15,7 @@ const availableSections: NavItem[] = [
   { label: "Receitas", href: "/receitas" },
   { label: "Embalagens", href: "/embalagens" },
   { label: "Precificação", href: "/precificacao" },
+  { label: "Clientes", href: "/clientes" },
   { label: "Orçamentos", href: "/orcamentos" },
   { label: "Configurações", href: "/configuracoes" },
 ];

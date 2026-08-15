@@ -2288,3 +2288,73 @@ Regressões: P0-9C **46/46**, P0-9B **13/13**, matriz de recursos **31/31**.
 - Teste HTTP no build: públicas em 200, protegidas em 307, e **zero** status de
   sincronização no HTML de visitante.
 - `git diff --check`: passou sem erros.
+
+
+---
+
+## Fase P0-11 — Clientes e orçamentos salvos (2026-08-14)
+
+> Sem migration nova: `clients` e `savedQuotes` entraram no `AppState`, que a P0-10
+> já sincroniza. Nenhum arquivo de `modules/` alterado.
+
+### O que entrou
+
+- `/clientes` protegida, com cadastro, edição e exclusão segura.
+- Seletor de cliente cadastrada em `/orcamentos`, com indicação de WhatsApp.
+- "Salvar no histórico" no editor, que atualiza quando o orçamento já veio de lá.
+- Histórico com abrir, duplicar, excluir e mudança de situação.
+- Contagem e último orçamento por cliente, ambos **derivados** na renderização.
+
+### Compatibilidade — 31/31 verificações isoladas
+
+O teste monta o estado exato que um usuário da P0-10 tem gravado hoje (sem `clients`,
+sem `savedQuotes`, rascunho sem as duas referências novas) e confirma que **nada se
+perde**: ingredientes, receitas com modo avançado da P0-9A, embalagens, custos fixos,
+canais, identidade do orçamento e rascunho seguem intactos, e os campos novos nascem
+vazios.
+
+Também cobre entrada hostil: cliente sem id ou sem nome é descartada, orçamento sem id é
+descartado, status inválido cai para "rascunho", `clientId` vazio vira `null`.
+
+### A verificação que mais importa
+
+| Verificação | Resultado |
+|---|---|
+| Snapshot tem **exatamente** name, whatsapp, email | ✅ |
+| Snapshot não tem `notes` (observação interna) | ✅ |
+| Snapshot não tem `address` | ✅ |
+| Payload adulterado com `notes`/`address` sai da normalização sem eles | ✅ |
+| `SavedQuote` não grava `total` | ✅ |
+| Total recalculado bate: 10×15 + 50×2 − 10 = R$ 240 | ✅ |
+
+Regressões: P0-10 **19/19**, P0-9C **46/46**, P0-9B **13/13**, matriz **31/31**.
+
+### Decisão de exclusão de cliente
+
+Excluir **desvincula** os orçamentos e os mantém no histórico, legíveis pelo snapshot. A
+confirmação informa quantos serão afetados antes de a usuária decidir. Impedir a exclusão
+obrigaria a apagar o histórico comercial para limpar a agenda — troca errada.
+
+### Backup e nuvem
+
+Os dois stores gravam via `saveAppState`, então entram no backup manual e na cópia em
+nuvem sem configuração. `reloadAllStoresFromStorage` ganhou as duas recargas — sem isso,
+importar backup ou hidratar da nuvem deixaria clientes e histórico mostrando dado velho
+na tela.
+
+### Riscos conhecidos
+
+- **Tamanho do estado.** O histórico cresce sem limite e vai inteiro para o JSONB a cada
+  envio, junto com a logo. Vale observar em produção; paginação ou poda é assunto de
+  fase própria.
+- **Sem filtro no histórico.** Combinado com o pedido; começa a incomodar por volta de
+  algumas dezenas de orçamentos.
+- **Duplicar reusa o id do item com sufixo.** Suficiente para não colidir dentro do
+  mesmo orçamento; se um dia os ids virarem chave global, revisar.
+
+### Validação
+- `npm run typecheck`: passou.
+- `npm run lint`: passou.
+- `npm run build`: passou no Next.js 16.2.9; **22 rotas**, `/clientes` incluída.
+- Teste HTTP: `/clientes` em 307 como as demais protegidas; públicas em 200.
+- `git diff --check`: passou sem erros.

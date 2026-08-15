@@ -25,10 +25,15 @@ import {
   DEFAULT_QUOTE_SECONDARY_COLOR,
   MAX_STORED_LOGO_DATA_URL_LENGTH,
   QUOTE_PAYMENT_METHODS,
+  SAVED_QUOTE_STATUSES,
+  type Client,
+  type QuoteClientSnapshot,
   type QuoteDraft,
   type QuoteDraftItem,
   type QuoteIdentity,
   type QuotePaymentMethod,
+  type SavedQuote,
+  type SavedQuoteStatus,
 } from "@/types/quotes";
 
 /** Versão atual do schema do estado local. Incrementar ao mudar a forma do AppState. */
@@ -75,6 +80,8 @@ export function createEmptyAppState(): AppState {
     businessSettings: createEmptyBusinessSettings(),
     quoteIdentity: createEmptyQuoteIdentity(),
     quoteDraft: null,
+    clients: [],
+    savedQuotes: [],
     updatedAt: new Date().toISOString(),
   };
 }
@@ -215,6 +222,91 @@ function isQuotePaymentMethod(value: unknown): value is QuotePaymentMethod {
 }
 
 /** Um rascunho corrompido é descartado sem afetar as demais fatias do AppState. */
+/** String opcional que vira `""` quando ausente ou de outro tipo. */
+function normalizeText(raw: unknown): string {
+  return typeof raw === "string" ? raw : "";
+}
+
+/** Referência opcional a outra entidade: só aceita id não vazio. */
+function normalizeOptionalId(raw: unknown): string | null {
+  return typeof raw === "string" && raw.trim() !== "" ? raw : null;
+}
+
+/**
+ * Cliente cadastrada — Fase P0-11.
+ *
+ * Sem `id` ou sem nome não há cliente: a linha é descartada em vez de virar um
+ * registro fantasma que a usuária não consegue identificar nem apagar.
+ */
+function normalizeClient(raw: unknown): Client | null {
+  if (!isPlainObject(raw)) return null;
+  if (typeof raw.id !== "string" || raw.id.trim() === "") return null;
+  if (typeof raw.name !== "string" || raw.name.trim() === "") return null;
+
+  const now = new Date().toISOString();
+  return {
+    id: raw.id,
+    name: raw.name,
+    whatsapp: normalizeText(raw.whatsapp),
+    email: normalizeText(raw.email),
+    address: normalizeText(raw.address),
+    notes: normalizeText(raw.notes),
+    createdAt: typeof raw.createdAt === "string" ? raw.createdAt : now,
+    updatedAt: typeof raw.updatedAt === "string" ? raw.updatedAt : now,
+  };
+}
+
+function isSavedQuoteStatus(raw: unknown): raw is SavedQuoteStatus {
+  return (
+    typeof raw === "string" &&
+    (SAVED_QUOTE_STATUSES as readonly string[]).includes(raw)
+  );
+}
+
+/** Só os três campos comerciais — ver a nota em `QuoteClientSnapshot`. */
+function normalizeClientSnapshot(raw: unknown): QuoteClientSnapshot {
+  if (!isPlainObject(raw)) return { name: "", whatsapp: "", email: "" };
+  return {
+    name: normalizeText(raw.name),
+    whatsapp: normalizeText(raw.whatsapp),
+    email: normalizeText(raw.email),
+  };
+}
+
+/**
+ * Orçamento salvo — Fase P0-11.
+ *
+ * Reaproveita `normalizeQuoteDraftItem`: os itens de um orçamento salvo têm a
+ * mesma forma dos itens do rascunho, e duplicar a normalização seria criar duas
+ * definições da mesma coisa para divergirem depois.
+ */
+function normalizeSavedQuote(raw: unknown): SavedQuote | null {
+  if (!isPlainObject(raw)) return null;
+  if (typeof raw.id !== "string" || raw.id.trim() === "") return null;
+
+  const now = new Date().toISOString();
+  return {
+    id: raw.id,
+    quoteNumber: normalizeText(raw.quoteNumber),
+    clientId: normalizeOptionalId(raw.clientId),
+    clientSnapshot: normalizeClientSnapshot(raw.clientSnapshot),
+    quoteDate: normalizeText(raw.quoteDate),
+    validityDays: typeof raw.validityDays === "string" ? raw.validityDays : "7",
+    paymentMethod: isQuotePaymentMethod(raw.paymentMethod) ? raw.paymentMethod : "pix",
+    paymentTerms: normalizeText(raw.paymentTerms),
+    items: Array.isArray(raw.items)
+      ? raw.items
+          .map((item) => normalizeQuoteDraftItem(item))
+          .filter((item): item is QuoteDraftItem => item !== null)
+      : [],
+    discount: normalizeText(raw.discount),
+    notes: normalizeText(raw.notes),
+    status: isSavedQuoteStatus(raw.status) ? raw.status : "rascunho",
+    createdAt: typeof raw.createdAt === "string" ? raw.createdAt : now,
+    updatedAt: typeof raw.updatedAt === "string" ? raw.updatedAt : now,
+  };
+}
+
 function normalizeQuoteDraft(raw: unknown): QuoteDraft | null {
   if (!isPlainObject(raw)) return null;
   if (
@@ -239,6 +331,10 @@ function normalizeQuoteDraft(raw: unknown): QuoteDraft | null {
     items: raw.items
       .map((item) => normalizeQuoteDraftItem(item))
       .filter((item): item is QuoteDraftItem => item !== null),
+    // P0-11: ausentes em rascunhos anteriores à fase, e `null` é exatamente o
+    // significado certo — rascunho sem cliente cadastrada e ainda não salvo.
+    clientId: normalizeOptionalId(raw.clientId),
+    savedQuoteId: normalizeOptionalId(raw.savedQuoteId),
     updatedAt: typeof raw.updatedAt === "string" ? raw.updatedAt : new Date().toISOString(),
   };
 }
@@ -283,6 +379,19 @@ export function normalizeAppState(raw: unknown): AppState {
     businessSettings: normalizeBusinessSettings(raw.businessSettings),
     quoteIdentity: normalizeQuoteIdentity(raw.quoteIdentity),
     quoteDraft: normalizeQuoteDraft(raw.quoteDraft),
+    // P0-11: ausentes em qualquer dado gravado antes desta fase — inclusive na
+    // cópia em nuvem da P0-10 — e normalizados para lista vazia sem descartar
+    // nada do resto do estado.
+    clients: Array.isArray(raw.clients)
+      ? raw.clients
+          .map((client) => normalizeClient(client))
+          .filter((client): client is Client => client !== null)
+      : [],
+    savedQuotes: Array.isArray(raw.savedQuotes)
+      ? raw.savedQuotes
+          .map((quote) => normalizeSavedQuote(quote))
+          .filter((quote): quote is SavedQuote => quote !== null)
+      : [],
     updatedAt: typeof raw.updatedAt === "string" ? raw.updatedAt : new Date().toISOString(),
   };
 }
@@ -464,6 +573,24 @@ export function loadQuoteIdentity(): QuoteIdentity {
 
 export function saveQuoteDraft(quoteDraft: QuoteDraft): boolean {
   return saveAppState({ ...loadAppState(), quoteDraft });
+}
+
+/* ── Clientes e orçamentos salvos (Fase P0-11) ── */
+
+export function saveClients(clients: Client[]): boolean {
+  return saveAppState({ ...loadAppState(), clients });
+}
+
+export function loadClients(): Client[] {
+  return loadAppState().clients;
+}
+
+export function saveSavedQuotes(savedQuotes: SavedQuote[]): boolean {
+  return saveAppState({ ...loadAppState(), savedQuotes });
+}
+
+export function loadSavedQuotes(): SavedQuote[] {
+  return loadAppState().savedQuotes;
 }
 
 export function loadQuoteDraft(): QuoteDraft | null {

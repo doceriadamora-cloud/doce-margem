@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import QuoteBuilder from "@/components/quotes/QuoteBuilder";
+import SavedQuotesList from "@/components/quotes/SavedQuotesList";
 import { requireEssentialAccess } from "@/lib/auth/require-access";
 
 export const metadata: Metadata = {
@@ -24,6 +25,9 @@ export default async function OrcamentosPage() {
         </p>
       </header>
       <QuoteBuilder />
+      {/* P0-11: o histórico assina o mesmo rascunho que o editor, então abrir ou
+          duplicar aqui atualiza a tela acima sozinho. */}
+      <SavedQuotesList />
     </div>
   );
 }

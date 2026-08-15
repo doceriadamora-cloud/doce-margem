@@ -12,11 +12,13 @@
  */
 
 import { reloadCustomChannelsFromStorage } from "@/components/channels/channels-store";
+import { reloadClientsFromStorage } from "@/components/clients/clients-store";
 import { reloadFixedCostsFromStorage } from "@/components/fixed-costs/fixed-costs-store";
 import { reloadIngredientsFromStorage } from "@/components/ingredients/ingredients-store";
 import { reloadPackagingsFromStorage } from "@/components/packagings/packagings-store";
 import { reloadQuoteDraftFromStorage } from "@/components/quotes/quote-draft-store";
 import { reloadQuoteIdentityFromStorage } from "@/components/quotes/quote-identity-store";
+import { reloadSavedQuotesFromStorage } from "@/components/quotes/saved-quotes-store";
 import { reloadRecipesFromStorage } from "@/components/recipes/recipes-store";
 import { reloadBusinessSettingsFromStorage } from "@/components/settings/business-settings-store";
 
@@ -29,4 +31,7 @@ export function reloadAllStoresFromStorage(): void {
   reloadBusinessSettingsFromStorage();
   reloadQuoteIdentityFromStorage();
   reloadQuoteDraftFromStorage();
+  // P0-11
+  reloadClientsFromStorage();
+  reloadSavedQuotesFromStorage();
 }

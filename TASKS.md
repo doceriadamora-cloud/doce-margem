@@ -7,7 +7,8 @@
 > Antes de iniciar uma nova fase: parar, resumir o que foi feito e aguardar aprovação.
 
 **Fase anterior:** P0-9C — Medidas caseiras, rendimento real e unidades seguras (2026-08-13): seletor de unidade de rendimento, normalização de unidades antigas, entrada por lata/caixinha/xícara/colher com conversão defensável e assistente de perda pelo rendimento real. **Nenhum recurso do Essencial continua anunciado como em desenvolvimento.**
-**Fase atual:** P0-10 — Salvamento em nuvem automático (2026-08-14): tabela `user_app_state` com RLS, cópia automática por usuária logada, status de sincronização e backup manual como recurso secundário. **A migration 0005 ainda NÃO foi aplicada.**
+**Fase anterior:** P0-10 — Salvamento em nuvem automático (2026-08-14): tabela `user_app_state` com RLS, cópia automática por usuária logada, status de sincronização e backup manual como recurso secundário. **A migration 0005 ainda NÃO foi aplicada.**
+**Fase atual:** P0-11 — Clientes e orçamentos salvos (2026-08-14): `/clientes`, seletor de cliente no orçamento, histórico com abrir/duplicar/excluir e situação. Sem migration nova — entra no `AppState` que a P0-10 já sincroniza.
 **Próximo passo recomendado:** aplicar a migration 0005 no Supabase, rodar o teste manual de dois navegadores, decidir a fronteira comercial de `cloud_sync` (ver abaixo) e concluir as validações pendentes da P0-8A antes de abrir a venda.
 
 > 🚨 **Pendências da P0-10, antes de considerar a fase validada:**
@@ -281,12 +282,40 @@
 ### Futuro — orientação contábil contextual
 - [ ] Avaliar um recurso “Fale com contador” ou conteúdo contextual, com escopo, responsabilidade e encaminhamento definidos antes de implementar
 
-### P1 recomendado — Orçamentos avançados
-- [ ] Evoluir a rota `/orcamentos` sem remover o orçamento simples do Essencial
-- [ ] Adicionar cadastro, vínculo e reaproveitamento de clientes
-- [ ] Manter histórico dos orçamentos emitidos
-- [ ] Acompanhar status de cada orçamento
-- [ ] Permitir duplicar um orçamento existente
+### Fase P0-11 — Clientes e orçamentos salvos ✅
+- [x] Criar `/clientes` protegida, com cadastro, edição e exclusão
+- [x] Acrescentar Clientes ao menu, entre Precificação e Orçamentos
+- [x] Exigir só nome e WhatsApp; e-mail, endereço e observações internas opcionais
+- [x] Deixar explícito no formulário que a observação interna nunca vai para o orçamento
+- [x] Acrescentar `clients` e `savedQuotes` ao `AppState`, normalizados para `[]`
+- [x] Acrescentar `clientId` e `savedQuoteId` ao `QuoteDraft`, normalizados para `null`
+- [x] Criar `QuoteClientSnapshot` com **exatamente** nome, WhatsApp e e-mail — o que não é copiado não pode vazar
+- [x] Criar stores de clientes e de orçamentos salvos, no padrão dos demais
+- [x] Acrescentar as duas recargas ao `reloadAllStoresFromStorage` (backup e hidratação da nuvem)
+- [x] Seletor de cliente cadastrada em `/orcamentos`, com indicação de WhatsApp
+- [x] Preservar o preenchimento manual como caminho de primeira classe
+- [x] "Salvar no histórico", que atualiza quando o orçamento aberto já veio de lá
+- [x] Preservar a situação ao atualizar — quem marcou "enviado" não volta a "rascunho"
+- [x] Histórico com abrir, duplicar, excluir e troca de situação
+- [x] Duplicar cria documento novo: número, data e ids de item novos, `savedQuoteId` zerado
+- [x] Contagem e último orçamento por cliente, **derivados** na renderização
+- [x] "Novo orçamento" a partir da cliente, que abre `/orcamentos` já vinculado
+- [x] Excluir cliente **desvincula** e mantém os orçamentos, avisando quantos antes de confirmar
+- [x] Não gravar o total do orçamento — derivado de `calculateCommercialQuoteTotals` na exibição
+- [x] Preservar `APP_STATE_STORAGE_KEY`, schema e dados antigos; sem migration nova
+- [x] Preservar Kiwify, webhook, product ID, envs, Supabase, auth, licenças e acesso pago
+- [x] Preservar fórmulas, pricing engine, `calculateRecipe` e o documento do orçamento
+- [x] **Não** implementar WhatsApp, link público nem PDF no servidor
+- [x] Verificação isolada: **31/31** (compatibilidade com dado da P0-10, entrada hostil e vazamento de dado interno)
+- [x] Regressões: P0-10 **19/19**, P0-9C **46/46**, P0-9B **13/13**, matriz **31/31**
+- [x] Rodar `typecheck`, `lint`, `build` e `git diff --check`
+- [ ] Avaliar filtro/paginação no histórico quando passar de algumas dezenas de orçamentos
+- [ ] Observar o tamanho do `AppState` em produção — o histórico cresce sem limite e vai inteiro para o JSONB
+
+### Fase P0-12 — Compartilhar orçamento no WhatsApp (pendente)
+- [ ] Base pronta na P0-11: cliente com WhatsApp, orçamento salvo e vínculo entre os dois
+- [ ] Decidir o que é enviado: texto resumido, link ou PDF gerado no navegador
+- [ ] Link público de orçamento continua fora de escopo até haver decisão própria
 
 ## Fase 0 — Setup e documentação ✅
 - [x] Criar projeto em C:\dev\doce-margem

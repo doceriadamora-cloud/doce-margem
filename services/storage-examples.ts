@@ -86,6 +86,8 @@ const sampleQuoteDraft: QuoteDraft = {
   paymentMethod: "pix",
   paymentTerms: "50% na encomenda",
   discount: "5",
+  clientId: null,
+  savedQuoteId: null,
   items: [
     {
       id: "item-validacao",

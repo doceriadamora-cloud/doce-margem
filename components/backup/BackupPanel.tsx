@@ -130,8 +130,9 @@ export default function BackupPanel() {
               Exportar cópia
             </h4>
             <p className="mt-1 text-sm text-stone-600 dark:text-stone-400">
-              Baixe uma cópia dos seus ingredientes, receitas, embalagens, custos fixos,
-              canais, configurações, identidade visual e rascunho de orçamento.
+              Baixe uma cópia dos seus ingredientes, receitas, embalagens, custos fixos, canais,
+              clientes, orçamentos salvos, configurações, identidade visual e rascunho de
+              orçamento.
             </p>
           </div>
           <button

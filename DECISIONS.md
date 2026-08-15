@@ -1917,3 +1917,74 @@ para sustentar sozinha a diferença de preço, e uma compradora não vai enxerg�
 cópia em nuvem como parte do Essencial e reconstruir o valor do Pro sobre os outros
 quatro eixos; (b) mantê-la discreta, sem virar argumento de venda; ou (c) restringi-la
 ao Pro. Enquanto não houver decisão, o código entrega e a página não promete.
+
+
+---
+
+## 2026-08-14 — O snapshot do orçamento carrega só o que o documento mostra
+
+### Decisão
+
+A Fase P0-11 acrescentou **clientes** e **histórico de orçamentos** ao `AppState`, sem
+migration nova: os dois viajam no JSONB de `user_app_state` que a P0-10 já criou, e
+entram no backup manual pelo mesmo caminho.
+
+### `QuoteClientSnapshot` tem três campos, e isso é uma trava
+
+O orçamento salvo guarda uma cópia congelada da cliente com **exatamente** nome,
+WhatsApp e e-mail. Endereço e observações internas ficam de fora.
+
+Poderiam ter entrado "para o caso de precisar depois". Não entraram porque a regra da
+casa desde a P0-4 é que o documento comercial não mostra dado interno, e a forma mais
+barata de garantir isso é **não copiar o dado interno para perto do documento**. Uma tela
+futura que renderize o snapshot inteiro por descuido não tem como vazar o que não está
+lá. A verificação isolada confirma que um payload adulterado com `notes` e `address` sai
+da normalização sem eles.
+
+O snapshot serve também para o documento não mudar sozinho: editar ou excluir a cliente
+não reescreve um orçamento já emitido.
+
+### Excluir cliente desvincula, não apaga
+
+Duas opções estavam sobre a mesa: impedir a exclusão enquanto houver orçamentos, ou
+permitir mantendo os orçamentos.
+
+Escolhida a segunda. Como cada orçamento já carrega o próprio snapshot, ele continua
+**legível e imprimível** sem a cliente — não há dado órfão nem tela quebrada. Impedir a
+exclusão obrigaria a usuária a apagar o histórico comercial para poder limpar a agenda,
+que é exatamente a troca errada: o cadastro é a agenda, o histórico é a prova do que foi
+combinado.
+
+A confirmação diz quantos orçamentos serão desvinculados **antes** de a usuária decidir,
+e a desvinculação acontece antes da remoção — se a remoção falhar, o histórico não fica
+apontando para um cadastro que sumiu.
+
+### O total do orçamento não é gravado
+
+`SavedQuote` guarda `items` e `discount`, e o total é recalculado por
+`calculateCommercialQuoteTotals` na exibição.
+
+Contraria a estrutura sugerida no pedido, e de propósito: o projeto não persiste valor
+derivado desde a Fase 2-6, pelo mesmo motivo de sempre — um número gravado pode divergir
+dos dados que o originaram, e aí passam a existir duas verdades. A função é pura e
+barata; recalcular custa nada e não erra.
+
+O contra-argumento honesto é que um documento emitido poderia querer o total congelado.
+Mas os itens **são** o documento; se o total divergisse deles, o errado seria o total.
+
+### `clientId` e `savedQuoteId` no rascunho
+
+Duas referências opcionais entraram no `QuoteDraft`, normalizadas para `null` em dado
+antigo:
+
+- `clientId` — qual cliente cadastrada está vinculada, ou `null` para preenchimento à
+  mão, que continua sendo caminho de primeira classe: nem toda encomenda vale um
+  cadastro.
+- `savedQuoteId` — qual orçamento do histórico está aberto. É o que faz "Salvar"
+  atualizar em vez de duplicar, e o que "Duplicar" zera para o novo documento nascer
+  independente.
+
+### Nada de WhatsApp nesta fase
+
+O pedido pede a base pronta e o compartilhamento na P0-12. A cliente tem WhatsApp, o
+orçamento tem o vínculo, o snapshot tem o contato — e nenhum `wa.me` foi escrito.

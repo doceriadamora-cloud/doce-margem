@@ -59,6 +59,8 @@ A oferta disponível hoje é o **Minha Fatia Essencial**. O Pro Anual é uma pos
 | Mão de obra / tempo de produção | ✅ | ✅ |
 | Ficha interna de precificação | ✅ | ✅ |
 | Orçamento simples para cliente | ✅ | ✅ |
+| Clientes cadastradas | ✅ | ✅ |
+| Histórico de orçamentos salvos | ✅ | ✅ |
 | Identidade visual do orçamento | ✅ | ✅ |
 | Backup export / import | ✅ | ✅ |
 | Templates básicos de receitas | ✅ | ✅ |
@@ -343,6 +345,53 @@ Ao hidratar, o app grava localmente **preservando o `updatedAt` da nuvem** (`sav
 
 ---
 
+## 11-C. Clientes e orçamentos salvos (Fase P0-11)
+
+A jornada comercial deixou de terminar na impressão: a confeiteira guarda quem compra com ela e o que já orçou.
+
+### Clientes
+
+`/clientes` — nome e WhatsApp obrigatórios; e-mail, endereço/bairro e **observações internas** opcionais.
+
+As observações internas ("prefere retirada pela manhã") são anotação da confeiteira para si mesma. Elas **nunca** chegam ao documento, e isso é garantido por construção, não por disciplina de tela: ver `QuoteClientSnapshot` abaixo.
+
+### Orçamentos salvos
+
+O rascunho da P0-4 continua sendo o que fica em edição. Ao salvar, ele vira um `SavedQuote` no histórico, com:
+
+- número, data, validade, forma e condições de pagamento;
+- itens, desconto e observações comerciais;
+- `clientId` (quando veio de uma cliente cadastrada) e `clientSnapshot`;
+- `status`: rascunho, enviado, aprovado ou recusado.
+
+**O total não é gravado.** Ele é derivado de `items` e `discount` por `calculateCommercialQuoteTotals` na hora de exibir — o projeto não persiste valor calculado (DECISIONS.md, Fase 2-6), e um total gravado poderia divergir dos itens que o originaram.
+
+### `QuoteClientSnapshot`: o que não é copiado não pode vazar
+
+O snapshot tem **exatamente três campos** — nome, WhatsApp e e-mail. Endereço e observações internas não estão lá.
+
+Isso é escolha de segurança, não economia. Não existe caminho — nem por descuido futuro numa tela nova — para o dado interno da cliente aparecer no orçamento entregue a ela. A verificação isolada confirma que até um payload adulterado com `notes` e `address` sai da normalização sem eles.
+
+O snapshot também mantém o documento legível depois de a cliente ser editada ou excluída: um orçamento emitido não pode mudar sozinho.
+
+### Excluir cliente não apaga orçamento
+
+Excluir uma cliente **desvincula** os orçamentos dela e os mantém no histórico, legíveis pelo snapshot. A confirmação diz quantos serão afetados antes de a usuária decidir.
+
+Apagar o histórico junto com o cadastro destruiria a prova do que foi combinado — e o cadastro é só a agenda, não o contrato.
+
+### Persistência
+
+`clients` e `savedQuotes` entraram no `AppState`, normalizados para `[]` quando ausentes. Como toda escrita passa por `saveAppState`, os dois entram automaticamente no backup manual e na cópia em nuvem da P0-10 — sem migration nova e sem uma linha a mais em nenhum dos dois.
+
+`APP_STATE_SCHEMA_VERSION` continua em 1: a compatibilidade vem da reconstrução campo a campo, padrão estabelecido na Fase 2-6.
+
+### Fora do escopo
+
+WhatsApp (P0-12), link público de orçamento e PDF no servidor. A P0-11 só deixa os dados prontos: cliente com WhatsApp, orçamento salvo e vínculo entre os dois.
+
+---
+
 ## 12. Rodar localmente
 
 Pré-requisitos: Node 20+ e npm.
@@ -398,7 +447,7 @@ Antes de qualquer deploy: `npm run lint`, `npm run typecheck` e `npm run build` 
 ## 15. Rotas planejadas
 
 **Públicas:** `/login`, `/cadastro`, `/precos`, `/acesso-bloqueado`, `/termos`, `/privacidade`, `/reembolso`, `/auth/esqueci-senha`, `/auth/nova-senha`, `/auth/accept-invite`
-**App atual:** `/`, `/ingredientes`, `/receitas`, `/embalagens`, `/precificacao`, `/orcamentos`, `/configuracoes`, `/conta`
+**App atual:** `/`, `/ingredientes`, `/receitas`, `/embalagens`, `/precificacao`, `/clientes`, `/orcamentos`, `/configuracoes`, `/conta`
 **Pro (futuro/bloqueável):** `/app/historico-precos`, `/app/scanner`, `/app/relatorios`
 **Admin:** `/admin`, `/admin/usuarios`, `/admin/licencas`, `/admin/webhooks`
 **API:** `POST /api/webhooks/kiwify`, `POST /api/webhooks/hotmart`

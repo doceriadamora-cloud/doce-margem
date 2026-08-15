@@ -1117,3 +1117,34 @@ diferenciação de plano.
 
 Somam-se às três validações ainda pendentes da P0-8A (botão de compra, e-mail de
 recuperação e mensagem de suporte).
+
+
+## Atualização P0-11 — clientes e orçamentos salvos (2026-08-14)
+
+O "P1 recomendado — Orçamentos avançados", registrado desde a P0-4, foi entregue: clientes
+cadastradas, histórico de orçamentos, vínculo entre os dois, duplicação e situação.
+
+Sem migration nova — `clients` e `savedQuotes` viajam no JSONB de `user_app_state` que a
+P0-10 criou, e entram no backup manual pelo mesmo caminho.
+
+### O que isso muda para a venda
+
+A jornada comercial deixou de terminar na impressão. A confeiteira agora tem agenda de
+clientes e memória do que já orçou — que é o que transforma o app de calculadora em
+ferramenta de trabalho diário. Junto com a cópia em nuvem da P0-10, é o par de recursos
+que sustenta o uso recorrente.
+
+### Preparado para a P0-12, sem ter sido implementado
+
+Cliente tem WhatsApp, orçamento salvo tem `clientId` e `clientSnapshot` com o contato, e o
+editor sabe qual cliente está vinculada. **Nenhum `wa.me` foi escrito**, nenhum link
+público, nenhum PDF no servidor.
+
+### Continua pendente para abrir a venda
+
+Nada de produto. As pendências seguem as mesmas:
+
+1. 🚨 Aplicar `supabase/migrations/0005_user_app_state.sql` (P0-10).
+2. 🚨 Teste manual de dois navegadores (P0-10).
+3. 🚨 Botão de compra, e-mail de recuperação e mensagem de suporte em produção (P0-8A).
+4. ⚠️ Decidir a fronteira comercial de `cloud_sync` (P0-10).
