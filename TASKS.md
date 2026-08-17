@@ -8,8 +8,10 @@
 
 **Fase anterior:** P0-9C — Medidas caseiras, rendimento real e unidades seguras (2026-08-13): seletor de unidade de rendimento, normalização de unidades antigas, entrada por lata/caixinha/xícara/colher com conversão defensável e assistente de perda pelo rendimento real. **Nenhum recurso do Essencial continua anunciado como em desenvolvimento.**
 **Fase anterior:** P0-10 — Salvamento em nuvem automático (2026-08-14): tabela `user_app_state` com RLS, cópia automática por usuária logada, status de sincronização e backup manual como recurso secundário. **A migration 0005 ainda NÃO foi aplicada.**
-**Fase atual:** P0-11 — Clientes e orçamentos salvos (2026-08-14): `/clientes`, seletor de cliente no orçamento, histórico com abrir/duplicar/excluir e situação. Sem migration nova — entra no `AppState` que a P0-10 já sincroniza.
+**Fase anterior:** P0-11 — Clientes e orçamentos salvos (2026-08-14): `/clientes`, seletor de cliente no orçamento, histórico com abrir/duplicar/excluir e situação. Sem migration nova — entra no `AppState` que a P0-10 já sincroniza.
 **Próximo passo recomendado:** aplicar a migration 0005 no Supabase, rodar o teste manual de dois navegadores, decidir a fronteira comercial de `cloud_sync` (ver abaixo) e concluir as validações pendentes da P0-8A antes de abrir a venda.
+
+**Fase atual:** P0-12 — Compartilhar orçamento no WhatsApp (2026-08-14): fluxo assistido em três passos, mensagem pronta, normalização de telefone brasileiro e compartilhamento também pelo histórico. Sem integração externa.
 
 > 🚨 **Pendências da P0-10, antes de considerar a fase validada:**
 > 1. **Aplicar `supabase/migrations/0005_user_app_state.sql`** no projeto Supabase (SQL Editor ou `supabase db push`) e rodar as 5 conferências da seção 5 do arquivo. Sem isso o app funciona, mas só com localStorage.
@@ -312,10 +314,38 @@
 - [ ] Avaliar filtro/paginação no histórico quando passar de algumas dezenas de orçamentos
 - [ ] Observar o tamanho do `AppState` em produção — o histórico cresce sem limite e vai inteiro para o JSONB
 
-### Fase P0-12 — Compartilhar orçamento no WhatsApp (pendente)
-- [ ] Base pronta na P0-11: cliente com WhatsApp, orçamento salvo e vínculo entre os dois
-- [ ] Decidir o que é enviado: texto resumido, link ou PDF gerado no navegador
-- [ ] Link público de orçamento continua fora de escopo até haver decisão própria
+### Fase P0-12 — Compartilhar orçamento no WhatsApp ✅
+- [x] Criar `lib/whatsapp.ts` puro: normalização de telefone, mensagem e link `wa.me`
+- [x] Tratar a armadilha do **DDD 55**: comprimento antes do prefixo, senão o número abre conversa com quem não existe
+- [x] Recusar número inválido com motivo (`empty` × `invalid`) e mensagem amigável
+- [x] Montar `Olá, {nome}! Aqui está o seu orçamento {número}.`, curta de propósito
+- [x] Codificar a mensagem com `encodeURIComponent`
+- [x] Criar `quote-share-store` para o editor e o histórico abrirem o **mesmo** painel
+- [x] Criar `QuoteShareDialog` com `<dialog>` nativo — foco preso, Esc e camada superior sem biblioteca
+- [x] Numerar o fluxo assistido: 1. salvar PDF, 2. abrir WhatsApp, 3. anexar à mão
+- [x] Fechar o painel antes de imprimir e reabrir depois, para não sair no papel e cair no passo 2
+- [x] Botão "Compartilhar no WhatsApp →" no editor, ao lado de Imprimir
+- [x] Botão "Compartilhar →" em cada linha do histórico
+- [x] **Carregar o orçamento no editor antes de compartilhar pelo histórico** — a impressão imprime o que está no editor
+- [x] Copiar mensagem com tratamento de área de transferência bloqueada
+- [x] Indicar "WhatsApp cadastrado" × "sem WhatsApp" no dropdown de clientes
+- [x] Avisar no editor quando não há WhatsApp válido para compartilhar
+- [x] Orientar a salvar antes de enviar quando o orçamento ainda não está no histórico
+- [x] Marcar como "enviado" por **ação explícita**, nunca automática
+- [x] Preservar o documento comercial sem dado interno — `QuoteDocument.tsx` não foi tocado
+- [x] **Não** implementar PDF no servidor, upload, link público, Supabase Storage nem WhatsApp Business API
+- [x] Preservar Kiwify, webhook, product ID, envs, Supabase, auth, licenças e acesso pago
+- [x] Preservar fórmulas, pricing engine e `calculateRecipe`; sem migration e sem SQL
+- [x] Verificação isolada: **32/32** (exemplos do pedido, sujeira digitada, DDD 55, recusas, mensagem e link)
+- [x] Regressões: P0-11 **31/31**, P0-10 **19/19**, P0-9C **46/46**, P0-9B **13/13**, matriz **31/31**
+- [x] Rodar `typecheck`, `lint`, `build` e `git diff --check`
+- [ ] Testar o `wa.me` em celular real (Android e iOS) — o comportamento de abrir o app varia por sistema
+- [ ] Avaliar `navigator.share` como caminho nativo em celular, se houver relato de atrito
+
+### Futuro — envio automático do orçamento (não implementado)
+- [ ] Anexar o PDF sozinho exige gerar o arquivo e hospedá-lo: PDF no servidor ou Supabase Storage, mais link público com expiração
+- [ ] WhatsApp Business API tem custo por conversa e aprovação de template — decisão comercial antes de técnica
+- [ ] Link público de orçamento com aceite/recusa é o que dois concorrentes oferecem; fase própria, com decisão sobre exposição de dado
 
 ## Fase 0 — Setup e documentação ✅
 - [x] Criar projeto em C:\dev\doce-margem

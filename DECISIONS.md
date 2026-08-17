@@ -1988,3 +1988,76 @@ antigo:
 
 O pedido pede a base pronta e o compartilhamento na P0-12. A cliente tem WhatsApp, o
 orçamento tem o vínculo, o snapshot tem o contato — e nenhum `wa.me` foi escrito.
+
+
+---
+
+## 2026-08-14 — Compartilhar é assistido porque o navegador não anexa arquivo
+
+### Decisão
+
+A Fase P0-12 abre o WhatsApp com mensagem pronta e **orienta** a usuária a anexar o PDF
+à mão. Não tenta enviar o arquivo sozinha.
+
+Não é limitação de esforço: o `wa.me` aceita número e texto, e ponto. Anexar exigiria
+gerar o PDF no servidor e hospedá-lo num endereço público, ou usar a WhatsApp Business
+API — que tem custo por conversa e aprovação de template. As duas são fases próprias,
+com decisão comercial antes da técnica.
+
+O que se ganha sendo honesto sobre isso: o painel numera os três passos em vez de
+esconder que existe um passo manual. Prometer um envio que não acontece seria pior do que
+pedir três cliques.
+
+### O painel fecha antes de imprimir e volta depois
+
+`window.print()` imprime a página inteira, e um diálogo aberto sairia no papel. O painel
+se fecha, imprime, e reabre — `window.print()` só retorna quando a caixa de impressão é
+dispensada, então a usuária cai exatamente no passo 2.
+
+Há também `quote-print-hidden` na classe do diálogo, como segunda barreira para quem usar
+Ctrl+P com ele aberto.
+
+### Compartilhar pelo histórico carrega o orçamento no editor primeiro
+
+**O erro mais caro que esta fase poderia introduzir**: a impressão sempre imprime o que
+está no editor. Compartilhar direto da lista mandaria a mensagem de um orçamento e o PDF
+de outro, e a usuária só descobriria depois de a cliente receber.
+
+Por isso `handleShare` no histórico chama `openSavedQuoteInDraft` antes de abrir o
+painel. O custo é o editor mudar de conteúdo; o ganho é o documento sempre corresponder à
+mensagem.
+
+O contato vem do `clientSnapshot`, congelado quando o orçamento foi salvo — não do
+cadastro atual da cliente. Se ela trocou de número depois, o certo é reabrir e atualizar o
+orçamento, não mandar para um número que não corresponde ao documento emitido.
+
+### A ordem das regras de normalização não é acidental
+
+`lib/whatsapp.ts` testa **comprimento antes de prefixo**:
+
+1. 10 ou 11 dígitos → recebe `55` na frente.
+2. 12 ou 13 dígitos começando com `55` → já está completo.
+
+Existe **DDD 55** (Santa Maria, RS). O número `55987654321` tem 11 dígitos e começa com
+"55", mas é DDD + celular, não código de país + número quebrado. Com a ordem invertida,
+todo cliente daquela região receberia mensagem em um número inexistente — falha
+silenciosa, que só aparece quando alguém reclama que não recebeu.
+
+Está coberto por verificação isolada, junto com os exemplos do pedido e a sujeira que a
+usuária realmente digita (parênteses, pontos, `+55`, espaços).
+
+### Status "enviado" é ação explícita
+
+O painel oferece "Marcar como enviado"; clicar em compartilhar **não** muda o histórico
+sozinho. A usuária pode abrir o painel só para conferir a mensagem ou copiar o texto, e um
+status que muda por conta própria vira registro errado sobre o que foi combinado com a
+cliente.
+
+### A mensagem não pode carregar dado interno
+
+`buildQuoteShareMessage` recebe **apenas** nome e número do orçamento. Custo, margem,
+markup, perda, fator de correção, sub-receita e observação interna da cliente não são
+filtrados na saída — eles nem entram na função. Mesma regra do `QuoteClientSnapshot` da
+P0-11: o que não é copiado não pode vazar.
+
+`QuoteDocument.tsx` não foi tocado nesta fase.

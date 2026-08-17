@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import QuoteBuilder from "@/components/quotes/QuoteBuilder";
+import QuoteShareDialog from "@/components/quotes/QuoteShareDialog";
 import SavedQuotesList from "@/components/quotes/SavedQuotesList";
 import { requireEssentialAccess } from "@/lib/auth/require-access";
 
@@ -28,6 +29,9 @@ export default async function OrcamentosPage() {
       {/* P0-11: o histórico assina o mesmo rascunho que o editor, então abrir ou
           duplicar aqui atualiza a tela acima sozinho. */}
       <SavedQuotesList />
+      {/* P0-12: um único painel para os dois pontos de entrada — editor e
+          histórico —, coordenado pelo `quote-share-store`. */}
+      <QuoteShareDialog />
     </div>
   );
 }

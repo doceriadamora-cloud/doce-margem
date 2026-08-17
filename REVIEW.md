@@ -2358,3 +2358,65 @@ na tela.
 - `npm run build`: passou no Next.js 16.2.9; **22 rotas**, `/clientes` incluída.
 - Teste HTTP: `/clientes` em 307 como as demais protegidas; públicas em 200.
 - `git diff --check`: passou sem erros.
+
+
+---
+
+## Fase P0-12 — Compartilhar orçamento no WhatsApp (2026-08-14)
+
+> Sem migration, sem SQL, sem integração externa. `QuoteDocument.tsx`,
+> `modules/` e `supabase/` intocados.
+
+### O que entrou
+
+- `lib/whatsapp.ts` — normalização de telefone, mensagem e link `wa.me`, tudo puro.
+- `quote-share-store` + `QuoteShareDialog` — um único painel para os dois pontos de
+  entrada, com `<dialog>` nativo (foco preso, Esc, camada superior, zero biblioteca).
+- Botão no editor e em cada linha do histórico.
+- Indicação "WhatsApp cadastrado" × "sem WhatsApp" no dropdown de clientes.
+
+### Dois detalhes que evitam falha silenciosa
+
+**1. Ordem das regras de normalização.** Comprimento antes de prefixo, porque existe
+**DDD 55** (Santa Maria, RS). `55987654321` é DDD + celular, não país + número quebrado.
+Com a ordem invertida, toda cliente daquela região receberia mensagem num número
+inexistente — e ninguém descobriria até alguém reclamar.
+
+**2. Compartilhar pelo histórico carrega o orçamento no editor antes.** A impressão sempre
+imprime o que está no editor; sem esse passo, a mensagem seria de um orçamento e o PDF de
+outro.
+
+### Verificação isolada — 32/32
+
+| Grupo | Cobertura |
+|---|---|
+| Exemplos do pedido | `(21) 95905-4988`, `21959054988`, `5521959054988` → todos `5521959054988` |
+| Sujeira real | `+55`, pontos, espaços, parênteses, fixo de 10 dígitos |
+| **Armadilha do DDD 55** | `55987654321` → `5555987654321` ✅ |
+| Recusas | vazio, letras, 3 dígitos, 13 dígitos sem `55`, 14 dígitos |
+| Mensagem | com nome e número, sem número, sem nome, só espaços |
+| **Nada de dado interno** | mensagem não contém custo, margem, markup, lucro, perda, `R$` |
+| Link | `wa.me` correto, acentos codificados, número inválido → `null` |
+
+Regressões: P0-11 **31/31**, P0-10 **19/19**, P0-9C **46/46**, P0-9B **13/13**,
+matriz **31/31**.
+
+### Riscos conhecidos
+
+- **Comportamento do `wa.me` em celular varia por sistema.** Android costuma abrir o app;
+  iOS pode passar pelo navegador. Precisa de teste em aparelho real — não dá para
+  verificar daqui.
+- **Área de transferência bloqueada** em contexto inseguro ou sem permissão. Tratado: o
+  painel avisa e a mensagem continua visível e selecionável.
+- **`<dialog>` + impressão.** O painel fecha antes de imprimir e tem
+  `quote-print-hidden` como segunda barreira, mas o comportamento de camada superior na
+  impressão merece confirmação em navegador real.
+- **O passo manual continua sendo manual.** Se o atrito de anexar o PDF virar reclamação,
+  o caminho é link público com expiração — fase própria, com decisão sobre exposição de
+  dado.
+
+### Validação
+- `npm run typecheck`: passou.
+- `npm run lint`: passou.
+- `npm run build`: passou no Next.js 16.2.9; 22 rotas.
+- `git diff --check`: passou sem erros.

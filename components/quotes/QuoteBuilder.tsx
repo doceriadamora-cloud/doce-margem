@@ -10,11 +10,13 @@ import {
   getClientsSnapshot,
   subscribeClients,
 } from "@/components/clients/clients-store";
+import { hasUsableWhatsApp } from "@/lib/whatsapp";
 import {
   applyClientToDraft,
   buildSavedQuoteInput,
   clearClientFromDraft,
 } from "./quote-actions";
+import { openQuoteShare } from "./quote-share-store";
 import {
   addSavedQuote,
   getSavedQuotesServerSnapshot,
@@ -142,6 +144,23 @@ export default function QuoteBuilder() {
     setSaveFeedback("Orçamento salvo no histórico.");
   }
 
+  /**
+   * Abre o painel de compartilhamento com o que está no editor — Fase P0-12.
+   *
+   * O WhatsApp vem do rascunho, não da cliente cadastrada: é o que a usuária
+   * enxerga na tela, e ela pode tê-lo ajustado à mão depois de selecionar a
+   * cliente. Compartilhar para um número diferente do que está visível seria a
+   * pior surpresa possível.
+   */
+  function handleShare(): void {
+    openQuoteShare({
+      clientName: draft.clientName,
+      whatsapp: draft.clientPhone,
+      quoteNumber: draft.quoteNumber,
+      savedQuoteId: draft.savedQuoteId,
+    });
+  }
+
   return (
     <div className="quote-builder grid items-start gap-6 lg:grid-cols-[minmax(0,420px)_minmax(0,1fr)]">
       <div className="quote-print-hidden flex flex-col gap-5">
@@ -226,7 +245,11 @@ export default function QuoteBuilder() {
                 {clients.map((client) => (
                   <option key={client.id} value={client.id}>
                     {client.name}
-                    {client.whatsapp !== "" ? " · WhatsApp" : ""}
+                    {/* P0-12: quem tem WhatsApp pode receber o orçamento direto.
+                        Dizer isso na hora de escolher evita descobrir depois. */}
+                    {hasUsableWhatsApp(client.whatsapp)
+                      ? " · WhatsApp cadastrado"
+                      : " · sem WhatsApp"}
                   </option>
                 ))}
               </select>
@@ -240,6 +263,12 @@ export default function QuoteBuilder() {
                 >
                   Cadastrar agora
                 </Link>
+              </p>
+            )}
+            {!hasUsableWhatsApp(draft.clientPhone) && (
+              <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">
+                Sem um WhatsApp válido no orçamento não dá para compartilhar. Preencha o campo
+                abaixo ou escolha uma cliente que tenha.
               </p>
             )}
           </div>
@@ -494,9 +523,19 @@ export default function QuoteBuilder() {
             <button
               type="button"
               onClick={() => window.print()}
-              className="w-fit rounded-full bg-rose-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-rose-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-600"
+              className="w-fit rounded-full border border-stone-300 px-4 py-2 text-sm font-semibold text-stone-600 transition-colors hover:bg-stone-50 dark:border-stone-700 dark:text-stone-300 dark:hover:bg-stone-800"
             >
               Imprimir / salvar PDF
+            </button>
+            {/* P0-12: o compartilhamento assume os três passos — PDF, conversa,
+                anexo — porque o `wa.me` não anexa arquivo. */}
+            <button
+              type="button"
+              onClick={handleShare}
+              disabled={!hasCommercialItem}
+              className="w-fit rounded-full bg-rose-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-rose-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-600 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Compartilhar no WhatsApp →
             </button>
           </div>
         </div>

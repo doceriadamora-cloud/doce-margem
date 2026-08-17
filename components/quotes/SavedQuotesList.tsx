@@ -5,6 +5,7 @@ import { formatCurrency } from "@/components/pricing/pricing-formatters";
 import { calculateCommercialQuoteTotals } from "@/modules/quotes";
 import type { SavedQuote, SavedQuoteStatus } from "@/types/quotes";
 import { duplicateSavedQuoteInDraft, openSavedQuoteInDraft } from "./quote-actions";
+import { openQuoteShare } from "./quote-share-store";
 import {
   getQuoteDraftServerSnapshot,
   getQuoteDraftSnapshot,
@@ -87,6 +88,28 @@ export default function SavedQuotesList() {
     getQuoteDraftServerSnapshot,
   );
 
+  /**
+   * Compartilha um orçamento do histórico — Fase P0-12.
+   *
+   * **Carrega o orçamento no editor antes de abrir o painel**, e isso não é
+   * conveniência: a impressão sempre imprime o que está no editor. Sem este
+   * passo, compartilhar da lista mandaria a mensagem de um orçamento e o PDF de
+   * outro — o erro mais caro que esta fase poderia introduzir.
+   *
+   * O contato vem do `clientSnapshot`, congelado quando o orçamento foi salvo.
+   * Se a cliente trocou de número depois, o certo é reabrir e atualizar o
+   * orçamento, não mandar para um número que não corresponde ao documento.
+   */
+  function handleShare(quote: SavedQuote): void {
+    openSavedQuoteInDraft(quote);
+    openQuoteShare({
+      clientName: quote.clientSnapshot.name,
+      whatsapp: quote.clientSnapshot.whatsapp,
+      quoteNumber: quote.quoteNumber,
+      savedQuoteId: quote.id,
+    });
+  }
+
   function handleRemove(quote: SavedQuote): void {
     const nome = quote.clientSnapshot.name.trim() || "sem cliente";
     if (!window.confirm(`Excluir o orçamento ${quote.quoteNumber} (${nome})?`)) return;
@@ -168,8 +191,15 @@ export default function SavedQuotesList() {
                 <div className="flex shrink-0 flex-wrap justify-end gap-2">
                   <button
                     type="button"
-                    onClick={() => openSavedQuoteInDraft(quote)}
+                    onClick={() => handleShare(quote)}
                     className="rounded-full bg-rose-600 px-3 py-1.5 text-sm font-semibold text-white transition-colors hover:bg-rose-700"
+                  >
+                    Compartilhar →
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => openSavedQuoteInDraft(quote)}
+                    className="rounded-full border border-stone-200 px-3 py-1.5 text-sm font-medium text-stone-500 transition-colors hover:border-rose-300 hover:bg-rose-50 hover:text-rose-700 dark:border-stone-700 dark:text-stone-400 dark:hover:border-rose-800 dark:hover:bg-rose-950 dark:hover:text-rose-300"
                   >
                     Abrir
                   </button>

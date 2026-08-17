@@ -1148,3 +1148,36 @@ Nada de produto. As pendências seguem as mesmas:
 2. 🚨 Teste manual de dois navegadores (P0-10).
 3. 🚨 Botão de compra, e-mail de recuperação e mensagem de suporte em produção (P0-8A).
 4. ⚠️ Decidir a fronteira comercial de `cloud_sync` (P0-10).
+
+
+## Atualização P0-12 — compartilhar no WhatsApp (2026-08-14)
+
+Fecha o ciclo comercial: precificar → orçar → salvar → **enviar para a cliente**.
+
+O compartilhamento é **assistido**, e isso é uma escolha honesta: o `wa.me` abre conversa
+com texto pronto e não anexa arquivo. O painel numera os três passos — salvar o PDF, abrir
+a conversa, anexar — em vez de prometer um envio automático que não aconteceria.
+
+### Onde isso posiciona o produto
+
+A pesquisa de concorrência de 15/08 mostrou que **dois** concorrentes oferecem orçamento
+com link público e aceite/recusa (docegestao.app e Doce Cálculo). A P0-12 não empata com
+isso — entrega o caminho de menor risco e sem infraestrutura nova.
+
+O passo seguinte, se houver demanda real, é link público com expiração. Isso exige decisão
+sobre exposição de dado (um orçamento acessível por URL é um documento comercial público)
+e infraestrutura de hospedagem do arquivo. **Não deve sair sem essa conversa.**
+
+### Continua pendente para abrir a venda
+
+Nada de produto. As mesmas de antes:
+
+1. 🚨 Aplicar `supabase/migrations/0005_user_app_state.sql` (P0-10).
+2. 🚨 Teste manual de dois navegadores (P0-10).
+3. 🚨 Botão de compra, e-mail de recuperação e mensagem de suporte em produção (P0-8A).
+4. ⚠️ Decidir a fronteira comercial de `cloud_sync` (P0-10).
+
+Acrescenta uma nova, específica desta fase:
+
+5. 🚨 **Testar o `wa.me` em celular real (Android e iOS)** — o comportamento de abrir o
+   app varia por sistema, e é o caminho principal de uso.

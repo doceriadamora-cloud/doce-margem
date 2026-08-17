@@ -61,6 +61,7 @@ A oferta disponível hoje é o **Minha Fatia Essencial**. O Pro Anual é uma pos
 | Orçamento simples para cliente | ✅ | ✅ |
 | Clientes cadastradas | ✅ | ✅ |
 | Histórico de orçamentos salvos | ✅ | ✅ |
+| Compartilhar orçamento no WhatsApp | ✅ | ✅ |
 | Identidade visual do orçamento | ✅ | ✅ |
 | Backup export / import | ✅ | ✅ |
 | Templates básicos de receitas | ✅ | ✅ |
@@ -389,6 +390,54 @@ Apagar o histórico junto com o cadastro destruiria a prova do que foi combinado
 ### Fora do escopo
 
 WhatsApp (P0-12), link público de orçamento e PDF no servidor. A P0-11 só deixa os dados prontos: cliente com WhatsApp, orçamento salvo e vínculo entre os dois.
+
+---
+
+## 11-D. Compartilhar orçamento no WhatsApp (Fase P0-12)
+
+O botão **"Compartilhar no WhatsApp →"** aparece em dois lugares: ao lado de Imprimir no editor, e em cada linha do histórico.
+
+### O fluxo é assistido, e isso é honesto
+
+O `wa.me` abre uma conversa com texto pronto e **não anexa arquivo**. Não existe forma confiável de o navegador entregar um PDF por ali. Em vez de prometer um envio que nunca aconteceria, o painel assume os três passos e os numera:
+
+```
+1. Salvar / imprimir PDF   →   2. Abrir WhatsApp   →   3. anexar o arquivo à mão
+```
+
+O painel se fecha antes de imprimir — para não sair no papel — e reabre sozinho depois, deixando a usuária direto no passo 2.
+
+### Detalhe que evita mandar o documento errado
+
+A impressão sempre imprime **o que está no editor**. Por isso compartilhar a partir do histórico **carrega o orçamento no editor antes** de abrir o painel. Sem esse passo, a usuária mandaria a mensagem de um orçamento e o PDF de outro — o erro mais caro que esta fase poderia introduzir.
+
+### Normalização do telefone
+
+`lib/whatsapp.ts`, função pura:
+
+| Entrada | Saída |
+|---|---|
+| `(21) 95905-4988` | `5521959054988` |
+| `21959054988` | `5521959054988` |
+| `5521959054988` | `5521959054988` |
+| `+55 21 95905-4988` | `5521959054988` |
+| `123` | recusado |
+
+A ordem das regras não é acidental: **10 ou 11 dígitos** recebem o `55` na frente, e só depois se checa se já veio com código de país. Existe **DDD 55** (Santa Maria, RS) — o número `55987654321` tem 11 dígitos e começa com "55", mas é DDD + celular, não país + número quebrado. Testar o comprimento antes do prefixo resolve sozinho; trocar a ordem faria esses números abrirem conversa com quem não existe.
+
+### A mensagem
+
+`Olá, {nome}! Aqui está o seu orçamento {número}.` — curta de propósito: quem recebe já vai ver o documento anexado, e o valor, os itens e as condições estão no PDF, onde devem estar.
+
+Nada de custo, margem, markup, perda, fator de correção, sub-receita ou observação interna da cliente — esses dados **nem existem** nas entradas das funções que montam a mensagem.
+
+### Status "enviado"
+
+Marcar é uma **ação explícita** no painel, nunca automática. Clicar em compartilhar não muda o histórico sozinho: a usuária pode abrir o painel só para conferir a mensagem, e um status que muda por conta própria vira registro errado.
+
+### Fora do escopo
+
+PDF no servidor, upload de arquivo, link público de orçamento, Supabase Storage e WhatsApp Business API. Nenhum deles foi implementado, e o envio automático de anexo depende de um deles.
 
 ---
 
