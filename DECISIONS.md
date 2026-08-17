@@ -2061,3 +2061,94 @@ filtrados na saída — eles nem entram na função. Mesma regra do `QuoteClient
 P0-11: o que não é copiado não pode vazar.
 
 `QuoteDocument.tsx` não foi tocado nesta fase.
+
+
+---
+
+## 2026-08-15 — O histórico compara custo por unidade, e mora fora do ingrediente
+
+### Decisão
+
+A Fase P0-13 registra o preço de cada ingrediente a cada mudança e mostra quais receitas
+foram atingidas. Sem migration: `ingredientPriceHistory` entrou no `AppState` e viaja no
+JSONB de `user_app_state` que a P0-10 criou.
+
+### Coleção própria, não campo dentro de `Ingredient`
+
+`Ingredient` é tipo de **domínio**: entra em `calculateIngredient` e viaja dentro de cada
+cálculo de receita, de sub-receita e de precificação. Pendurar nele uma lista que só
+cresce faria toda conta carregar dado que a conta nunca usa, e faria o domínio conhecer
+um conceito que é de aplicação.
+
+Mesmo padrão de `clients` e `savedQuotes` da P0-11. `types/pricing.ts` não foi tocado.
+
+### A variação compara custo por unidade-base
+
+**É a decisão que separa uma resposta certa de uma errada.** Comprar 2 kg por R$ 68 depois
+de comprar 1 kg por R$ 52 é um preço de pacote 30% maior e um custo por grama 35% **menor**.
+
+Comparar o preço do pacote diria "aumentou" nos dois casos e mandaria a usuária revisar
+receitas que na verdade ficaram mais baratas — ou pior, não avisaria quando ela trocou
+para uma embalagem menor pelo mesmo preço. Quem decide preço de venda precisa do custo
+por unidade.
+
+### O `unitCost` é gravado, contrariando a regra da Fase 2-6
+
+O projeto não persiste valor derivado. Aqui é exceção deliberada: o histórico é registro
+do **passado**, não projeção do presente. Recalcular depois usaria a tabela de conversão
+de hoje e poderia reescrever o que aconteceu — o oposto do que um histórico serve.
+
+Um total de orçamento recalculado é o mesmo total; um custo histórico recalculado é outro
+fato.
+
+### Registrar é ação de salvar, nunca de renderizar
+
+A gravação vive em `ingredients-store`, dentro de `addIngredient`/`updateIngredient`.
+Ficasse na tela, cada repintura da lista criaria uma linha nova e o histórico viraria
+lixo em segundos.
+
+Duas barreiras contra duplicata: `isCostRelevantChange` compara o que foi digitado (nome
+e categoria não contam), e `isSameAsLatest` compara o que seria gravado.
+
+`baseUnit` entra nos campos relevantes apesar de parecer apresentação — trocar a
+unidade-base muda o divisor do custo.
+
+### Excluir ingrediente apaga o histórico dele
+
+Diferente da P0-11, onde excluir uma cliente **preserva** os orçamentos. Lá o orçamento é
+um documento com valor próprio, legível sozinho, prova do que foi combinado. Aqui o
+registro só existe em função do ingrediente: sem ele não há onde mostrar, nada a fazer com
+a informação, e ela cresceria para sempre.
+
+Há também um teto de **50 registros por ingrediente**. O `AppState` inteiro vai para o
+JSONB a cada gravação, e histórico sem limite viraria custo de rede em cada tecla.
+
+### O app avisa, não conserta
+
+Nada é recalculado automaticamente: preços salvos continuam salvos, orçamentos emitidos
+continuam como estavam. O aviso diz "revise"; a revisão é dela.
+
+Recalcular em lote é tecnicamente fácil e comercialmente perigoso — mudaria silenciosamente
+o preço de venda de alguém que talvez já tenha combinado outro valor com a cliente. Se
+virar necessidade, o caminho é uma ação explícita ("aplicar novo custo nestas receitas"),
+não um efeito colateral de editar um ingrediente.
+
+### `price_history` saiu do Pro
+
+Estava classificado como Pro Anual desde 2026-08-06. Foi para o Essencial porque **não se
+encaixa em nenhum dos cinco eixos** que definem o Pro (recorrência, nuvem, automação, IA,
+relatórios): guardar o histórico não tem custo contínuo, vive no mesmo `AppState` do
+resto e não depende de serviço nenhum.
+
+Também é o recurso que a pesquisa de concorrência de 15/08 apontou como o mais repetido
+entre os concorrentes — dois deles o oferecem no plano base. Deixá-lo trancado num plano
+que não existe era desvantagem competitiva sem contrapartida.
+
+A `MATRIZ_APROVADA` foi atualizada junto, e a asserção "o Pro tem exatamente 5 recursos"
+virou 4.
+
+### Achado corrigido de passagem
+
+O `README.md` listava "Templates básicos de receitas ✅" no Essencial. **Não existe
+nenhum recurso de templates no código** — era promessa na especificação viva sem
+sustentação. Movido para a coluna do Pro futuro.

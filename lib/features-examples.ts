@@ -89,7 +89,8 @@ const MATRIZ_APROVADA: Record<FeatureKey, `${FeatureMinimumPlan} / ${FeatureStat
   // P0-9C entregou medidas caseiras. Nenhum recurso do Essencial fica planejado.
   household_measures: "essential / available",
   menu_engineering: "pro_annual / planned",
-  price_history: "pro_annual / planned",
+  // P0-13: entregue no Essencial.
+  price_history: "essential / available",
   cloud_sync: "pro_annual / planned",
   pdf_export: "pro_annual / planned",
   ai_scanner: "pro_annual / planned",
@@ -181,7 +182,7 @@ export function runFeatureValidations(): FeatureCheckResult[] {
   );
   check(
     "status continua não gateando: planejado do Pro libera para Pro",
-    canAccessFeature(PRO, "price_history") === true,
+    canAccessFeature(PRO, "menu_engineering") === true,
   );
   check(
     "planejado do Pro NÃO libera para Essencial",
@@ -239,10 +240,11 @@ export function runFeatureValidations(): FeatureCheckResult[] {
     ),
   );
   check(
-    "o Pro Anual tem exatamente os 5 recursos de nuvem/automação/IA/relatórios",
+    // Eram 5 até a P0-13 levar `price_history` para o Essencial.
+    "o Pro Anual tem exatamente os 4 recursos de nuvem/automação/IA/relatórios",
     ALL_FEATURES.filter((f) => f.minimumPlan === "pro_annual")
       .map((f) => f.key)
-      .join(",") === "menu_engineering,price_history,cloud_sync,pdf_export,ai_scanner",
+      .join(",") === "menu_engineering,cloud_sync,pdf_export,ai_scanner",
   );
 
   /* ── Integridade da matriz ── */

@@ -11,7 +11,9 @@
 **Fase anterior:** P0-11 — Clientes e orçamentos salvos (2026-08-14): `/clientes`, seletor de cliente no orçamento, histórico com abrir/duplicar/excluir e situação. Sem migration nova — entra no `AppState` que a P0-10 já sincroniza.
 **Próximo passo recomendado:** aplicar a migration 0005 no Supabase, rodar o teste manual de dois navegadores, decidir a fronteira comercial de `cloud_sync` (ver abaixo) e concluir as validações pendentes da P0-8A antes de abrir a venda.
 
-**Fase atual:** P0-12 — Compartilhar orçamento no WhatsApp (2026-08-14): fluxo assistido em três passos, mensagem pronta, normalização de telefone brasileiro e compartilhamento também pelo histórico. Sem integração externa.
+**Fase anterior:** P0-12 — Compartilhar orçamento no WhatsApp (2026-08-14): fluxo assistido em três passos, mensagem pronta, normalização de telefone brasileiro e compartilhamento também pelo histórico. Sem integração externa.
+
+**Fase atual:** P0-13 — Histórico de preço dos ingredientes + receitas afetadas (2026-08-15): registro a cada mudança de custo, variação por unidade-base, detecção de receitas atingidas direta e indiretamente, card no Painel e aviso na Precificação. Sem migration.
 
 > 🚨 **Pendências da P0-10, antes de considerar a fase validada:**
 > 1. **Aplicar `supabase/migrations/0005_user_app_state.sql`** no projeto Supabase (SQL Editor ou `supabase db push`) e rodar as 5 conferências da seção 5 do arquivo. Sem isso o app funciona, mas só com localStorage.
@@ -276,6 +278,35 @@
 - [ ] 🚨 **Teste manual de dois navegadores** (roteiro no `REVIEW.md`)
 - [ ] ⚠️ **Decidir a fronteira comercial de `cloud_sync`** (Essencial × Pro)
 - [ ] Avaliar merge por entidade quando houver relato real de conflito; hoje é "último a escrever vence" por relógio de navegador
+
+### Fase P0-13 — Histórico de preço e receitas afetadas ✅
+- [x] Criar `types/price-history.ts` — coleção própria, fora de `Ingredient`, para o tipo de domínio não carregar lista dentro de cada cálculo
+- [x] Acrescentar `ingredientPriceHistory` ao `AppState`, normalizado para `[]`
+- [x] Criar `lib/price-history.ts` puro: campos relevantes, duplicata, variação, corte e aumentos recentes
+- [x] Comparar **custo por unidade-base**, não preço do pacote — 2 kg por R$ 68 depois de 1 kg por R$ 52 é queda, não aumento
+- [x] Criar `lib/recipe-usage.ts` puro, com travessia de sub-receitas e proteção contra referência circular
+- [x] Gravar o registro em `ingredients-store`, na ação de salvar — nunca em render
+- [x] Primeiro registro ao cadastrar; novo registro só quando preço, quantidade, unidade, unidade-base ou fator mudam
+- [x] Não registrar quando só o nome/categoria muda, nem quando o valor repete o último
+- [x] Limitar a 50 registros por ingrediente — o `AppState` inteiro vai para a nuvem a cada gravação
+- [x] Apagar o histórico junto com o ingrediente, avisando na confirmação
+- [x] Painel recolhido em `/ingredientes` com alerta, registros e receitas afetadas
+- [x] Marcar uso "via sub-receita" — o caso que a usuária não veria olhando os itens da receita
+- [x] Card "Ingredientes com mudança de preço" no Painel, só aumentos dos últimos 30 dias, some quando não há
+- [x] Aviso discreto em `/precificacao` quando a receita usa insumo reajustado — informa, não bloqueia
+- [x] **Não** recalcular preço salvo nem alterar orçamento já emitido
+- [x] Reclassificar `price_history` para `essential / available` e confirmar na `MATRIZ_APROVADA`
+- [x] Acrescentar a recarga do histórico ao `reloadAllStoresFromStorage` (backup e nuvem)
+- [x] Preservar `APP_STATE_STORAGE_KEY`, schema e dados antigos; sem migration e sem SQL
+- [x] Preservar Kiwify, webhook, product ID, envs, Supabase, auth, licenças e acesso pago
+- [x] Preservar fórmulas, pricing engine e `calculateRecipe` — nenhum arquivo de `modules/` alterado
+- [x] **Não** implementar estoque, pedidos, agenda, cardápio nem relatórios
+- [x] Verificação isolada: **48/48**
+- [x] Regressões: P0-12 **32/32**, P0-11 **31/31**, P0-10 **19/19**, P0-9C **46/46**, P0-9B **13/13**, matriz **31/31**
+- [x] Rodar `typecheck`, `lint`, `build` e `git diff --check`
+- [x] Corrigir o `README.md`, que prometia "Templates básicos de receitas" no Essencial sem o recurso existir
+- [ ] Avaliar gráfico simples de evolução quando houver relato de que a lista não basta
+- [ ] Avaliar recálculo assistido ("aplicar novo custo nestas receitas") — hoje a revisão é manual, de propósito
 
 ### Futuro — upload de receita e tabela nutricional (não implementados)
 - [ ] **Upload de receita:** importar uma receita pronta de arquivo ou texto. Fora do escopo da P0-9C; exige decidir formato, mapeamento de ingredientes e o que fazer com o que não casar

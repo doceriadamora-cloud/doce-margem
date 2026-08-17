@@ -28,6 +28,7 @@ import {
   getPackagingsSnapshot,
   subscribePackagings,
 } from "@/components/packagings/packagings-store";
+import RecentPriceChangesCard from "@/components/ingredients/RecentPriceChangesCard";
 import StatCard from "./StatCard";
 
 /**
@@ -122,6 +123,9 @@ export default function Dashboard() {
           enquanto isso não for resolvido (ex.: saia da navegação privada).
         </p>
       )}
+
+      {/* P0-13: some sozinho quando não há aumento recente. */}
+      <RecentPriceChangesCard />
 
       {hasAnyData ? (
         <section

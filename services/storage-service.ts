@@ -13,6 +13,7 @@
  */
 
 import type { AppState, BusinessSettings } from "@/types/app-state";
+import type { IngredientPriceSnapshot, PriceSnapshotSource } from "@/types/price-history";
 import type {
   FixedCost,
   Ingredient,
@@ -82,6 +83,7 @@ export function createEmptyAppState(): AppState {
     quoteDraft: null,
     clients: [],
     savedQuotes: [],
+    ingredientPriceHistory: [],
     updatedAt: new Date().toISOString(),
   };
 }
@@ -307,6 +309,49 @@ function normalizeSavedQuote(raw: unknown): SavedQuote | null {
   };
 }
 
+/** Unidades conhecidas — usadas para validar o que veio gravado. */
+const PURCHASE_UNIT_VALUES: readonly string[] = ["g", "kg", "ml", "l", "un"];
+const BASE_UNIT_VALUES: readonly string[] = ["g", "ml", "un"];
+
+/**
+ * Registro de preço — Fase P0-13.
+ *
+ * Sem `id` ou sem `ingredientId` não há registro: a linha é descartada em vez
+ * de virar histórico órfão que a usuária não consegue relacionar a nada.
+ *
+ * `unitCost` aceita `null` de propósito — é o valor de um ingrediente que não
+ * era calculável no momento do registro, e apagar a linha por isso esconderia
+ * que o preço mudou.
+ */
+function normalizeIngredientPriceSnapshot(raw: unknown): IngredientPriceSnapshot | null {
+  if (!isPlainObject(raw)) return null;
+  if (typeof raw.id !== "string" || raw.id.trim() === "") return null;
+  if (typeof raw.ingredientId !== "string" || raw.ingredientId.trim() === "") return null;
+
+  const purchaseUnit =
+    typeof raw.purchaseUnit === "string" && PURCHASE_UNIT_VALUES.includes(raw.purchaseUnit)
+      ? (raw.purchaseUnit as IngredientPriceSnapshot["purchaseUnit"])
+      : "un";
+  const baseUnit =
+    typeof raw.baseUnit === "string" && BASE_UNIT_VALUES.includes(raw.baseUnit)
+      ? (raw.baseUnit as IngredientPriceSnapshot["baseUnit"])
+      : "un";
+  const source: PriceSnapshotSource = "manual";
+
+  return {
+    id: raw.id,
+    ingredientId: raw.ingredientId,
+    date: typeof raw.date === "string" ? raw.date : new Date().toISOString(),
+    purchaseQuantity: typeof raw.purchaseQuantity === "number" && Number.isFinite(raw.purchaseQuantity) ? raw.purchaseQuantity : 0,
+    purchaseUnit,
+    purchasePrice: typeof raw.purchasePrice === "number" && Number.isFinite(raw.purchasePrice) ? raw.purchasePrice : 0,
+    baseUnit,
+    unitCost: typeof raw.unitCost === "number" && Number.isFinite(raw.unitCost) ? raw.unitCost : null,
+    correctionFactor: typeof raw.correctionFactor === "number" && Number.isFinite(raw.correctionFactor) ? raw.correctionFactor : 1,
+    source,
+  };
+}
+
 function normalizeQuoteDraft(raw: unknown): QuoteDraft | null {
   if (!isPlainObject(raw)) return null;
   if (
@@ -391,6 +436,13 @@ export function normalizeAppState(raw: unknown): AppState {
       ? raw.savedQuotes
           .map((quote) => normalizeSavedQuote(quote))
           .filter((quote): quote is SavedQuote => quote !== null)
+      : [],
+    // P0-13: ausente em qualquer dado anterior à fase, inclusive na cópia em
+    // nuvem da P0-10.
+    ingredientPriceHistory: Array.isArray(raw.ingredientPriceHistory)
+      ? raw.ingredientPriceHistory
+          .map((snapshot) => normalizeIngredientPriceSnapshot(snapshot))
+          .filter((snapshot): snapshot is IngredientPriceSnapshot => snapshot !== null)
       : [],
     updatedAt: typeof raw.updatedAt === "string" ? raw.updatedAt : new Date().toISOString(),
   };
@@ -583,6 +635,16 @@ export function saveClients(clients: Client[]): boolean {
 
 export function loadClients(): Client[] {
   return loadAppState().clients;
+}
+
+export function saveIngredientPriceHistory(
+  ingredientPriceHistory: IngredientPriceSnapshot[],
+): boolean {
+  return saveAppState({ ...loadAppState(), ingredientPriceHistory });
+}
+
+export function loadIngredientPriceHistory(): IngredientPriceSnapshot[] {
+  return loadAppState().ingredientPriceHistory;
 }
 
 export function saveSavedQuotes(savedQuotes: SavedQuote[]): boolean {

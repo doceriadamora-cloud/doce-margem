@@ -2,6 +2,7 @@
 
 import { useSyncExternalStore } from "react";
 import { calculateIngredient } from "@/modules/pricing";
+import IngredientPriceHistory from "./IngredientPriceHistory";
 import {
   getIngredientsServerSnapshot,
   getIngredientsSnapshot,
@@ -55,12 +56,13 @@ export default function IngredientList({ editingId = null, onEdit }: IngredientL
         return (
           <li
             key={ingredient.id}
-            className={`flex items-start justify-between gap-3 rounded-2xl border bg-white p-4 dark:bg-stone-900 ${
+            className={`rounded-2xl border bg-white p-4 dark:bg-stone-900 ${
               isEditing
                 ? "border-rose-300 ring-2 ring-rose-100 dark:border-rose-700 dark:ring-rose-950"
                 : "border-stone-200 dark:border-stone-800"
             }`}
           >
+            <div className="flex items-start justify-between gap-3">
             <div>
               <p className="font-medium text-stone-900 dark:text-stone-50">{ingredient.name}</p>
               <p className="mt-0.5 text-sm text-stone-500 dark:text-stone-400">
@@ -96,7 +98,13 @@ export default function IngredientList({ editingId = null, onEdit }: IngredientL
                 type="button"
                 onClick={() => {
                   if (!ingredient.id) return;
-                  if (!window.confirm("Tem certeza que deseja excluir este ingrediente?")) return;
+                  if (
+                    !window.confirm(
+                      "Excluir este ingrediente? O histórico de preço dele também será removido.",
+                    )
+                  ) {
+                    return;
+                  }
                   removeIngredient(ingredient.id);
                 }}
                 className="rounded-full border border-stone-200 px-3 py-1.5 text-sm font-medium text-stone-500 transition-colors hover:border-red-300 hover:bg-red-50 hover:text-red-700 dark:border-stone-700 dark:text-stone-400 dark:hover:border-red-800 dark:hover:bg-red-950 dark:hover:text-red-300"
@@ -104,6 +112,10 @@ export default function IngredientList({ editingId = null, onEdit }: IngredientL
                 Excluir
               </button>
             </div>
+            </div>
+
+            {/* P0-13: histórico, variação e receitas afetadas — recolhido. */}
+            <IngredientPriceHistory ingredient={ingredient} />
           </li>
         );
       })}

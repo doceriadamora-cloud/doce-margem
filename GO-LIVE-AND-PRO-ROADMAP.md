@@ -1181,3 +1181,46 @@ Acrescenta uma nova, específica desta fase:
 
 5. 🚨 **Testar o `wa.me` em celular real (Android e iOS)** — o comportamento de abrir o
    app varia por sistema, e é o caminho principal de uso.
+
+
+## Atualização P0-13 — histórico de preço (2026-08-15)
+
+Fecha a **única lacuna real** que a pesquisa de concorrência de 15/08 apontou contra o
+grupo de concorrentes SaaS.
+
+Dois deles — docegestao.app e Doce Cálculo — vendem "histórico de preço + alerta de margem
++ recálculo global" no plano base. Era o recurso mais repetido do documento, e estava
+trancado no Pro do Minha Fatia, num plano que não existe.
+
+### O que entrou, e o que deliberadamente não entrou
+
+| Entregue | Fora de escopo |
+|---|---|
+| Histórico por ingrediente, com variação | Recálculo automático em lote |
+| Receitas afetadas, direta e via sub-receita | Alteração de orçamento já emitido |
+| Card no Painel e aviso na Precificação | Estoque, pedidos, agenda, cardápio, relatórios |
+
+O recálculo global que os concorrentes anunciam **não foi implementado de propósito**:
+mudaria silenciosamente o preço de venda de alguém que talvez já tenha combinado outro
+valor com a cliente. Se virar necessidade, o caminho é ação explícita, não efeito
+colateral de editar um ingrediente.
+
+### Fronteira comercial
+
+`price_history` saiu do Pro para o Essencial. Não se encaixa em nenhum dos cinco eixos que
+definem o Pro — não tem custo contínuo, vive no mesmo `AppState` e não depende de serviço
+nenhum. O Pro fica com quatro recursos: engenharia de cardápio, nuvem, PDF avançado e IA.
+
+Isso reforça a recomendação registrada na P0-10: o valor do Pro precisa ser reconstruído
+sobre nuvem, automação e IA, não sobre recursos que o Essencial pode entregar sem custo
+marginal.
+
+### Continua pendente para abrir a venda
+
+Nada de produto. As mesmas de sempre:
+
+1. 🚨 Aplicar `supabase/migrations/0005_user_app_state.sql` (P0-10).
+2. 🚨 Teste manual de dois navegadores (P0-10).
+3. 🚨 Botão de compra, e-mail de recuperação e mensagem de suporte em produção (P0-8A).
+4. 🚨 Testar o `wa.me` em celular real (P0-12).
+5. ⚠️ Decidir a fronteira comercial de `cloud_sync` (P0-10).

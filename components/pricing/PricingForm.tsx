@@ -50,6 +50,7 @@ import {
   getPackagingsSnapshot,
   subscribePackagings,
 } from "@/components/packagings/packagings-store";
+import RecipePriceChangeNotice from "./RecipePriceChangeNotice";
 import { formatCurrency } from "./pricing-formatters";
 import PricingResult from "./PricingResult";
 
@@ -355,6 +356,10 @@ export default function PricingForm() {
             aplicarem e informe custo fixo e lucro desejado para ver o preço sugerido.
           </p>
         )}
+
+        {/* P0-13: avisa que um insumo desta receita ficou mais caro. Informa,
+            não bloqueia — a decisão de preço continua sendo dela. */}
+        {selectedRecipe && <RecipePriceChangeNotice recipe={selectedRecipe} />}
 
         {selectedRecipe &&
           (recipeCalc?.ok ? (

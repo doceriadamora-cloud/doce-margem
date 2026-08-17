@@ -64,10 +64,10 @@ A oferta disponível hoje é o **Minha Fatia Essencial**. O Pro Anual é uma pos
 | Compartilhar orçamento no WhatsApp | ✅ | ✅ |
 | Identidade visual do orçamento | ✅ | ✅ |
 | Backup export / import | ✅ | ✅ |
-| Templates básicos de receitas | ✅ | ✅ |
+| Templates básicos de receitas | — | ✅ |
 | Modo simples + avançado básico | ✅ | ✅ |
 | Modo avançado (fator de correção, perda, observações) | ✅ | ✅ |
-| Histórico de preços dos ingredientes | — | ✅ |
+| Histórico de preço dos ingredientes + receitas afetadas | ✅ | ✅ |
 | Alerta de aumento de custo | — | ✅ |
 | Sincronização em nuvem / multi-dispositivo | — | ✅ |
 | Scanner de nota/cupom com IA | — | ✅ |
@@ -438,6 +438,65 @@ Marcar é uma **ação explícita** no painel, nunca automática. Clicar em comp
 ### Fora do escopo
 
 PDF no servidor, upload de arquivo, link público de orçamento, Supabase Storage e WhatsApp Business API. Nenhum deles foi implementado, e o envio automático de anexo depende de um deles.
+
+---
+
+## 11-E. Histórico de preço e receitas afetadas (Fase P0-13)
+
+Quando o preço de um ingrediente muda, o app registra e mostra **quais receitas foram atingidas** — inclusive as que usam o ingrediente sem saber, através de uma sub-receita.
+
+### Onde o histórico vive
+
+Coleção própria no `AppState` (`ingredientPriceHistory`), **não** um campo dentro de `Ingredient`. O tipo de domínio entra em `calculateIngredient` e viaja dentro de cada cálculo de receita; pendurar nele uma lista que só cresce faria toda conta carregar dado que a conta nunca usa.
+
+Sem migration: viaja no JSONB de `user_app_state` que a P0-10 já criou, e entra no backup manual pelo mesmo caminho.
+
+### Quando um registro nasce
+
+| Ação | Registro? |
+|---|---|
+| Cadastrar ingrediente | ✅ primeiro registro |
+| Mudar preço, quantidade, unidade de compra, unidade-base ou fator de correção | ✅ |
+| Mudar só o nome, a categoria ou a observação | ❌ |
+| Salvar de novo o mesmo valor | ❌ |
+| Excluir ingrediente | histórico dele é removido junto |
+
+`baseUnit` entra na lista de campos relevantes apesar de parecer apresentação: trocar a unidade-base muda o divisor do custo, e portanto muda o número que as receitas consomem.
+
+A gravação acontece em `ingredients-store`, na **ação de salvar** — nunca em render. Registrar durante a pintura faria cada repintura da lista criar uma linha nova.
+
+### A variação compara custo por unidade, não preço do pacote
+
+É a diferença entre uma resposta certa e uma errada:
+
+```
+1 kg por R$ 52  →  1 kg por R$ 68   =  +30,8%  (ficou mais caro)
+1 kg por R$ 52  →  2 kg por R$ 68   =  −34,6%  (pacote 30% mais caro, grama 35% mais barato)
+```
+
+Quem decide preço de venda precisa do segundo número. Comparar o preço do pacote diria "aumentou" nos dois casos.
+
+### Receitas afetadas, direta e indiretamente
+
+`lib/recipe-usage.ts` percorre o grafo de sub-receitas da P0-9B. Chocolate está no "Brigadeiro base"; o "Bolo de pote" usa o brigadeiro como componente — então o bolo também encareceu, e é marcado como **via sub-receita**.
+
+Esse é justamente o caso que a usuária esqueceria sozinha, porque o chocolate não aparece na lista de itens do bolo.
+
+A travessia tem proteção contra referência circular. A P0-9B impede ciclo ao salvar, mas um backup importado pode trazer um — e sem a guarda a aba congelaria.
+
+### Onde aparece
+
+| Tela | O quê |
+|---|---|
+| `/ingredientes` | "Ver histórico" recolhido em cada card: alerta, registros com variação, receitas afetadas |
+| Painel | Card "Ingredientes com mudança de preço" — só aumentos dos últimos 30 dias; some quando não há |
+| `/precificacao` | Aviso discreto quando a receita selecionada usa insumo reajustado |
+
+### O que a fase **não** faz
+
+Não recalcula preço de venda salvo, não altera orçamento já emitido e não força nada. O aviso informa; a decisão continua sendo dela. Os custos exibidos já usam o preço atual — o que fica congelado é o que ela salvou.
+
+Sem estoque, sem pedidos, sem agenda, sem cardápio, sem relatórios.
 
 ---
 

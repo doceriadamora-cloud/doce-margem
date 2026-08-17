@@ -15,6 +15,7 @@ import { reloadCustomChannelsFromStorage } from "@/components/channels/channels-
 import { reloadClientsFromStorage } from "@/components/clients/clients-store";
 import { reloadFixedCostsFromStorage } from "@/components/fixed-costs/fixed-costs-store";
 import { reloadIngredientsFromStorage } from "@/components/ingredients/ingredients-store";
+import { reloadPriceHistoryFromStorage } from "@/components/ingredients/price-history-store";
 import { reloadPackagingsFromStorage } from "@/components/packagings/packagings-store";
 import { reloadQuoteDraftFromStorage } from "@/components/quotes/quote-draft-store";
 import { reloadQuoteIdentityFromStorage } from "@/components/quotes/quote-identity-store";
@@ -34,4 +35,6 @@ export function reloadAllStoresFromStorage(): void {
   // P0-11
   reloadClientsFromStorage();
   reloadSavedQuotesFromStorage();
+  // P0-13
+  reloadPriceHistoryFromStorage();
 }

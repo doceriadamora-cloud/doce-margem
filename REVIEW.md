@@ -2420,3 +2420,55 @@ matriz **31/31**.
 - `npm run lint`: passou.
 - `npm run build`: passou no Next.js 16.2.9; 22 rotas.
 - `git diff --check`: passou sem erros.
+
+
+---
+
+## Fase P0-13 — Histórico de preço e receitas afetadas (2026-08-15)
+
+> Sem migration, sem SQL. Nenhum arquivo de `modules/` alterado — `types/pricing.ts`
+> também não.
+
+### A decisão que mais importa
+
+**A variação compara custo por unidade-base, não preço do pacote.** Comprar 2 kg por
+R$ 68 depois de 1 kg por R$ 52 é pacote 30% mais caro e grama 35% mais barato. Comparar
+o preço do pacote mandaria revisar receitas que ficaram mais baratas — e silenciaria o
+caso oposto, embalagem menor pelo mesmo preço.
+
+### Verificação isolada — 48/48
+
+| Grupo | Cobertura |
+|---|---|
+| Quando registrar | preço, quantidade, unidade, unidade-base e fator disparam; nome e categoria não |
+| Duplicata | mesmo valor não vira linha nova |
+| **Variação** | +30,8% do enunciado · **queda de 34,6% no caso da embalagem maior** · estável · sem custo · divisão por zero |
+| Corte | 50 registros, mantém os mais recentes, não toca em outro ingrediente |
+| Aumentos recentes | aparece dentro de 30 dias; some depois; queda nunca vira alerta |
+| **Receitas afetadas** | direto · **via sub-receita** · 3 níveis de profundidade · medida caseira · **ciclo não trava** |
+| Compatibilidade | dado da P0-12 abre intacto; registro sem id é descartado; `unitCost: null` é aceito |
+
+Regressões: P0-12 **32/32**, P0-11 **31/31**, P0-10 **19/19**, P0-9C **46/46**,
+P0-9B **13/13**, matriz **31/31**.
+
+### Riscos conhecidos
+
+- **Crescimento do `AppState`.** Mitigado com teto de 50 registros por ingrediente, mas o
+  estado inteiro continua indo para o JSONB a cada gravação. Vale medir em produção.
+- **Janela fixa de 30 dias** para "recente". Sem dado de uso real para calibrar; é um
+  palpite razoável, não um número apurado.
+- **A revisão é manual, de propósito.** Recalcular em lote mudaria silenciosamente o preço
+  de quem já combinou outro valor com a cliente.
+- **`unitCost` gravado** contraria a regra de não persistir derivado. Exceção documentada:
+  histórico é registro do passado.
+
+### Achado corrigido
+
+O `README.md` prometia "Templates básicos de receitas ✅" no Essencial, e o recurso não
+existe no código. Movido para a coluna do Pro futuro.
+
+### Validação
+- `npm run typecheck`: passou.
+- `npm run lint`: passou.
+- `npm run build`: passou no Next.js 16.2.9; 22 rotas.
+- `git diff --check`: passou sem erros.

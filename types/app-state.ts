@@ -14,6 +14,7 @@ import type {
   SalesChannel,
 } from "@/types/pricing";
 import type { Client, QuoteDraft, QuoteIdentity, SavedQuote } from "@/types/quotes";
+import type { IngredientPriceSnapshot } from "@/types/price-history";
 
 /**
  * Configurações financeiras do negócio — Fase 2-6.
@@ -67,6 +68,13 @@ export interface AppState {
   clients: Client[];
   /** Orçamentos guardados no histórico — P0-11. Mesma regra de compatibilidade. */
   savedQuotes: SavedQuote[];
+  /**
+   * Histórico de preço dos ingredientes — P0-13. Coleção própria, e não um
+   * campo dentro de `Ingredient`, para o tipo de domínio não carregar uma lista
+   * que só cresce por dentro de cada cálculo. Ausente em dados anteriores à
+   * fase; a normalização devolve `[]`.
+   */
+  ingredientPriceHistory: IngredientPriceSnapshot[];
   /** Data/hora ISO da última gravação. */
   updatedAt: string;
 }

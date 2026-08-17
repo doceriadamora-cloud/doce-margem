@@ -29,13 +29,14 @@ export type FeatureKey =
   | "pricing"
   | "backup_export_import"
   | "account"
-  // Essencial — planejados (motor existe, interface não)
+  // Essencial — "avançado básico", entregues nas fases P0-9A/B/C
   | "advanced_mode"
   | "sub_recipes"
   | "household_measures"
+  // Essencial — entregue na P0-13
+  | "price_history"
   // Pro Anual — planejados
   | "menu_engineering"
-  | "price_history"
   | "cloud_sync"
   | "pdf_export"
   | "ai_scanner";
@@ -173,6 +174,18 @@ const FEATURES: Record<FeatureKey, FeatureDefinition> = {
     status: "available",
   },
 
+  price_history: {
+    key: "price_history",
+    label: "Histórico de preço dos ingredientes",
+    description:
+      "Veja como o preço de cada ingrediente mudou e quais receitas foram afetadas quando ele sobe.",
+    minimumPlan: "essential",
+    // P0-13: entregue no Essencial. Guardar o histórico não tem custo contínuo
+    // — vive no mesmo AppState do resto —, e é o recurso que transforma "calculei
+    // uma vez" em "o app me avisa quando muda".
+    status: "available",
+  },
+
   /* ── Pro Anual, planejados ──
    *
    * Critério do Pro (decisão comercial de 2026-08-06, DECISIONS.md): recorrência,
@@ -185,13 +198,6 @@ const FEATURES: Record<FeatureKey, FeatureDefinition> = {
     label: "Engenharia de cardápio",
     description:
       "Cruze popularidade e margem para saber quais doces puxam o lucro e quais só dão trabalho.",
-    minimumPlan: "pro_annual",
-    status: "planned",
-  },
-  price_history: {
-    key: "price_history",
-    label: "Histórico de preços",
-    description: "Acompanhe a variação do custo dos ingredientes ao longo do tempo.",
     minimumPlan: "pro_annual",
     status: "planned",
   },

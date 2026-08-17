@@ -18,7 +18,12 @@
  */
 
 import { loadIngredients, saveIngredients } from "@/services";
+import { isCostRelevantChange } from "@/lib/price-history";
 import type { Ingredient } from "@/types/pricing";
+import {
+  recordIngredientPrice,
+  removeHistoryForIngredient,
+} from "./price-history-store";
 
 type Listener = () => void;
 
@@ -83,6 +88,9 @@ export function addIngredient(ingredient: Ingredient): boolean {
   const next = [...ensureLoaded(), withId];
   const persisted = saveIngredients(next);
   cachedIngredients = next;
+  // P0-13: primeiro registro de preço. Feito aqui, e não na tela, para que
+  // nenhum caminho de cadastro consiga criar ingrediente sem histórico.
+  recordIngredientPrice(withId);
   notify();
   return persisted;
 }
@@ -92,6 +100,9 @@ export function removeIngredient(id: string): boolean {
   const next = ensureLoaded().filter((item) => item.id !== id);
   const persisted = saveIngredients(next);
   cachedIngredients = next;
+  // P0-13: o histórico só existe em função do ingrediente. Sem ele, não há onde
+  // mostrar a informação — e ela cresceria para sempre.
+  removeHistoryForIngredient(id);
   notify();
   return persisted;
 }
@@ -102,9 +113,19 @@ export function removeIngredient(id: string): boolean {
  * preocupar em manter o `id` do candidato coerente.
  */
 export function updateIngredient(id: string, updated: Ingredient): boolean {
-  const next = ensureLoaded().map((item) => (item.id === id ? { ...updated, id } : item));
+  const current = ensureLoaded();
+  const previous = current.find((item) => item.id === id) ?? null;
+  const next = current.map((item) => (item.id === id ? { ...updated, id } : item));
   const persisted = saveIngredients(next);
   cachedIngredients = next;
+
+  // P0-13: só registra quando algum campo que MUDA O CUSTO foi alterado.
+  // Corrigir o nome de um ingrediente não vira linha no histórico — senão a
+  // lista encheria de registros idênticos e a variação perderia o sentido.
+  if (previous !== null && isCostRelevantChange(previous, { ...updated, id })) {
+    recordIngredientPrice({ ...updated, id });
+  }
+
   notify();
   return persisted;
 }
