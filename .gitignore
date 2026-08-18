@@ -43,3 +43,7 @@ next-env.d.ts
 
 # Claude local settings
 .claude/
+
+# Local AI agent skills
+.agents/
+skills-lock.json
